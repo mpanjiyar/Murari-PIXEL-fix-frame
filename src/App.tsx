@@ -59,6 +59,11 @@ import PFLogo from './components/PFLogo';
 import CursorEffect from './components/CursorEffect';
 import WhatsAppIcon from './components/WhatsAppIcon';
 import { ImageUploader } from './components/ImageUploader';
+import { initAuth, googleSignIn, googleSignOut } from './lib/driveAuth';
+import { uploadBackupToDrive, listBackupsOnDrive, downloadBackupFromDrive, deleteBackupFromDrive, upsertLiveSyncBackup } from './lib/driveService';
+import type { DriveBackupFile } from './lib/driveService';
+import type { User as FirebaseUser } from 'firebase/auth';
+import { HardDrive, Cloud, LogOut, AlertCircle } from 'lucide-react';
 
 // Structuring our Theme Styles
 interface ThemeStyle {
@@ -202,6 +207,24 @@ export default function App() {
     return INSTAGRAM_POSTS;
   });
 
+  const [instagramAccessToken, setInstagramAccessToken] = useState<string>(() => {
+    return localStorage.getItem('mp_instagram_access_token') || '';
+  });
+  const [instagramSyncError, setInstagramSyncError] = useState<string>('');
+  const [isSyncingInstagram, setIsSyncingInstagram] = useState<boolean>(false);
+
+  // Google Drive Integration States
+  const [driveUser, setDriveUser] = useState<FirebaseUser | null>(null);
+  const [driveToken, setDriveToken] = useState<string | null>(null);
+  const [isDriveLoading, setIsDriveLoading] = useState<boolean>(false);
+  const [isDriveAutosaving, setIsDriveAutosaving] = useState<boolean>(false);
+  const [driveBackups, setDriveBackups] = useState<DriveBackupFile[]>([]);
+  const [driveStatusMessage, setDriveStatusMessage] = useState<string>('');
+  const [driveErrorMessage, setDriveErrorMessage] = useState<string>('');
+
+  const isRestoringRef = useRef<boolean>(false);
+  const isInitialMountRef = useRef<boolean>(true);
+
   const [testimonials, setTestimonials] = useState<any[]>(() => {
     const saved = localStorage.getItem('mp_testimonials_custom');
     if (saved) {
@@ -227,7 +250,7 @@ export default function App() {
   });
 
   const [profilePhotoUrl, setProfilePhotoUrl] = useState<string>(() => {
-    return localStorage.getItem('mp_profile_photo_url') || 'https://images.unsplash.com/photo-1624561172888-ac93c696e10c?auto=format&fit=crop&q=80&w=600';
+    return localStorage.getItem('mp_profile_photo_url') || 'https://images.unsplash.com/photo-1607990283143-e81e7a2c93ab?auto=format&fit=crop&q=80&w=600';
   });
 
   const [bioHeadline, setBioHeadline] = useState<string>(() => {
@@ -318,6 +341,323 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('mp_instagram_posts', JSON.stringify(instagramPosts));
   }, [instagramPosts]);
+
+  useEffect(() => {
+    localStorage.setItem('mp_instagram_access_token', instagramAccessToken);
+  }, [instagramAccessToken]);
+
+  const syncInstagram = async (tokenInput?: string) => {
+    const token = tokenInput !== undefined ? tokenInput : instagramAccessToken;
+    if (!token) {
+      setInstagramSyncError('No Instagram Access Token configured.');
+      return;
+    }
+
+    setIsSyncingInstagram(true);
+    setInstagramSyncError('');
+
+    try {
+      const response = await fetch(
+        `https://graph.instagram.com/me/media?fields=id,caption,media_type,media_url,permalink,thumbnail_url,timestamp,username&access_token=${token}`
+      );
+      
+      const json = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        const errMsg = json?.error?.message || `HTTP error ${response.status}`;
+        throw new Error(errMsg);
+      }
+
+      const mediaList = json.data || [];
+
+      if (mediaList.length === 0) {
+        setInstagramSyncError('No posts found on this Instagram account.');
+        setIsSyncingInstagram(false);
+        return;
+      }
+
+      // Map to our standard post format
+      const mappedPosts = mediaList.map((item: any) => ({
+        id: item.id,
+        imageUrl: item.media_type === 'VIDEO' ? (item.thumbnail_url || item.media_url) : item.media_url,
+        likes: Math.floor(Math.random() * 200) + 150, // Simulated counts
+        comments: Math.floor(Math.random() * 25) + 10, // Simulated counts
+        caption: item.caption || 'Captured with precision. ✨ #PixelFrame #PixelFix',
+        permalink: item.permalink || 'https://instagram.com/mpanjiyar1',
+        timestamp: item.timestamp
+      }));
+
+      setInstagramPosts(mappedPosts);
+      localStorage.setItem('mp_instagram_posts', JSON.stringify(mappedPosts));
+      localStorage.setItem('mp_instagram_last_sync', Date.now().toString());
+      setInstagramSyncError('');
+    } catch (err: any) {
+      console.error('Error syncing Instagram:', err);
+      setInstagramSyncError(err.message || 'Verification failed. Please check your token validity.');
+    } finally {
+      setIsSyncingInstagram(false);
+    }
+  };
+
+  useEffect(() => {
+    const lastSync = localStorage.getItem('mp_instagram_last_sync');
+    const now = Date.now();
+    
+    if (instagramAccessToken) {
+      const fifteenMinutes = 15 * 60 * 1000;
+      if (!lastSync || (now - parseInt(lastSync, 10)) > fifteenMinutes) {
+        syncInstagram(instagramAccessToken);
+      }
+    }
+  }, [instagramAccessToken]);
+
+  // --- Google Drive Backup, List, Sync, and Restore Handlers ---
+  const loadBackups = async (token: string) => {
+    try {
+      const list = await listBackupsOnDrive(token);
+      setDriveBackups(list);
+    } catch (err: any) {
+      console.error('Failed to retrieve cloud backups list:', err);
+      setDriveErrorMessage('Failed to list backups from Google Drive: ' + (err.message || err));
+    }
+  };
+
+  useEffect(() => {
+    const unsubscribe = initAuth(
+      (user, token) => {
+        setDriveUser(user);
+        setDriveToken(token);
+        loadBackups(token);
+      },
+      () => {
+        setDriveUser(null);
+        setDriveToken(null);
+        setDriveBackups([]);
+      }
+    );
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, []);
+
+  const handleDriveSignIn = async () => {
+    setDriveErrorMessage('');
+    setDriveStatusMessage('');
+    setIsDriveLoading(true);
+    try {
+      const result = await googleSignIn();
+      if (result) {
+        setDriveUser(result.user);
+        setDriveToken(result.accessToken);
+        setDriveStatusMessage('Authorized successfully with Google Drive!');
+        await loadBackups(result.accessToken);
+      }
+    } catch (err: any) {
+      setDriveErrorMessage(err.message || 'Verification popup closed or connection failed.');
+    } finally {
+      setIsDriveLoading(false);
+    }
+  };
+
+  const handleDriveSignOut = async () => {
+    setDriveErrorMessage('');
+    setDriveStatusMessage('');
+    try {
+      await googleSignOut();
+      setDriveUser(null);
+      setDriveToken(null);
+      setDriveBackups([]);
+      setDriveStatusMessage('Logged out from Google Workspace.');
+    } catch (err: any) {
+      setDriveErrorMessage(err.message || 'Logout sequence failed.');
+    }
+  };
+
+  const handleCreateBackup = async () => {
+    if (!driveToken) {
+      setDriveErrorMessage('You are not currently authenticated with Google Drive.');
+      return;
+    }
+    setDriveErrorMessage('');
+    setDriveStatusMessage('Publishing secure cloud bundle...');
+    setIsDriveLoading(true);
+
+    try {
+      const backupPayload = {
+        galleryItems,
+        contactMessages,
+        notificationLogs,
+        itServices,
+        photoServices,
+        instagramPosts,
+        testimonials,
+        pixelFixReviews,
+        heroHeadline,
+        heroSubheadline,
+        profilePhotoUrl,
+        bioHeadline,
+        bioText,
+        instagramAccessToken,
+        meta: {
+          exporterEmail: driveUser?.email || 'Mpanjiyar100@gmail.com',
+          exportedAt: new Date().toISOString(),
+          version: '1.0.0'
+        }
+      };
+
+      const nowRaw = new Date();
+      const dateFormatted = `${nowRaw.getFullYear()}-${String(nowRaw.getMonth() + 1).padStart(2, '0')}-${String(nowRaw.getDate()).padStart(2, '0')}_${String(nowRaw.getHours()).padStart(2, '0')}-${String(nowRaw.getMinutes()).padStart(2, '0')}`;
+      const filename = `PixelFrames_Backup_${dateFormatted}.json`;
+
+      await uploadBackupToDrive(driveToken, backupPayload, filename);
+      setDriveStatusMessage(`Success! Saved secure backup file "${filename}" directly to your Google Drive root.`);
+      await loadBackups(driveToken);
+    } catch (err: any) {
+      setDriveErrorMessage('Failed to save to Google Drive: ' + (err.message || err));
+    } finally {
+      setIsDriveLoading(false);
+    }
+  };
+
+  const handleRestoreBackup = async (backupFile: DriveBackupFile) => {
+    if (!driveToken) {
+      setDriveErrorMessage('You are not authenticated with Google Drive.');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Are you sure you want to restore the backup "${backupFile.name}" created at ${new Date(backupFile.createdTime).toLocaleString()}?\n\nThis will overwrite all current services, headlines, custom gallery images, and message logs with the backed-up data.`
+    );
+    if (!confirmed) return;
+
+    setDriveErrorMessage('');
+    setDriveStatusMessage('Retrieving cloud archive package...');
+    setIsDriveLoading(true);
+
+    try {
+      isRestoringRef.current = true;
+      const backupData = await downloadBackupFromDrive(driveToken, backupFile.id);
+      
+      // Perform validation and graceful state restoration
+      if (backupData.galleryItems) setGalleryItems(backupData.galleryItems);
+      if (backupData.contactMessages) setContactMessages(backupData.contactMessages);
+      if (backupData.notificationLogs) setNotificationLogs(backupData.notificationLogs);
+      if (backupData.itServices) setItServices(backupData.itServices);
+      if (backupData.photoServices) setPhotoServices(backupData.photoServices);
+      if (backupData.instagramPosts) setInstagramPosts(backupData.instagramPosts);
+      if (backupData.testimonials) setTestimonials(backupData.testimonials);
+      if (backupData.pixelFixReviews) setPixelFixReviews(backupData.pixelFixReviews);
+      
+      if (backupData.heroHeadline !== undefined) setHeroHeadline(backupData.heroHeadline);
+      if (backupData.heroSubheadline !== undefined) setHeroSubheadline(backupData.heroSubheadline);
+      if (backupData.profilePhotoUrl !== undefined) setProfilePhotoUrl(backupData.profilePhotoUrl);
+      if (backupData.bioHeadline !== undefined) setBioHeadline(backupData.bioHeadline);
+      if (backupData.bioText !== undefined) setBioText(backupData.bioText);
+      if (backupData.instagramAccessToken !== undefined) setInstagramAccessToken(backupData.instagramAccessToken);
+
+      setDriveStatusMessage('Congratulations! All settings, custom portfolio images, and message logs were successfully restored directly from Google Drive!');
+      
+      setTimeout(() => {
+        isRestoringRef.current = false;
+      }, 1500);
+    } catch (err: any) {
+      isRestoringRef.current = false;
+      setDriveErrorMessage('Failed to parse backup or restore states: ' + (err.message || err));
+    } finally {
+      setIsDriveLoading(false);
+    }
+  };
+
+  // Automated Google Drive Synchronizer
+  useEffect(() => {
+    if (!driveToken || !driveUser) return;
+    if (isRestoringRef.current) return;
+
+    // We skip the initial mount to prevent a redundant write on boot,
+    // but synchronize whenever states actually mutate.
+    if (isInitialMountRef.current) {
+      isInitialMountRef.current = false;
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsDriveAutosaving(true);
+      setDriveErrorMessage('');
+
+      try {
+        const backupPayload = {
+          galleryItems,
+          contactMessages,
+          notificationLogs,
+          itServices,
+          photoServices,
+          instagramPosts,
+          testimonials,
+          pixelFixReviews,
+          heroHeadline,
+          heroSubheadline,
+          profilePhotoUrl,
+          bioHeadline,
+          bioText,
+          instagramAccessToken,
+          meta: {
+            exporterEmail: driveUser?.email || 'Mpanjiyar100@gmail.com',
+            exportedAt: new Date().toISOString(),
+            isAutoSave: true,
+            version: '1.0.0'
+          }
+        };
+
+        await upsertLiveSyncBackup(driveToken, backupPayload);
+        
+        // Silently reload the backup catalog to show the updated file
+        const list = await listBackupsOnDrive(driveToken);
+        setDriveBackups(list);
+      } catch (err: any) {
+        console.error('Automated back up failed:', err);
+        setDriveErrorMessage('Auto-save sync to Google Drive failed: ' + (err.message || err));
+      } finally {
+        setIsDriveAutosaving(false);
+      }
+    }, 3000); // 3-second debounce window
+
+    return () => clearTimeout(timer);
+  }, [
+    galleryItems,
+    profilePhotoUrl,
+    heroHeadline,
+    heroSubheadline,
+    bioHeadline,
+    bioText,
+    itServices,
+    photoServices,
+    testimonials,
+    pixelFixReviews,
+    instagramPosts,
+    driveToken,
+    driveUser
+  ]);
+
+  const handleDeleteBackup = async (backupFile: DriveBackupFile) => {
+    if (!driveToken) return;
+
+    const confirmed = window.confirm(`Permanently delete the cloud backup item "${backupFile.name}" from your Google Drive?`);
+    if (!confirmed) return;
+
+    setDriveErrorMessage('');
+    setDriveStatusMessage('Deleting cloud file...');
+    setIsDriveLoading(true);
+
+    try {
+      await deleteBackupFromDrive(driveToken, backupFile.id);
+      setDriveStatusMessage('Successfully deleted the cloud backup record from Google Drive.');
+      await loadBackups(driveToken);
+    } catch (err: any) {
+      setDriveErrorMessage('Failed to delete Google Drive file: ' + (err.message || err));
+    } finally {
+      setIsDriveLoading(false);
+    }
+  };
 
   useEffect(() => {
     localStorage.setItem('mp_testimonials_custom', JSON.stringify(testimonials));
@@ -2135,15 +2475,27 @@ export default function App() {
                   </div>
                   
                   <div>
-                    <h3 className={`font-extrabold text-sm flex items-center gap-1.5 pt-0.5 ${
+                    <h3 className={`font-extrabold text-sm flex items-center gap-2 pt-0.5 ${
                       currentTheme === 'light' ? 'text-slate-900' : 'text-white'
                     }`}>
                       <span>Instagram Visuals feed</span>
                       <a href="https://instagram.com/mpanjiyar1" target="_blank" rel="noreferrer" className="text-xs text-slate-400 hover:text-[#FF5500] transition-colors">
                         @mpanjiyar1 <ExternalLink size={10} className="inline ml-1" />
                       </a>
+                      {instagramAccessToken && (
+                        <span className="text-[8px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 bg-green-500/10 text-green-400 rounded-md border border-green-500/20 font-mono">
+                          Live Sync Link
+                        </span>
+                      )}
                     </h3>
-                    <p className="text-[10px] text-slate-500">Discover live photographic assignments, edits, and portfolio outtakes</p>
+                    <p className="text-[10px] text-slate-500 flex items-center flex-wrap gap-2 leading-none mt-1">
+                      <span>Discover live photographic assignments, edits, and portfolio outtakes</span>
+                      {isSyncingInstagram && (
+                        <span className="text-[10px] text-[#FF5500] font-black flex items-center gap-1 animate-pulse font-mono bg-[#FF5500]/10 px-1.5 py-0.5 rounded">
+                          <RefreshCw size={9} className="animate-spin" /> Auto-Updating Feed...
+                        </span>
+                      )}
+                    </p>
                   </div>
                 </div>
                 
@@ -2164,6 +2516,11 @@ export default function App() {
                 {instagramPosts.map(post => (
                   <div
                     key={post.id}
+                    onClick={() => {
+                      if (!isAuthorized && (post.permalink || post.imageUrl)) {
+                        window.open(post.permalink || post.imageUrl, '_blank');
+                      }
+                    }}
                     className={`group rounded-xl overflow-hidden aspect-square relative transition-all cursor-pointer border ${
                       currentTheme === 'light' ? 'bg-slate-50 border-slate-200 hover:border-slate-400' : 'bg-black border-white/5 hover:border-zinc-500'
                     }`}
@@ -2665,6 +3022,278 @@ export default function App() {
                       )}
                     </div>
 
+                    {/* Instagram Real-time Api Sync Panel */}
+                    <div className={`p-6 rounded-3xl border ${s.card} space-y-4`}>
+                      <h3 className="text-lg font-black text-white flex items-center gap-2">
+                        <Instagram size={18} className="text-[#FF5500]" />
+                        <span>Instagram Automated Sync Hub</span>
+                      </h3>
+
+                      <p className="text-xs text-slate-400 leading-normal">
+                        Connect your portfolio live to your actual Instagram stream! Provide your Instagram Long-Lived Access Token to display all live posts automatically on the Origin section.
+                      </p>
+
+                      <div className="space-y-3 text-left">
+                        <div className="space-y-1">
+                          <label className="text-xs font-extrabold text-slate-400 block">Instagram Access Token:</label>
+                          <input
+                            type="password"
+                            value={instagramAccessToken}
+                            onChange={(e) => setInstagramAccessToken(e.target.value)}
+                            placeholder="Enter your Instagram Long-Lived Access Token..."
+                            className={`w-full px-4 py-2.5 rounded-xl text-xs outline-none transition-all ${s.input}`}
+                          />
+                        </div>
+
+                        {instagramSyncError && (
+                          <div className="p-3 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-xl text-[11px] leading-relaxed font-mono">
+                            ⚠️ <strong>Sync Flag Error:</strong> {instagramSyncError}
+                          </div>
+                        )}
+
+                        <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => syncInstagram(instagramAccessToken)}
+                            disabled={isSyncingInstagram || !instagramAccessToken}
+                            className={`flex-[2] py-2.5 rounded-xl text-xs font-extrabold uppercase tracking-wide flex items-center justify-center gap-1.5 transition-all ${
+                              isSyncingInstagram 
+                                ? 'bg-[#FF5500]/50 text-white cursor-not-allowed'
+                                : instagramAccessToken 
+                                  ? 'bg-[#FF5500] hover:bg-[#FF4400] text-white cursor-pointer hover:scale-[1.01]' 
+                                  : 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
+                            }`}
+                          >
+                            <RefreshCw size={13} className={isSyncingInstagram ? 'animate-spin' : ''} />
+                            <span>{isSyncingInstagram ? 'Synchronizing...' : 'Sync Instagram Now'}</span>
+                          </button>
+
+                          {instagramAccessToken && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (confirm('Disconnect Instagram Sync and revert to default curated portfolio posts?')) {
+                                  setInstagramAccessToken('');
+                                  localStorage.removeItem('mp_instagram_access_token');
+                                  localStorage.removeItem('mp_instagram_last_sync');
+                                  setInstagramPosts(INSTAGRAM_POSTS);
+                                  localStorage.removeItem('mp_instagram_posts');
+                                  setInstagramSyncError('');
+                                }
+                              }}
+                              className="flex-1 py-1.5 bg-rose-600/10 hover:bg-rose-600/20 text-rose-400 border border-rose-500/20 text-xs font-extrabold uppercase rounded-xl transition-all cursor-pointer"
+                            >
+                              Disconnect
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Automated Sync Timing Status tracker */}
+                        {localStorage.getItem('mp_instagram_last_sync') && (
+                          <div className="text-[10px] text-green-400 font-mono text-left bg-green-950/20 border border-green-500/10 p-2.5 rounded-xl flex items-center justify-between">
+                            <span>✓ Last Stream Fetch Success:</span>
+                            <span>
+                              {new Date(parseInt(localStorage.getItem('mp_instagram_last_sync') || '0', 10)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Integration Helper Guidance */}
+                        <div className="p-4 bg-black/45 border border-white/5 rounded-2xl space-y-2.5">
+                          <span className="text-[10.5px] font-bold uppercase tracking-wider text-[#FF5500] block">🔑 How to Generate Your Token (Takes 2 Minutes)</span>
+                          <ol className="list-decimal list-inside text-[10px] text-slate-500 space-y-1.5 leading-relaxed pl-1">
+                            <li>Go to <a href="https://developers.facebook.com" target="_blank" rel="noreferrer" className="text-white hover:underline decoration-[#FF5500]">Meta Developers Portal</a> and create an App.</li>
+                            <li>Add the <strong>Instagram Basic Display API</strong> and scroll to test accounts.</li>
+                            <li>Add your Instagram Handle <strong>@mpanjiyar1</strong> under Tester Invitation.</li>
+                            <li>Log in to your Instagram on Web, go to <i>Settings &gt; Apps &amp; Websites</i> and accept the request.</li>
+                            <li>Return to Developers console, go to <strong>User Token Generator</strong> and click <strong>Generate</strong>!</li>
+                          </ol>
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
+
+                  {/* GOOGLE DRIVE SYNC & ARCHIVE SUITE (FULL WIDTH CONTAINER) */}
+                  <div className={`p-6 rounded-3xl border ${s.card} space-y-6 lg:col-span-12 mt-4 text-left`}>
+                    <h3 className="text-lg font-black text-white flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-2">
+                        <Cloud size={18} className="text-[#FF5500]" />
+                        <span>Google Drive Cloud Backup & Recovery Suite</span>
+                      </div>
+                      {driveUser && (
+                        <div className="flex items-center gap-1.5">
+                          {isDriveAutosaving ? (
+                            <span className="text-[10px] bg-amber-500/10 text-amber-400 font-mono tracking-wider font-extrabold px-2.5 py-1 rounded-full border border-amber-500/20 animate-pulse flex items-center gap-1.5 leading-none">
+                              <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-bounce inline-block" />
+                              Auto-syncing photo update...
+                            </span>
+                          ) : (
+                            <span className="text-[10px] bg-green-500/10 text-green-400 font-mono tracking-wider font-extrabold px-2.5 py-1 rounded-full border border-green-500/20 flex items-center gap-1.5 leading-none">
+                              <span className="w-1.5 h-1.5 bg-green-450 rounded-full inline-block" />
+                              Live Drive Sync Active
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </h3>
+
+                    <p className="text-xs text-slate-400 leading-relaxed">
+                      Secure and backup all your portfolio customizations, live Instagram stream bindings, and client inquiry log streams directly into your personal Google Drive storage. Restores take a single click!
+                    </p>
+
+                    {!driveUser ? (
+                      <div className="flex flex-col items-center justify-center p-8 bg-black/35 rounded-2xl border border-dashed border-white/10 text-center space-y-4">
+                        <div className="w-12 h-12 bg-[#FF5500]/10 rounded-full flex items-center justify-center text-[#FF5500]">
+                          <HardDrive size={24} />
+                        </div>
+                        <div className="space-y-1">
+                          <h4 className="text-sm font-bold text-white">Google Workspace Drive Integration</h4>
+                          <p className="text-xs text-slate-400 max-w-md">Connect your personal Google Drive account with secure permissions to create and restore complete automated backups of your online portfolio.</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleDriveSignIn}
+                          disabled={isDriveLoading}
+                          className="hover:opacity-95 py-3 px-6 bg-white text-slate-900 font-extrabold text-xs rounded-xl flex items-center gap-2.5 shadow transition-all cursor-pointer hover:scale-[1.01]"
+                        >
+                          <svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" className="w-4 h-4">
+                            <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path>
+                            <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"></path>
+                            <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"></path>
+                            <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"></path>
+                          </svg>
+                          <span className="text-slate-900 font-black font-sans">Authorize & Connect Google Drive</span>
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-6">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-green-500/5 rounded-2xl border border-green-500/15">
+                          <div className="flex items-center space-x-3 text-left">
+                            {driveUser.photoURL ? (
+                              <img src={driveUser.photoURL} alt={driveUser.displayName || 'Google Account'} className="w-10 h-10 rounded-full border border-green-500/20" referrerPolicy="no-referrer" />
+                            ) : (
+                              <span className="w-10 h-10 rounded-full bg-green-500/10 flex items-center justify-center font-extrabold text-green-400 font-mono">
+                                {driveUser.email?.[0].toUpperCase() || 'G'}
+                              </span>
+                            )}
+                            <div>
+                              <span className="text-white font-extrabold text-xs block leading-tight">{driveUser.displayName || 'Authorized Google Drive Session'}</span>
+                              <span className="text-slate-450 text-[10px] block font-mono">{driveUser.email}</span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={handleCreateBackup}
+                              disabled={isDriveLoading}
+                              className="px-4 py-2.5 bg-[#FF5500] hover:bg-[#FF4400] text-white font-extrabold text-xs uppercase tracking-wide rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
+                            >
+                              {isDriveLoading ? <RefreshCw size={12} className="animate-spin" /> : <Cloud size={12} />}
+                              <span>Create Cloud Backup</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={handleDriveSignOut}
+                              className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-755 text-slate-300 text-xs font-bold uppercase rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
+                            >
+                              <LogOut size={11} />
+                              <span>Disconnect</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {driveStatusMessage && (
+                          <div className="p-3.5 bg-green-500/10 text-green-400 border border-green-500/20 rounded-xl text-xs font-mono leading-relaxed text-left flex items-start gap-2">
+                            <CheckCircle size={14} className="mt-0.5 shrink-0" />
+                            <div>{driveStatusMessage}</div>
+                          </div>
+                        )}
+
+                        {driveErrorMessage && (
+                          <div className="p-3.5 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-xl text-xs font-mono leading-relaxed text-left flex items-start gap-2">
+                            <AlertCircle size={14} className="mt-0.5 shrink-0" />
+                            <div>{driveErrorMessage}</div>
+                          </div>
+                        )}
+
+                        {/* List historical cloud backups */}
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider block">☁ Cloud Space Backups List ({driveBackups.length})</span>
+                            <button
+                              type="button"
+                              onClick={() => loadBackups(driveToken!)}
+                              disabled={isDriveLoading}
+                              className="text-[10px] text-slate-500 hover:text-white font-mono flex items-center gap-1 leading-none uppercase tracking-wide cursor-pointer"
+                            >
+                              <RefreshCw size={9} className={isDriveLoading ? 'animate-spin' : ''} /> Refresh Catalog
+                            </button>
+                          </div>
+
+                          {driveBackups.length === 0 ? (
+                            <div className="py-8 text-center text-zinc-650 font-mono text-xs bg-black/20 border border-dashed border-white/5 rounded-2xl">
+                              -- No backup files found in this Google Drive --<br />
+                              <span className="text-[10px] text-slate-550 font-sans mt-1 block">Click "Create Cloud Backup" to secure your digital configurations.</span>
+                            </div>
+                          ) : (
+                            <div className="space-y-2 max-h-[350px] overflow-y-auto pr-1">
+                              {driveBackups.map((file) => (
+                                <div
+                                  key={file.id}
+                                  className="bg-black/40 p-3.5 rounded-2xl border border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs"
+                                >
+                                  <div className="flex items-start space-x-3 text-left">
+                                    <div className="w-9 h-9 bg-[#FF5500]/10 rounded-xl flex items-center justify-center text-[#FF5500] shrink-0 mt-0.5 font-mono text-[9px] font-black">
+                                      JSON
+                                    </div>
+                                    <div className="min-w-0">
+                                      <span className="text-white font-extrabold block truncate leading-tight mb-0.5">{file.name}</span>
+                                      <div className="flex items-center flex-wrap gap-2 text-[10px] text-slate-500">
+                                        <span>📅 {new Date(file.createdTime).toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                                        {file.size && <span>• 💾 {Math.round(parseInt(file.size, 10) / 1024 * 100) / 100} KB</span>}
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center gap-1.5 self-end md:self-auto shrink-0">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRestoreBackup(file)}
+                                      disabled={isDriveLoading}
+                                      className="px-3 py-1.5 bg-[#FF5500] hover:bg-[#FF4400] text-white text-[10px] font-black uppercase rounded-lg transition-all cursor-pointer"
+                                    >
+                                      Restore State
+                                    </button>
+                                    {file.webViewLink && (
+                                      <a
+                                        href={file.webViewLink}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-750 text-slate-300 text-[10px] font-extrabold uppercase rounded-lg transition-all inline-block text-center border border-white/5 cursor-pointer"
+                                      >
+                                        View File
+                                      </a>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteBackup(file)}
+                                      disabled={isDriveLoading}
+                                      className="p-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 rounded-lg cursor-pointer"
+                                      title="Purge backup"
+                                    >
+                                      <Trash2 size={13} />
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                 </div>
