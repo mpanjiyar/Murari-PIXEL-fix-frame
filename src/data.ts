@@ -204,42 +204,48 @@ export const INSTAGRAM_POSTS = [
     imageUrl: 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=300',
     likes: 342,
     comments: 18,
-    caption: 'Chasing sunsets and timeless emotions. Pre-wedding stories. ✨ #PixelFrame'
+    caption: 'Chasing sunsets and timeless emotions. Pre-wedding stories. ✨ #PixelFrame',
+    permalink: 'https://www.instagram.com/p/Cs98fS2u-uF/'
   },
   {
     id: 'i2',
     imageUrl: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=300',
     likes: 198,
     comments: 11,
-    caption: 'Precision check: Aligning motherboard configuration for optimal high-load server speed. #PixelFix #ITGuru'
+    caption: 'Precision check: Aligning motherboard configuration for optimal high-load server speed. #PixelFix #ITGuru',
+    permalink: 'https://www.instagram.com/p/C4dfz1uN_4V/'
   },
   {
     id: 'i3',
     imageUrl: 'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?q=80&w=300',
     likes: 412,
     comments: 24,
-    caption: 'Bridges of laughter, framing the bridal elegance! 💍 @mpanjiyar1 #GuwahatiWedding'
+    caption: 'Bridges of laughter, framing the bridal elegance! 💍 @mpanjiyar1 #GuwahatiWedding',
+    permalink: 'https://www.instagram.com/p/C_N62vYvSze/'
   },
   {
     id: 'i4',
     imageUrl: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?q=80&w=300',
     likes: 276,
     comments: 15,
-    caption: 'On-site home setup deployment. Fast SSD integrations, diagnostic logs, operating system setups. Get yours done! #PixelFix'
+    caption: 'On-site home setup deployment. Fast SSD integrations, diagnostic logs, operating system setups. Get yours done! #PixelFix',
+    permalink: 'https://www.instagram.com/p/C_K-YI5SIeA/'
   },
   {
     id: 'i5',
     imageUrl: 'https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?q=80&w=300',
     likes: 320,
     comments: 14,
-    caption: 'High energy events, corporate networking and branding shoots. Crafting visual representations. 📸 #CorporatePhotography'
+    caption: 'High energy events, corporate networking and branding shoots. Crafting visual representations. 📸 #CorporatePhotography',
+    permalink: 'https://www.instagram.com/p/C8yS6hTSY32/'
   },
   {
     id: 'i6',
     imageUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=300',
     likes: 489,
     comments: 31,
-    caption: 'Fine art outdoor sessions. Golden hours and soft silhouettes. Let us frame your dream canvas. #PortraitArtist'
+    caption: 'Fine art outdoor sessions. Golden hours and soft silhouettes. Let us frame your dream canvas. #PortraitArtist',
+    permalink: 'https://www.instagram.com/p/C3l_W_Ax8p0/'
   }
 ];
 

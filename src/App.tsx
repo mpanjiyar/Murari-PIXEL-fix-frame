@@ -66,6 +66,12 @@ import type { User as FirebaseUser } from 'firebase/auth';
 import { HardDrive, Cloud, LogOut, AlertCircle, FolderOpen } from 'lucide-react';
 
 // Structuring our Theme Styles
+const getInstagramShortcode = (url: string): string | null => {
+  if (!url) return null;
+  const match = url.match(/(?:\/p\/|\/reel\/|\/tv\/)([A-Za-z0-9_-]+)/);
+  return match ? match[1] : null;
+};
+
 interface ThemeStyle {
   bg: string;
   headerBg: string;
@@ -212,6 +218,7 @@ export default function App() {
   });
   const [instagramSyncError, setInstagramSyncError] = useState<string>('');
   const [isSyncingInstagram, setIsSyncingInstagram] = useState<boolean>(false);
+  const [instagramViewMode, setInstagramViewMode] = useState<'grid' | 'embed'>('grid');
 
   // Google Drive Integration States
   const [driveUser, setDriveUser] = useState<FirebaseUser | null>(null);
@@ -1046,17 +1053,26 @@ export default function App() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`px-3 py-1.5 rounded-md text-xs uppercase tracking-wider font-extrabold transition-all duration-150 ${
+                className={`relative px-3 py-1.5 rounded-md text-xs uppercase tracking-wider font-extrabold transition-all duration-200 outline-none cursor-pointer ${
                   activeTab === tab.id
                     ? currentTheme === 'mono'
-                      ? 'bg-white text-black font-black'
-                      : 'bg-[#FF5500] text-white shadow-sm'
+                      ? 'text-black font-black'
+                      : 'text-white'
                     : currentTheme === 'light'
-                      ? 'text-slate-600 hover:text-[#FF5500] hover:bg-slate-200/50'
+                      ? 'text-slate-600 hover:text-[#FF5500] hover:bg-slate-200/30'
                       : 'text-slate-400 hover:text-white hover:bg-white/5'
                 }`}
               >
-                {tab.label}
+                {activeTab === tab.id && (
+                  <motion.span
+                    layoutId="activeTabIndicator"
+                    className={`absolute inset-0 rounded-md -z-10 ${
+                      currentTheme === 'mono' ? 'bg-white' : 'bg-[#FF5500]'
+                    }`}
+                    transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                  />
+                )}
+                <span className="relative z-10">{tab.label}</span>
               </button>
             ))}
           </div>
@@ -1239,8 +1255,28 @@ export default function App() {
                 </div>
 
                 {/* Quick Split View Feature Cards */}
-                <div className="lg:col-span-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className={`p-5 rounded-2xl border ${s.card} ${s.cardHover} text-left flex flex-col justify-between aspect-square group`}>
+                <motion.div 
+                  initial="hidden"
+                  whileInView="show"
+                  viewport={{ once: true, margin: "-40px" }}
+                  variants={{
+                    hidden: {},
+                    show: {
+                      transition: {
+                        staggerChildren: 0.15
+                      }
+                    }
+                  }}
+                  className="lg:col-span-5 grid grid-cols-1 sm:grid-cols-2 gap-4"
+                >
+                  <motion.div 
+                    variants={{
+                      hidden: { opacity: 0, x: 25 },
+                      show: { opacity: 1, x: 0, transition: { type: "spring", stiffness: 100, damping: 15 } }
+                    }}
+                    whileHover={{ scale: 1.03, y: -4 }}
+                    className={`p-5 rounded-2xl border ${s.card} ${s.cardHover} text-left flex flex-col justify-between aspect-square group`}
+                  >
                     <div>
                       <div className="w-10 h-10 rounded-xl bg-orange-500/10 flex items-center justify-center text-[#FF5500] mb-4">
                         <Cpu size={20} />
@@ -1260,9 +1296,16 @@ export default function App() {
                       <span>Explore Rates</span>
                       <ChevronRight size={14} />
                     </button>
-                  </div>
+                  </motion.div>
 
-                  <div className={`p-5 rounded-2xl border ${s.card} ${s.cardHover} text-left flex flex-col justify-between aspect-square group`}>
+                  <motion.div 
+                    variants={{
+                      hidden: { opacity: 0, x: 25 },
+                      show: { opacity: 1, x: 0, transition: { type: "spring", stiffness: 100, damping: 15 } }
+                    }}
+                    whileHover={{ scale: 1.03, y: -4 }}
+                    className={`p-5 rounded-2xl border ${s.card} ${s.cardHover} text-left flex flex-col justify-between aspect-square group`}
+                  >
                     <div>
                       <div className="w-10 h-10 rounded-xl bg-orange-500/10 flex items-center justify-center text-[#FF5500] mb-4">
                         <Camera size={20} />
@@ -1282,8 +1325,8 @@ export default function App() {
                       <span>Explore Work</span>
                       <ChevronRight size={14} />
                     </button>
-                  </div>
-                </div>
+                  </motion.div>
+                </motion.div>
               </div>
             </section>
 
