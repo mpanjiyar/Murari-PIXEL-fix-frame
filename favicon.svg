@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <g fill="#FF5500">
+    <!-- P Stem (Leftmost col) -->
+    <rect x="0" y="20" width="20" height="80" rx="1" />
+    
+    <!-- P Loop Top Border -->
+    <rect x="20" y="20" width="40" height="20" rx="1" />
+    
+    <!-- P Loop Right Border & F Stem part -->
+    <rect x="40" y="40" width="20" height="40" rx="1" />
+    
+    <!-- P Loop Bottom Border -->
+    <rect x="20" y="60" width="20" height="20" rx="1" />
+    
+    <!-- F Uppermost Bar -->
+    <rect x="40" y="0" width="60" height="20" rx="1" />
+    
+    <!-- F Mid Crossbar -->
+    <rect x="60" y="40" width="20" height="20" rx="1" />
+  </g>
+</svg>

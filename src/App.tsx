@@ -60,10 +60,10 @@ import CursorEffect from './components/CursorEffect';
 import WhatsAppIcon from './components/WhatsAppIcon';
 import { ImageUploader } from './components/ImageUploader';
 import { initAuth, googleSignIn, googleSignOut } from './lib/driveAuth';
-import { uploadBackupToDrive, listBackupsOnDrive, downloadBackupFromDrive, deleteBackupFromDrive, upsertLiveSyncBackup } from './lib/driveService';
+import { uploadBackupToDrive, listBackupsOnDrive, downloadBackupFromDrive, deleteBackupFromDrive, upsertLiveSyncBackup, getOrCreateFolder, uploadPhotoFileToDrive } from './lib/driveService';
 import type { DriveBackupFile } from './lib/driveService';
 import type { User as FirebaseUser } from 'firebase/auth';
-import { HardDrive, Cloud, LogOut, AlertCircle } from 'lucide-react';
+import { HardDrive, Cloud, LogOut, AlertCircle, FolderOpen } from 'lucide-react';
 
 // Structuring our Theme Styles
 interface ThemeStyle {
@@ -250,7 +250,7 @@ export default function App() {
   });
 
   const [profilePhotoUrl, setProfilePhotoUrl] = useState<string>(() => {
-    return localStorage.getItem('mp_profile_photo_url') || 'https://images.unsplash.com/photo-1607990283143-e81e7a2c93ab?auto=format&fit=crop&q=80&w=600';
+    return localStorage.getItem('mp_profile_photo_url') || 'https://images.unsplash.com/photo-1618018352910-72bdafdc72a8?auto=format&fit=crop&q=80&w=600';
   });
 
   const [bioHeadline, setBioHeadline] = useState<string>(() => {
@@ -659,6 +659,84 @@ export default function App() {
     }
   };
 
+  const handleSaveAllPhotosToDrive = async () => {
+    if (!driveToken) {
+      setDriveErrorMessage('You are not authenticated with Google Drive.');
+      return;
+    }
+
+    setDriveErrorMessage('');
+    setDriveStatusMessage('Preparing photo backup pipeline in Google Drive...');
+    setIsDriveLoading(true);
+
+    try {
+      const folderId = await getOrCreateFolder(driveToken, 'PixelFrames_Portfolio_Media');
+      const photosToUpload: { name: string; url: string }[] = [];
+      
+      if (profilePhotoUrl) {
+        photosToUpload.push({
+          name: 'Murari_Profile_Photo',
+          url: profilePhotoUrl
+        });
+      }
+
+      galleryItems.forEach((item, idx) => {
+        if (item.imageUrl) {
+          photosToUpload.push({
+            name: `Gallery_${idx + 1}_${item.title || 'Untitled'}`,
+            url: item.imageUrl
+          });
+        }
+      });
+
+      instagramPosts.forEach((post, idx) => {
+        if (post.imageUrl) {
+          photosToUpload.push({
+            name: `Instagram_Feed_${idx + 1}`,
+            url: post.imageUrl
+          });
+        }
+      });
+
+      if (photosToUpload.length === 0) {
+        setDriveStatusMessage('No portfolio or profile photos found to save.');
+        setIsDriveLoading(false);
+        return;
+      }
+
+      setDriveStatusMessage(`Syncing ${photosToUpload.length} photos to "/PixelFrames_Portfolio_Media" folder in your Drive...`);
+
+      let successCount = 0;
+      let corsIssuesCount = 0;
+
+      for (const photo of photosToUpload) {
+        try {
+          await uploadPhotoFileToDrive(driveToken, folderId, photo.name, photo.url);
+          successCount++;
+          setDriveStatusMessage(`Saved "${photo.name}" (${successCount}/${photosToUpload.length}) inside Google Drive folder...`);
+        } catch (err: any) {
+          if (err.message && err.message.includes('CORS')) {
+            corsIssuesCount++;
+          } else {
+            console.error(`Failed uploading ${photo.name}:`, err);
+          }
+        }
+      }
+
+      if (successCount === photosToUpload.length) {
+        setDriveStatusMessage(`Double success! All ${successCount} photos from your origin portfolio page have been saved directly to the folder "PixelFrames_Portfolio_Media" in Google Drive!`);
+      } else if (successCount > 0) {
+        setDriveStatusMessage(`Partially completed: Saved ${successCount} photos as files to the folder "PixelFrames_Portfolio_Media" in Google Drive. Note: ${corsIssuesCount} remote CDN-hosted images were skipped due to standard web CORS restrictions. To secure these fully, consider uploading them as local image files in the Editor!`);
+      } else {
+        setDriveErrorMessage('Failed to upload photos. The image source servers restrict external downloads (CORS). Please upload local files in the Admin Editor to back them up securely.');
+      }
+    } catch (err: any) {
+      setDriveErrorMessage('Failed to export portfolio photo files: ' + (err.message || err));
+    } finally {
+      setIsDriveLoading(false);
+    }
+  };
+
   useEffect(() => {
     localStorage.setItem('mp_testimonials_custom', JSON.stringify(testimonials));
   }, [testimonials]);
@@ -720,7 +798,7 @@ export default function App() {
     const newMsg: ContactMessage = {
       id: 'it_inquiry_' + Date.now(),
       name: bookingName || 'Anonymous WhatsApp Client',
-      phone: bookingPhone || '8636675231',
+      phone: bookingPhone || '8638875231',
       email: 'Via WhatsApp Quote',
       serviceType: 'it_fix',
       message: `Generated custom quote total: ₹${price}. Client preferences:\nOS Support: ${itNeedOS}, Office Support: ${itNeedOffice}, SSD: ${itSsdUpgrade}, Speed: ${itServiceSpeed}`,
@@ -730,7 +808,7 @@ export default function App() {
     setContactMessages(prev => [newMsg, ...prev]);
 
     // Clean states & redirect
-    window.open(`https://wa.me/918636675231?text=${encodeURIComponent(textMessage)}`, '_blank');
+    window.open(`https://wa.me/918638875231?text=${encodeURIComponent(textMessage)}`, '_blank');
   };
 
   const handleSendPhotoQuoteWhatsApp = () => {
@@ -755,7 +833,7 @@ export default function App() {
 
   // Rapid Quick Contact WhatsApp triggers without quote customization
   const triggerQuickBooking = (service: 'it_fix' | 'photography', customText: string) => {
-    const number = service === 'it_fix' ? '918636675231' : '919864361940';
+    const number = service === 'it_fix' ? '918638875231' : '919864361940';
     const text = encodeURIComponent(customText);
     window.open(`https://wa.me/${number}?text=${text}`, '_blank');
   };
@@ -1050,14 +1128,17 @@ export default function App() {
 
       {/* CORE FRAME ROUTING VIEWS */}
       <main className="max-w-7xl mx-auto px-4 lg:px-8 py-8">
-        
-        {/* HOMEPAGE VIEW WITH NESTED DYNAMIC PRICING WIDGET */}
-        {activeTab === 'home' && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="space-y-16"
-          >
+        <AnimatePresence mode="wait">
+          {/* HOMEPAGE VIEW WITH NESTED DYNAMIC PRICING WIDGET */}
+          {activeTab === 'home' && (
+            <motion.div
+              key="home"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+              transition={{ duration: 0.35, ease: "easeInOut" }}
+              className="space-y-16"
+            >
             {/* HERO STATEMENT WITH SPLIT CARD VIBE */}
             <section className="relative overflow-hidden py-8">
               <div className="absolute top-0 right-0 w-96 h-96 bg-[#FF5500]/5 rounded-full blur-3xl pointer-events-none" />
@@ -1131,10 +1212,10 @@ export default function App() {
                       currentTheme === 'light' ? 'bg-white border-slate-200 text-slate-800 shadow-sm' : 'bg-white/5 border-white/5'
                     }`}>
                       <span className="text-[10px] text-zinc-500 uppercase block">Pixel Fix support:</span>
-                      <a href="tel:8636675231" className={`hover:text-[#FF5500] font-black text-sm block mt-1 ${
+                      <a href="tel:8638875231" className={`hover:text-[#FF5500] font-black text-sm block mt-1 ${
                         currentTheme === 'light' ? 'text-slate-900' : 'text-white'
                       }`}>
-                        📞 +91 8636675231
+                        📞 +91 8638875231
                       </a>
                     </div>
                     <div className={`p-3 rounded-xl border text-left ${
@@ -1686,7 +1767,7 @@ export default function App() {
 
                 {/* WhatsApp - IT Support Number */}
                 <a
-                  href="https://wa.me/918636675231"
+                  href="https://wa.me/918638875231"
                   target="_blank"
                   rel="noreferrer"
                   className={`group flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all duration-300 ${s.card} ${s.cardHover} min-w-[240px] flex-1 max-w-sm`}
@@ -1699,7 +1780,7 @@ export default function App() {
                       <p className={`text-[11px] font-bold ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'} leading-tight`}>WhatsApp (IT Fix)</p>
                       <span className="text-[8px] bg-indigo-500/10 text-indigo-400 font-bold px-1 rounded border border-indigo-500/20 uppercase tracking-widest scale-90">Tech</span>
                     </div>
-                    <p className="text-[10px] text-emerald-500 font-semibold tracking-tight">+91 8636675231</p>
+                    <p className="text-[10px] text-emerald-500 font-semibold tracking-tight">+91 8638875231</p>
                   </div>
                   <ArrowUpRight size={12} className="text-slate-400 group-hover:text-emerald-500 transition-colors flex-shrink-0" />
                 </a>
@@ -1812,8 +1893,11 @@ export default function App() {
         {/* PIXEL FIX (IT SERVICES TARGET PORTFOLIO) */}
         {activeTab === 'pixelfix' && (
           <motion.div
-            initial={{ opacity: 0, y: 10 }}
+            key="pixelfix"
+            initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            transition={{ duration: 0.35, ease: "easeInOut" }}
             className="space-y-12 text-left"
           >
             {/* Header branding taglines */}
@@ -1829,7 +1913,7 @@ export default function App() {
               <p className={`text-sm md:text-base ${
                 currentTheme === 'light' ? 'text-slate-650 font-medium' : 'text-slate-300'
               }`}>
-                Get operating system upgrades (Windows 10/11), productivity licensing configuration help for Microsoft Office, system speedups, and rapid diagnostic hardware audits on demand. Call anytime at +918636675231.
+                Get operating system upgrades (Windows 10/11), productivity licensing configuration help for Microsoft Office, system speedups, and rapid diagnostic hardware audits on demand. Call anytime at +918638875231.
               </p>
               
               <div className="pt-2 flex flex-wrap justify-center gap-3">
@@ -1840,7 +1924,7 @@ export default function App() {
                   <WhatsAppIcon size={14} /> Send WhatsApp Support Ticket
                 </button>
                 <a
-                  href="tel:8636675231"
+                  href="tel:8638875231"
                   className="bg-white hover:bg-zinc-200 text-black text-xs uppercase font-extrabold px-5 py-2.5 rounded-lg flex items-center gap-1.5"
                 >
                   <Phone size={14} /> Call Support Now
@@ -2026,8 +2110,11 @@ export default function App() {
         {/* PIXEL FRAME (PHOTOGRAPHY TARGET PORTFOLIO) */}
         {activeTab === 'pixelframe' && (
           <motion.div
-            initial={{ opacity: 0, y: 10 }}
+            key="pixelframe"
+            initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            transition={{ duration: 0.35, ease: "easeInOut" }}
             className="space-y-12 text-left"
           >
             {/* Header branding */}
@@ -2150,7 +2237,15 @@ export default function App() {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {testimonials.map((t, index) => (
-                  <div key={t.id || index} className={`p-5 rounded-2xl border ${s.card} text-left space-y-4`}>
+                  <motion.div
+                    key={t.id || index}
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true, margin: "-10px" }}
+                    transition={{ duration: 0.45, delay: index * 0.1 }}
+                    whileHover={{ y: -5, scale: 1.02 }}
+                    className={`p-5 rounded-2xl border ${s.card} text-left space-y-4`}
+                  >
                     <div className="flex items-center justify-between gap-2 border-b pb-2 border-slate-200/40 dark:border-white/5">
                       <span className="text-[10px] text-amber-500 block">{'★'.repeat(t.rating || 5)}</span>
                       {isAuthorized && (
@@ -2201,7 +2296,7 @@ export default function App() {
                         <span className="text-[10px] text-slate-500 block">{t.role}</span>
                       </div>
                     </div>
-                  </div>
+                  </motion.div>
                 ))}
               </div>
             </section>
@@ -2211,8 +2306,11 @@ export default function App() {
         {/* FULL CLIENT PORTFOLIO GALLERY */}
         {activeTab === 'gallery' && (
           <motion.div
-            initial={{ opacity: 0, y: 10 }}
+            key="gallery"
+            initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            transition={{ duration: 0.35, ease: "easeInOut" }}
             className="space-y-8 text-left"
           >
             {/* Header titles */}
@@ -2284,10 +2382,15 @@ export default function App() {
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredItems.map((item) => (
-                  <div
+                {filteredItems.map((item, index) => (
+                  <motion.div
                     key={item.id}
                     onClick={() => setPreviewImage(item)}
+                    initial={{ opacity: 0, y: 15 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true, margin: "-20px" }}
+                    transition={{ duration: 0.4, delay: Math.min(index * 0.05, 0.3) }}
+                    whileHover={{ y: -6, scale: 1.015 }}
                     className={`group rounded-2xl overflow-hidden border ${s.card} flex flex-col justify-between aspect-square relative cursor-pointer`}
                   >
                     {isAuthorized && (
@@ -2336,7 +2439,7 @@ export default function App() {
                         </span>
                       </div>
                     </div>
-                  </div>
+                  </motion.div>
                 ))}
 
                 {isAuthorized && (
@@ -2371,8 +2474,11 @@ export default function App() {
         {/* DETAILS ABOUT / PROFILE ORIGIN STORY */}
         {activeTab === 'about' && (
           <motion.div
-            initial={{ opacity: 0, y: 10 }}
+            key="about"
+            initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            transition={{ duration: 0.35, ease: "easeInOut" }}
             className="space-y-12 text-left max-w-5xl mx-auto"
           >
             {/* Split row bio */}
@@ -2386,7 +2492,7 @@ export default function App() {
                     <img
                       src={profilePhotoUrl}
                       alt="Murari Panjiyar - smiling young Indian technical artist with a short beard and mustache"
-                      className="rounded-2xl w-full h-[400px] object-cover grayscale brightness-95 hover:grayscale-0 transition-all duration-500"
+                      className="rounded-2xl w-full h-[400px] object-cover hover:scale-[1.02] transition-all duration-500"
                       referrerPolicy="no-referrer"
                     />
                     {isAuthorized && (
@@ -2513,14 +2619,19 @@ export default function App() {
 
               {/* Grid map */}
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-                {instagramPosts.map(post => (
-                  <div
+                {instagramPosts.map((post, index) => (
+                  <motion.div
                     key={post.id}
                     onClick={() => {
                       if (!isAuthorized && (post.permalink || post.imageUrl)) {
                         window.open(post.permalink || post.imageUrl, '_blank');
                       }
                     }}
+                    initial={{ opacity: 0, scale: 0.92 }}
+                    whileInView={{ opacity: 1, scale: 1 }}
+                    viewport={{ once: true }}
+                    transition={{ duration: 0.35, delay: Math.min(index * 0.05, 0.3) }}
+                    whileHover={{ scale: 1.03, y: -3 }}
                     className={`group rounded-xl overflow-hidden aspect-square relative transition-all cursor-pointer border ${
                       currentTheme === 'light' ? 'bg-slate-50 border-slate-200 hover:border-slate-400' : 'bg-black border-white/5 hover:border-zinc-500'
                     }`}
@@ -2572,7 +2683,7 @@ export default function App() {
                         <span className="flex items-center gap-1">💬 {post.comments}</span>
                       </div>
                     </div>
-                  </div>
+                  </motion.div>
                 ))}
 
                 {isAuthorized && (
@@ -2599,8 +2710,11 @@ export default function App() {
         {/* RAPID WHATSAPP DIRECT BOOKING */}
         {activeTab === 'contact' && (
           <motion.div
-            initial={{ opacity: 0, y: 10 }}
+            key="contact"
+            initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            transition={{ duration: 0.35, ease: "easeInOut" }}
             className="space-y-12 text-left max-w-4xl mx-auto"
           >
             {/* Banner titles */}
@@ -2640,7 +2754,7 @@ export default function App() {
                     currentTheme === 'light' ? 'bg-slate-55 border-slate-200 text-slate-700' : 'bg-black/40 border-white/5 text-slate-300'
                   }`}>
                     <div>📌 Guwahati office: Guwahati area doorstep dispatch</div>
-                    <div>📞 Mobile support: +91 8636675231</div>
+                    <div>📞 Mobile support: +91 8638875231</div>
                   </div>
                 </div>
 
@@ -2652,14 +2766,14 @@ export default function App() {
                     <WhatsAppIcon size={14} /> Send WhatsApp Support Ticket
                   </button>
                   <a
-                    href="tel:8636675231"
+                    href="tel:8638875231"
                     className={`w-full font-extrabold text-xs uppercase py-3.5 tracking-wider rounded-lg flex items-center justify-center gap-2 border ${
                       currentTheme === 'light' 
                         ? 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-800' 
                         : 'bg-white/5 hover:bg-white/10 border-white/10 text-white'
                     }`}
                   >
-                    <Phone size={14} /> Dial +91 8636675231
+                    <Phone size={14} /> Dial +91 8638875231
                   </a>
                 </div>
               </div>
@@ -2714,8 +2828,11 @@ export default function App() {
         {/* DYNAMIC STUDIO ENGINE / GALLERY MANAGEMENT ADMIN PORTAL */}
         {activeTab === 'dashboard' && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
+            key="dashboard"
+            initial={{ opacity: 0, scale: 0.98, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.98, y: -10 }}
+            transition={{ duration: 0.35, ease: "easeInOut" }}
             className="space-y-12 text-left"
           >
             {/* Admin Key Check */}
@@ -3183,7 +3300,7 @@ export default function App() {
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <button
                               type="button"
                               onClick={handleCreateBackup}
@@ -3192,6 +3309,17 @@ export default function App() {
                             >
                               {isDriveLoading ? <RefreshCw size={12} className="animate-spin" /> : <Cloud size={12} />}
                               <span>Create Cloud Backup</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={handleSaveAllPhotosToDrive}
+                              disabled={isDriveLoading}
+                              className="px-4 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-extrabold text-xs uppercase tracking-wide rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
+                              title="Syncs the profile pictures, portfolio shots, and branding banners directly as raw picture files to a dedicated folder inside Google Drive."
+                            >
+                              {isDriveLoading ? <RefreshCw size={12} className="animate-spin" /> : <ImageIcon size={12} />}
+                              <span>Save Origin Photos to Drive</span>
                             </button>
 
                             <button
@@ -3301,6 +3429,7 @@ export default function App() {
             )}
           </motion.div>
         )}
+        </AnimatePresence>
 
       </main>
 
@@ -3409,8 +3538,8 @@ export default function App() {
             <div className="space-y-2 text-[11px] font-mono">
               <div className="flex items-center justify-between border-b border-white/5 pb-1">
                 <span>Pixel Fix Support:</span>
-                <a href="tel:8636675231" className="text-[#FF5500] font-bold hover:underline">
-                  +91-8636675231
+                <a href="tel:8638875231" className="text-[#FF5500] font-bold hover:underline">
+                  +91-8638875231
                 </a>
               </div>
               <div className="flex items-center justify-between border-b border-white/5 pb-1">

@@ -142,6 +142,125 @@ export async function upsertLiveSyncBackup(
 }
 
 /**
+ * Create a folder or return the ID of an existing one with that name in Google Drive
+ */
+export async function getOrCreateFolder(accessToken: string, folderName: string): Promise<string> {
+  const query = encodeURIComponent(`name = '${folderName}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`);
+  const searchResponse = await fetch(
+    `https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id)`,
+    {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    }
+  );
+
+  if (searchResponse.ok) {
+    const searchResult = await searchResponse.json();
+    if (searchResult.files && searchResult.files.length > 0) {
+      return searchResult.files[0].id;
+    }
+  }
+
+  const createResponse = await fetch(
+    'https://www.googleapis.com/drive/v3/files',
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name: folderName,
+        mimeType: 'application/vnd.google-apps.folder',
+      }),
+    }
+  );
+
+  if (!createResponse.ok) {
+    throw new Error('Could not prepare or create the Google Drive destination folder.');
+  }
+
+  const newFolder = await createResponse.json();
+  return newFolder.id;
+}
+
+/**
+ * Upload a raw photo (either base64 data-url or remote http image) to a specific Drive folder
+ */
+export async function uploadPhotoFileToDrive(
+  accessToken: string,
+  folderId: string,
+  fileName: string,
+  photoUrl: string
+): Promise<{ id: string }> {
+  let blob: Blob;
+
+  if (photoUrl.startsWith('data:')) {
+    const parts = photoUrl.split(',');
+    const mimeMatch = parts[0].match(/:(.*?);/);
+    const mime = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+    const bstr = atob(parts[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    blob = new Blob([u8arr], { type: mime });
+  } else {
+    try {
+      const fetchImage = await fetch(photoUrl, { referrerPolicy: 'no-referrer' });
+      blob = await fetchImage.blob();
+    } catch (err) {
+      throw new Error(`CORS policy restricts directly downloading external files: "${photoUrl}". Please upload local image files to save them directly.`);
+    }
+  }
+
+  const boundary = 'pixelframes_image_upload_boundary';
+  const delimiter = `\r\n--${boundary}\r\n`;
+  const close_delim = `\r\n--${boundary}--`;
+
+  let ext = 'jpg';
+  if (blob.type === 'image/png') ext = 'png';
+  else if (blob.type === 'image/webp') ext = 'webp';
+  else if (blob.type === 'image/gif') ext = 'gif';
+
+  const cleanFilename = fileName.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const fullFileName = cleanFilename.endsWith('.' + ext) ? cleanFilename : `${cleanFilename}.${ext}`;
+
+  const metadata = {
+    name: fullFileName,
+    parents: [folderId]
+  };
+
+  const arrayBuffer = await blob.arrayBuffer();
+  const metadataPart = delimiter + 'Content-Type: application/json; charset=UTF-8\r\n\r\n' + JSON.stringify(metadata) + delimiter;
+  
+  const prefixBlob = new Blob([metadataPart], { type: 'text/plain' });
+  const suffixBlob = new Blob([`\r\nContent-Type: ${blob.type}\r\n\r\n`, arrayBuffer, close_delim]);
+  const finalMultipartBlob = new Blob([prefixBlob, suffixBlob], { type: `multipart/related; boundary=${boundary}` });
+
+  const response = await fetch(
+    'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: finalMultipartBlob,
+    }
+  );
+
+  if (!response.ok) {
+    const errorMsg = await response.text();
+    throw new Error(`Google Drive media upload failed: ${errorMsg}`);
+  }
+
+  return response.json();
+}
+
+/**
  * Download a backup file from Google Drive and parse its JSON content
  */
 export async function downloadBackupFromDrive(accessToken: string, fileId: string): Promise<any> {
