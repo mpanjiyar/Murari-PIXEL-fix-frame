@@ -61,6 +61,7 @@ import CursorEffect from './components/CursorEffect';
 import WhatsAppIcon from './components/WhatsAppIcon';
 import { ImageUploader } from './components/ImageUploader';
 import { ScrollReveal, ScrollRevealText } from './components/ScrollReveal';
+import { LazyImage } from './components/LazyImage';
 import { initAuth, googleSignIn, googleSignOut } from './lib/driveAuth';
 import { uploadBackupToDrive, listBackupsOnDrive, downloadBackupFromDrive, deleteBackupFromDrive, upsertLiveSyncBackup, getOrCreateFolder, uploadPhotoFileToDrive } from './lib/driveService';
 import type { DriveBackupFile } from './lib/driveService';
@@ -306,7 +307,13 @@ export default function App() {
 
   const [profilePhotoUrl, setProfilePhotoUrl] = useState<string>(() => {
     const saved = localStorage.getItem('mp_profile_photo_url');
-    if (!saved || saved.includes('1618018352910-72bdafdc72a8') || saved.includes('1Bv7-RO-P4dzGVDa6kOEyZIepUOBz7npe')) {
+    // If empty, or contains old placeholders, or contains Unsplash images (stale cache from old session of other devices)
+    if (
+      !saved || 
+      saved.includes('1618018352910-72bdafdc72a8') || 
+      saved.includes('1Bv7-RO-P4dzGVDa6kOEyZIepUOBz7npe') || 
+      saved.includes('unsplash.com')
+    ) {
       return 'https://lh3.googleusercontent.com/d/1cKkwgAa3qplkkzj15-EEiQQ1nnHOy0Gk';
     }
     return toDirectDriveUrl(saved);
@@ -2563,11 +2570,11 @@ export default function App() {
                         </button>
                       </div>
                     )}
-                    <img
+                    <LazyImage
                       src={item.imageUrl}
                       alt={item.altText}
                       className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-300"
-                      referrerPolicy="no-referrer"
+                      placeholderClassName="absolute inset-0 z-0"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent p-4 flex flex-col justify-end">
                       <span className="text-[10px] uppercase font-mono font-bold text-[#FF5500]">
@@ -2836,11 +2843,11 @@ export default function App() {
                         </button>
                       </div>
                     )}
-                    <img
+                    <LazyImage
                       src={post.imageUrl || 'https://images.unsplash.com/photo-1542038784456-1ea8e935640e?q=80&w=400'}
                       alt="instagram portfolio post by murari mpanjiyar1"
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      referrerPolicy="no-referrer"
+                      placeholderClassName="absolute inset-0 z-0"
                     />
                     <div className="absolute inset-0 bg-black/85 opacity-0 group-hover:opacity-100 transition-opacity p-2.5 flex flex-col justify-between text-left z-10">
                       <p className="text-[9px] text-slate-300 line-clamp-4 leading-normal font-mono">
