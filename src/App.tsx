@@ -43,7 +43,8 @@ import {
   Compass,
   FileCode,
   SlidersHorizontal,
-  ChevronDown
+  ChevronDown,
+  User
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -310,6 +311,12 @@ export default function App() {
     }
     return toDirectDriveUrl(saved);
   });
+
+  const [profileImageError, setProfileImageError] = useState<boolean>(false);
+
+  useEffect(() => {
+    setProfileImageError(false);
+  }, [profilePhotoUrl]);
 
   const [bioHeadline, setBioHeadline] = useState<string>(() => {
     return localStorage.getItem('mp_bio_headline') || 'THE CREATIVE LOGIC OF A DUAL ARTIST';
@@ -2626,12 +2633,32 @@ export default function App() {
                   currentTheme === 'light' ? 'bg-white border-slate-200 shadow-sm' : 'bg-zinc-950 border-white/10'
                 }`}>
                   <div className="relative rounded-2xl overflow-hidden group">
-                    <img
-                      src={profilePhotoUrl}
-                      alt="Murari Panjiyar - smiling young Indian technical artist with a short beard and mustache"
-                      className="rounded-2xl w-full h-[400px] object-cover hover:scale-[1.02] transition-all duration-500"
-                      referrerPolicy="no-referrer"
-                    />
+                    {profileImageError ? (
+                      <div className={`rounded-2xl w-full h-[400px] flex flex-col items-center justify-center p-6 border-2 border-dashed ${
+                        currentTheme === 'light' ? 'bg-slate-50 border-slate-300 text-slate-500' : 'bg-zinc-900/50 border-white/10 text-slate-400'
+                      }`}>
+                        <div className="w-12 h-12 rounded-full bg-[#FF5500]/10 flex items-center justify-center text-[#FF5500] mb-4 animate-pulse">
+                          <User size={24} />
+                        </div>
+                        <h3 className={`font-bold text-base mb-1 text-center ${currentTheme === 'light' ? 'text-slate-800' : 'text-slate-200'}`}>Image Access Restricted</h3>
+                        <p className="text-xs text-center max-w-xs mb-4">
+                          This Google Drive profile photo is currently private. It only displays for you because you are logged into Google.
+                        </p>
+                        <div className="p-3 bg-[#FF5500]/5 border border-[#FF5500]/10 rounded-xl max-w-xs">
+                          <p className={`text-[10px] text-left leading-relaxed ${currentTheme === 'light' ? 'text-[#e04400]' : 'text-[#FF7733]'} font-semibold`}>
+                            <strong>To make it public:</strong> Open Google Drive, right-click this photo, select <strong>"Share"</strong>, and change General Access to <strong>"Anyone with the link" (Viewer)</strong>.
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <img
+                        src={profilePhotoUrl}
+                        alt="Murari Panjiyar - smiling young Indian technical artist with a short beard and mustache"
+                        className="rounded-2xl w-full h-[400px] object-cover hover:scale-[1.02] transition-all duration-500"
+                        referrerPolicy="no-referrer"
+                        onError={() => setProfileImageError(true)}
+                      />
+                    )}
                     {isAuthorized && (
                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center duration-300">
                         <button
