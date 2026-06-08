@@ -247,7 +247,15 @@ export default function App() {
   const [instagramPosts, setInstagramPosts] = useState<any[]>(() => {
     const saved = localStorage.getItem('mp_instagram_posts');
     if (saved) {
-      try { return JSON.parse(saved); } catch (e) { return INSTAGRAM_POSTS; }
+      try {
+        const parsed = JSON.parse(saved);
+        const hasDriveImages = parsed.some((p: any) => p.imageUrl && p.imageUrl.includes('1TI7y2H4O31gv3qOdwxg2oUY_r2mK4-kz'));
+        const hasUnsplash = parsed.some((p: any) => p.imageUrl && p.imageUrl.includes('unsplash.com'));
+        if (parsed.length !== 6 || !hasDriveImages || hasUnsplash) {
+          return INSTAGRAM_POSTS;
+        }
+        return parsed;
+      } catch (e) { return INSTAGRAM_POSTS; }
     }
     return INSTAGRAM_POSTS;
   });
@@ -297,8 +305,8 @@ export default function App() {
 
   const [profilePhotoUrl, setProfilePhotoUrl] = useState<string>(() => {
     const saved = localStorage.getItem('mp_profile_photo_url');
-    if (!saved || saved.includes('1618018352910-72bdafdc72a8')) {
-      return 'https://lh3.googleusercontent.com/d/1Bv7-RO-P4dzGVDa6kOEyZIepUOBz7npe';
+    if (!saved || saved.includes('1618018352910-72bdafdc72a8') || saved.includes('1Bv7-RO-P4dzGVDa6kOEyZIepUOBz7npe')) {
+      return 'https://lh3.googleusercontent.com/d/1cKkwgAa3qplkkzj15-EEiQQ1nnHOy0Gk';
     }
     return toDirectDriveUrl(saved);
   });

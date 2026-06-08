@@ -285,51 +285,51 @@ export const INITIAL_TESTIMONIALS: Testimony[] = [
 export const INSTAGRAM_POSTS = [
   {
     id: 'i1',
-    imageUrl: 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=300',
-    likes: 342,
-    comments: 18,
-    caption: 'Chasing sunsets and timeless emotions. Pre-wedding stories. ✨ #PixelFrame',
-    permalink: 'https://www.instagram.com/p/Cs98fS2u-uF/'
+    imageUrl: 'https://lh3.googleusercontent.com/d/1TI7y2H4O31gv3qOdwxg2oUY_r2mK4-kz',
+    likes: 452,
+    comments: 28,
+    caption: 'Chasing timeless moments and candid smiles under the morning sun. Truly beautiful. ✨🌸 #PixelFrame #GuwahatiWeddings #AssamDiaries',
+    permalink: 'https://www.instagram.com/p/C-TI7y2H4O31/'
   },
   {
     id: 'i2',
-    imageUrl: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=300',
-    likes: 198,
-    comments: 11,
-    caption: 'Precision check: Aligning motherboard configuration for optimal high-load server speed. #PixelFix #ITGuru',
-    permalink: 'https://www.instagram.com/p/C4dfz1uN_4V/'
+    imageUrl: 'https://lh3.googleusercontent.com/d/1JgyjpBwh_raC84MVgEVDzjkBpHGyAkl0',
+    likes: 389,
+    comments: 21,
+    caption: 'The majestic grandeur of high-energy celebration beats! Drum rolls and rich traditional dances. 🥁🤵‍♂️ #PixelFrame #GuwahatiEvents #BaraatJoy',
+    permalink: 'https://www.instagram.com/p/C-JgyjpBwhra/'
   },
   {
     id: 'i3',
-    imageUrl: 'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?q=80&w=300',
-    likes: 412,
-    comments: 24,
-    caption: 'Bridges of laughter, framing the bridal elegance! 💍 @mpanjiyar1 #GuwahatiWedding',
-    permalink: 'https://www.instagram.com/p/C_N62vYvSze/'
+    imageUrl: 'https://lh3.googleusercontent.com/d/1OlD8wVZo4-3ly9YsAEwqKYLCDpglqld6',
+    likes: 512,
+    comments: 34,
+    caption: 'Intricate ornaments, detailed silk embroidery, and elegance of the traditional Assamese bridal wear. 💍🌾 #MekhelaChador #BridalPortraits #AssamesePride',
+    permalink: 'https://www.instagram.com/p/C-OlD8wVZo43/'
   },
   {
     id: 'i4',
-    imageUrl: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?q=80&w=300',
-    likes: 276,
-    comments: 15,
-    caption: 'On-site home setup deployment. Fast SSD integrations, diagnostic logs, operating system setups. Get yours done! #PixelFix',
-    permalink: 'https://www.instagram.com/p/C_K-YI5SIeA/'
+    imageUrl: 'https://lh3.googleusercontent.com/d/1RpZqOPwkNcgjOX-VeRnniwE-ZL4YaNiM',
+    likes: 421,
+    comments: 19,
+    caption: 'Bound by sacred vows and holy fire blessings, custom designed stages crafted with pure white roses. 🔥💒 #CandidVows #SanskritBlessings #GuwahatiPhotographer',
+    permalink: 'https://www.instagram.com/p/C-RpZqOPwkNc/'
   },
   {
     id: 'i5',
-    imageUrl: 'https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?q=80&w=300',
-    likes: 320,
-    comments: 14,
-    caption: 'High energy events, corporate networking and branding shoots. Crafting visual representations. 📸 #CorporatePhotography',
-    permalink: 'https://www.instagram.com/p/C8yS6hTSY32/'
+    imageUrl: 'https://lh3.googleusercontent.com/d/1S7ucq14Q1YNWx6vG39OEemiw9PUCFTVv',
+    likes: 378,
+    comments: 15,
+    caption: 'Raw expressions of pure love and blissful family smiles during classic traditional morning customs. 😍✨ #PureMoments #PixelFramePortraits #Guwahati',
+    permalink: 'https://www.instagram.com/p/C-S7ucq14Q1Y/'
   },
   {
     id: 'i6',
-    imageUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=300',
-    likes: 489,
-    comments: 31,
-    caption: 'Fine art outdoor sessions. Golden hours and soft silhouettes. Let us frame your dream canvas. #PortraitArtist',
-    permalink: 'https://www.instagram.com/p/C3l_W_Ax8p0/'
+    imageUrl: 'https://lh3.googleusercontent.com/d/1M36Zil8-MtGCeL3bAfcRridcvK6KB-Gl',
+    likes: 495,
+    comments: 42,
+    caption: 'Immersive majestic ballroom reception setup with flickering candles and beautiful high-contrast floral design. 🍿🕯️ #BallroomSetup #ReceptionAesthetics #PixelFrame',
+    permalink: 'https://www.instagram.com/p/C-M36Zil8MtG/'
   }
 ];
 
