@@ -46,15 +46,27 @@ export const INITIAL_IT_SERVICES: ServiceDetail[] = [
 
 export const INITIAL_PHOTO_SERVICES: ServiceDetail[] = [
   {
-    title: 'Wedding & Pre-Wedding',
+    title: 'Wedding & Pre-Wedding (Sacred Rasams)',
     price: 'Custom Packages',
-    description: 'Emotional, candid, and cinematic high-definition coverage of your wedding day to capture timeless human memories.',
+    description: 'Emotional, candid, and cinematic high-definition coverage of your wedding day and traditional pre-wedding rituals (Haldi, Mehendi, Sangeet).',
     features: [
-      'Full-day candid & traditional photography coverage',
-      'Stunning cinematic couples shoot at premium locations',
-      'High-resolution edited WebP image galleries',
-      'Fully interactive responsive showcase for guests with prompt delivery',
+      'Full architectural coverage of traditional Indian Wedding Rasams & Rituals',
+      'Candid & traditional photography captures of Haldi and Varmala',
+      'Stunning cinematic couples shoot at premium heritage locations',
+      'High-resolution edited WebP image collections delivered quickly',
       'Optional premium print coffee-table photobook album'
+    ]
+  },
+  {
+    title: 'Baby Shower & Godh Bharai',
+    price: 'Flexible Packages',
+    description: 'Divine, candid documentation of your traditional baby shower, maternity memories, and auspicious Godh Bharai ceremonies.',
+    features: [
+      'Artistic maternal portraiture of the expectant mother in elegant saree',
+      'Warm family rituals, sweet blessings, and playful ceremony events',
+      'Beautiful details of intricate henna designs and floral backdrops',
+      'Nikon high-contrast low-light optimization for indoor events',
+      'Vibrant digital photo registry delivered seamlessly'
     ]
   },
   {
@@ -98,75 +110,93 @@ export const INITIAL_PHOTO_SERVICES: ServiceDetail[] = [
 export const INITIAL_GALLERY_ITEMS: GalleryItem[] = [
   {
     id: 'g1',
-    title: 'Bridal Elegance, Guwahati, Assam, India',
+    title: 'Royal Bridal Elegance & Crimson Lehenga, Guwahati, Assam, India',
     category: 'wedding',
     imageUrl: 'https://images.unsplash.com/photo-1607190074257-dd4b7af0309f?q=80&w=800&auto=format&fit=crop',
-    altText: 'Stunning cinematic Indian bridal portrait shoot by Murari Panjiyar',
+    altText: 'Stunning high-contrast Indian bridal portrait showcasing rich crimson silk Lehenga, heavy matha patti, and detailed Kundan jewelry, captured with authentic Nikon warmth by Murari Panjiyar',
     date: '2026-04-12',
-    cameraInfo: 'Nikon Z9 • NIKKOR Z 85mm f/1.2 S'
+    cameraInfo: 'Nikon Z9 • NIKKOR Z 85mm f/1.2 S • Studio Flash Setup'
   },
   {
     id: 'g2',
-    title: 'Enterprise Server Assembly, Bengaluru, India',
+    title: 'Grand Palace Mandap & Floral Decor, Bangalore Palace, India',
     category: 'corporate',
-    imageUrl: 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?q=80&w=800&auto=format&fit=crop',
-    altText: 'Doorstep advanced network integration and server cabling in Bengaluru tech park by Pixel Fix',
+    imageUrl: 'https://images.unsplash.com/photo-1604017011826-d3b4c23f8914?q=80&w=800&auto=format&fit=crop',
+    altText: 'Grand royal Indian wedding mandap backdrop setup with luxurious marigold garlands, rich crystal chandeliers, and majestic floral arches captured in high definition by Murari Panjiyar',
     date: '2026-05-18',
-    cameraInfo: 'Nikon Z8 • NIKKOR Z 24-70mm f/2.8 S'
+    cameraInfo: 'Nikon Z8 • NIKKOR Z 24-70mm f/2.8 S • Cinematic Ambient Light'
   },
   {
     id: 'g3',
-    title: 'Vibrant Mehndi Festivities, New Delhi, India',
+    title: 'Joyful Mehndi Henna Festivity, New Delhi, India',
     category: 'wedding',
     imageUrl: 'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?q=80&w=800&auto=format&fit=crop',
-    altText: 'Candid laughter during Indian mehndi ceremony festivities by Murari Panjiyar',
+    altText: 'Candid smiles and pure traditional joy during an Indian bride\'s mehendi ceremony, highlighting detailed henna patterns on her hands, photographed with Nikon professional optics',
     date: '2026-02-14',
-    cameraInfo: 'Nikon Z7 II • NIKKOR Z 50mm f/1.2 S'
+    cameraInfo: 'Nikon Z7 II • NIKKOR Z 50mm f/1.2 S • Candid Speedlight'
   },
   {
     id: 'g4',
-    title: 'Pre-Wedding Sunset, Marine Drive, Mumbai, India',
+    title: 'Couples Sunset Pre-Wedding Silhouette, Marine Drive, Mumbai, India',
     category: 'wedding',
     imageUrl: 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=800&auto=format&fit=crop',
-    altText: 'Cinematic Indian pre-wedding couple silhouette at sunset beach at Marine Drive',
+    altText: 'Sleek pre-wedding golden hour couples portrait at Marine Drive shoreline, framed beautifully with dramatic backlighting and crimson sunsets by Murari Panjiyar',
     date: '2026-05-10',
-    cameraInfo: 'Nikon Z9 • NIKKOR Z 135mm f/1.8 S Plena'
+    cameraInfo: 'Nikon Z9 • NIKKOR Z 135mm f/1.8 S Plena • Natural Backlight rim'
   },
   {
     id: 'g5',
-    title: 'Executive Portraiture, BKC Corporate Hub, Mumbai, India',
+    title: 'Traditional Groom Imperial Sherwani Assembly, Mumbai Palace, India',
     category: 'corporate',
-    imageUrl: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?q=80&w=800&auto=format&fit=crop',
-    altText: 'Professional corporate headshot by Indian IT & media photographer Murari Panjiyar',
+    imageUrl: 'https://images.unsplash.com/photo-1621184455862-c163dfb30e0f?q=80&w=800&auto=format&fit=crop',
+    altText: 'Sophisticated professional groom portrait as he prepares his embroidered sherwani, with a close-up focus on the designer buttons, gold chains, and traditional fabrics',
     date: '2026-03-22',
-    cameraInfo: 'Nikon D850 • AF-S NIKKOR 105mm f/1.4E ED'
+    cameraInfo: 'Nikon D850 • AF-S NIKKOR 105mm f/1.4E ED • Softbox Keylight'
   },
   {
     id: 'g6',
-    title: 'Sangeet Choreography, Kolkata Palace, India',
+    title: 'Sangeet Choreography & Musical Celebration Night, Kolkata, India',
     category: 'party',
     imageUrl: 'https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?q=80&w=800&auto=format&fit=crop',
-    altText: 'Vibrant Indian sangeet musical night celebrations with dancing guests',
+    altText: 'Dynamic candid capture of dancing bridesmaids and high-energy guests performing choreographed dances under traditional fairy lights',
     date: '2026-01-05',
-    cameraInfo: 'Nikon Z6 II • NIKKOR Z 35mm f/1.8 S'
+    cameraInfo: 'Nikon Z6 II • NIKKOR Z 35mm f/1.8 S • Dynamic ISO Correction'
   },
   {
     id: 'g7',
-    title: 'Fine-Art Portraiture, Munnar Tea Estates, Kerala, India',
+    title: 'Elite Traditional Kanjeevaram Saree Portrait, Munnar, Kerala, India',
     category: 'custom',
-    imageUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=800&auto=format&fit=crop',
-    altText: 'Aesthetic female solo portrait amongst lush green tea gardens of Munnar',
+    imageUrl: 'https://images.unsplash.com/photo-1595777457583-95e059d581b8?q=80&w=800&auto=format&fit=crop',
+    altText: 'Aesthetic traditional bridal portrait featuring an elegant gold-embroidered silk saree, classic temple ornaments, and a pure vermilion red veil, shot in soft natural daylight',
     date: '2026-04-30',
-    cameraInfo: 'Nikon Z7 II • NIKKOR Z 85mm f/1.2 S'
+    cameraInfo: 'Nikon Z7 II • NIKKOR Z 85mm f/1.2 S • Natural Golden Hour'
   },
   {
     id: 'g8',
-    title: 'Tech Summit Keynote Panel, Hyderabad, India',
+    title: 'Sacred Varmala Garland Exchange, Taj Falaknuma Palace, India',
     category: 'corporate',
-    imageUrl: 'https://images.unsplash.com/photo-1475721027785-f74eccf877e2?q=80&w=800&auto=format&fit=crop',
-    altText: 'Corporate panel discussion photography at India Tech Summit Hyderabad',
+    imageUrl: 'https://images.unsplash.com/photo-1583939003579-730e3918a45a?q=80&w=800&auto=format&fit=crop',
+    altText: 'Joyous traditional moments of wedding couple exchanging beautiful floral varmala garlands of roses and jasmine in front of a grand palatial background',
     date: '2026-05-02',
-    cameraInfo: 'Nikon Z8 • NIKKOR Z 70-200mm f/2.8 VR S'
+    cameraInfo: 'Nikon Z8 • NIKKOR Z 70-200mm f/2.8 VR S • High Speed Sync'
+  },
+  {
+    id: 'g9',
+    title: 'Auspicious Haldi Ceremony Blessing Ritual, Guwahati, Assam, India',
+    category: 'wedding',
+    imageUrl: 'https://images.unsplash.com/photo-1610030469668-93535c17b6b3?q=80&w=800&auto=format&fit=crop',
+    altText: 'Vibrant yellow-themed traditional Haldi rasam ritual with celebratory splashing of marigold petals and turmeric blessings on the groom with pure smiles',
+    date: '2026-05-15',
+    cameraInfo: 'Nikon Z9 • NIKKOR Z 50mm f/1.2 S • High-speed action lock'
+  },
+  {
+    id: 'g10',
+    title: 'Auspicious Godh Bharai Traditional Baby Shower, Guwahati, India',
+    category: 'custom',
+    imageUrl: 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?q=80&w=800&auto=format&fit=crop',
+    altText: 'Traditional and warm Indian pregnancy celebration ceremony, showing beautiful traditional bangles, hand ornaments, and close family members gifting coconut blessings',
+    date: '2026-05-24',
+    cameraInfo: 'Nikon Z7 II • NIKKOR Z 85mm f/1.2 S • Ambient Fill Flash'
   }
 ];
 

@@ -59,6 +59,7 @@ import PFLogo from './components/PFLogo';
 import CursorEffect from './components/CursorEffect';
 import WhatsAppIcon from './components/WhatsAppIcon';
 import { ImageUploader } from './components/ImageUploader';
+import { ScrollReveal, ScrollRevealText } from './components/ScrollReveal';
 import { initAuth, googleSignIn, googleSignOut } from './lib/driveAuth';
 import { uploadBackupToDrive, listBackupsOnDrive, downloadBackupFromDrive, deleteBackupFromDrive, upsertLiveSyncBackup, getOrCreateFolder, uploadPhotoFileToDrive } from './lib/driveService';
 import type { DriveBackupFile } from './lib/driveService';
@@ -157,7 +158,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'home' | 'about' | 'pixelfix' | 'pixelframe' | 'gallery' | 'contact' | 'dashboard'>('home');
   const [currentTheme, setCurrentTheme] = useState<'normal' | 'mono' | 'light'>(() => {
     const saved = localStorage.getItem('mp_portfolio_theme');
-    return (saved as any) || 'normal';
+    return (saved as any) || 'light';
   });
 
   // Client dynamic visual database (uploaded by client / managed inside dashboard)
@@ -166,7 +167,9 @@ export default function App() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed.some((p: any) => p.cameraInfo && (p.cameraInfo.includes('Sony') || p.title.includes('Traditional Wedding Ceremony')))) {
+        const hasNewItems = parsed.some((p: any) => p.id === 'g9') && parsed.some((p: any) => p.id === 'g10');
+        const hasNewTitles = parsed.some((p: any) => p.title && p.title.includes('Royal Bridal Elegance & Crimson Lehenga'));
+        if (!hasNewItems || !hasNewTitles || parsed.some((p: any) => p.title && (p.title.includes('Enterprise Server Assembly') || p.title.includes('Executive Portraiture') || p.title.includes('Tech Summit') || p.cameraInfo?.includes('Sony') || p.title.includes('Traditional Wedding Ceremony')))) {
           return INITIAL_GALLERY_ITEMS;
         }
         return parsed;
@@ -200,7 +203,14 @@ export default function App() {
   const [photoServices, setPhotoServices] = useState<any[]>(() => {
     const saved = localStorage.getItem('mp_photo_services_custom');
     if (saved) {
-      try { return JSON.parse(saved); } catch (e) { return INITIAL_PHOTO_SERVICES; }
+      try {
+        const parsed = JSON.parse(saved);
+        const hasNewService = parsed.some((s: any) => s.title && s.title.includes('Baby Shower') || s.title.includes('Sacred Rasams'));
+        if (!hasNewService) {
+          return INITIAL_PHOTO_SERVICES;
+        }
+        return parsed;
+      } catch (e) { return INITIAL_PHOTO_SERVICES; }
     }
     return INITIAL_PHOTO_SERVICES;
   });
@@ -1055,9 +1065,7 @@ export default function App() {
                 onClick={() => setActiveTab(tab.id as any)}
                 className={`relative px-3 py-1.5 rounded-md text-xs uppercase tracking-wider font-extrabold transition-all duration-200 outline-none cursor-pointer ${
                   activeTab === tab.id
-                    ? currentTheme === 'mono'
-                      ? 'text-black font-black'
-                      : 'text-white'
+                    ? 'text-white'
                     : currentTheme === 'light'
                       ? 'text-slate-600 hover:text-[#FF5500] hover:bg-slate-200/30'
                       : 'text-slate-400 hover:text-white hover:bg-white/5'
@@ -1066,9 +1074,7 @@ export default function App() {
                 {activeTab === tab.id && (
                   <motion.span
                     layoutId="activeTabIndicator"
-                    className={`absolute inset-0 rounded-md -z-10 ${
-                      currentTheme === 'mono' ? 'bg-white' : 'bg-[#FF5500]'
-                    }`}
+                    className="absolute inset-0 rounded-md -z-10 bg-[#FF5500]"
                     transition={{ type: "spring", stiffness: 380, damping: 30 }}
                   />
                 )}
@@ -1124,16 +1130,14 @@ export default function App() {
 
             {/* Studio backend panel triggers */}
             <button
-              onClick={() => setActiveTab('dashboard')}
-              className={`p-1.5 rounded-full border transition-all ${
-                activeTab === 'dashboard'
-                  ? currentTheme === 'light'
-                    ? 'bg-slate-900 text-white border-slate-900'
-                    : 'bg-white text-black border-white'
-                  : currentTheme === 'light'
-                    ? 'border-slate-300 hover:border-[#FF5500] text-slate-500 hover:text-slate-800 bg-white'
-                    : 'border-white/10 hover:border-[#FF5500] text-slate-400 hover:text-white'
-              }`}
+               onClick={() => setActiveTab('dashboard')}
+               className={`p-1.5 rounded-full border transition-all ${
+                 activeTab === 'dashboard'
+                   ? 'bg-[#FF5500] text-white border-[#FF5500]'
+                   : currentTheme === 'light'
+                     ? 'border-slate-300 hover:border-[#FF5500] text-slate-500 hover:text-slate-800 bg-white'
+                     : 'border-white/10 hover:border-[#FF5500] text-slate-400 hover:text-white'
+               }`}
               title="Studio Management Dashboard"
             >
               <Sliders size={14} />
@@ -1152,7 +1156,7 @@ export default function App() {
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -15 }}
-              transition={{ duration: 0.35, ease: "easeInOut" }}
+              transition={{ type: "spring", stiffness: 180, damping: 20 }}
               className="space-y-16"
             >
             {/* HERO STATEMENT WITH SPLIT CARD VIBE */}
@@ -1181,17 +1185,21 @@ export default function App() {
                     )}
                   </div>
 
-                  <h1 className={`text-4xl md:text-5xl lg:text-6xl font-black tracking-tight leading-none ${
-                    currentTheme === 'light' ? 'text-slate-900' : 'text-white'
-                  }`}>
-                    {heroHeadline}
-                  </h1>
+                  <ScrollRevealText
+                    tag="h1"
+                    className={`text-4xl md:text-5xl lg:text-6xl font-black tracking-tight leading-none ${
+                      currentTheme === 'light' ? 'text-slate-900' : 'text-white'
+                    }`}
+                    text={heroHeadline}
+                  />
 
-                  <p className={`text-sm md:text-base max-w-xl leading-relaxed whitespace-pre-line ${
-                    currentTheme === 'light' ? 'text-slate-600' : 'text-slate-300'
-                  }`}>
-                    {heroSubheadline}
-                  </p>
+                  <ScrollReveal variant="fade-up" delay={0.2} duration={0.6}>
+                    <p className={`text-sm md:text-base max-w-xl leading-relaxed whitespace-pre-line ${
+                      currentTheme === 'light' ? 'text-slate-600' : 'text-slate-300'
+                    }`}>
+                      {heroSubheadline}
+                    </p>
+                  </ScrollReveal>
 
                   <div className="flex flex-col sm:flex-row gap-3 pt-2">
                     <button
@@ -1339,12 +1347,16 @@ export default function App() {
                   <div className="inline-block text-[9px] uppercase font-bold tracking-widest text-[#FF5500] mb-2 font-mono">
                     💰 LIVE WHATSAPP PRICING CALCULATOR &amp; DEPOSIT ENGINE
                   </div>
-                  <h2 className={`text-2xl md:text-3xl font-black ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'} leading-tight`}>
-                    Instant Quote Configurator
-                  </h2>
-                  <p className="text-slate-400 text-xs md:text-sm mt-1 max-w-xl">
-                    Configure your laptop recovery details or event parameters right on the screen. The estimate updates in real-time. Once satisfied, click to send this exact blueprint to Murari on WhatsApp to book!
-                  </p>
+                  <ScrollRevealText
+                    tag="h2"
+                    className={`text-2xl md:text-3xl font-black ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'} leading-tight`}
+                    text="Instant Quote Configurator"
+                  />
+                  <ScrollReveal variant="fade-up" delay={0.1}>
+                    <p className="text-slate-400 text-xs md:text-sm mt-1 max-w-xl">
+                      Configure your laptop recovery details or event parameters right on the screen. The estimate updates in real-time. Once satisfied, click to send this exact blueprint to Murari on WhatsApp to book!
+                    </p>
+                  </ScrollReveal>
                 </div>
 
                 {/* Estimation Selector Tab */}
@@ -1618,9 +1630,9 @@ export default function App() {
                     )}
 
                     {/* Integrated mini form fields to capture details directly */}
-                    <div className="pt-4 border-t border-white/5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className={`pt-4 border-t ${s.divider} grid grid-cols-1 sm:grid-cols-2 gap-4`}>
                       <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-400 block">Your Full Name:</label>
+                        <label className={`text-xs font-bold block ${currentTheme === 'light' ? 'text-slate-650' : 'text-slate-400'}`}>Your Full Name:</label>
                         <input
                           type="text"
                           required
@@ -1631,7 +1643,7 @@ export default function App() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-400 block">Your Phone / WhatsApp Number:</label>
+                        <label className={`text-xs font-bold block ${currentTheme === 'light' ? 'text-slate-650' : 'text-slate-400'}`}>Your Phone / WhatsApp Number:</label>
                         <input
                           type="tel"
                           required
@@ -1642,7 +1654,7 @@ export default function App() {
                         />
                       </div>
                       <div className="sm:col-span-2 space-y-2">
-                        <label className="text-xs font-bold text-slate-400 block">A Few Words (e.g., specific venue location or laptop crash issues):</label>
+                        <label className={`text-xs font-bold block ${currentTheme === 'light' ? 'text-slate-650' : 'text-slate-400'}`}>A Few Words (e.g., specific venue location or laptop crash issues):</label>
                         <textarea
                           value={bookingNotes}
                           rows={2}
@@ -1674,7 +1686,7 @@ export default function App() {
                       </div>
 
                       {/* Display calculations list */}
-                      <ul className="text-xs space-y-2.5 text-slate-400 font-mono">
+                      <ul className={`text-xs space-y-2.5 font-mono ${currentTheme === 'light' ? 'text-slate-650' : 'text-slate-400'}`}>
                         {quoteType === 'pixelfix' ? (
                           <>
                             <li className="flex justify-between">
@@ -1682,19 +1694,19 @@ export default function App() {
                               <span className={currentTheme === 'light' ? 'text-slate-900 font-bold' : 'text-white'}>₹{500 * itDeviceCount}</span>
                             </li>
                             {itNeedOS && (
-                              <li className="flex justify-between text-slate-400">
+                              <li className="flex justify-between">
                                 <span>+ Doorstep Windows Setup:</span>
                                 <span className="text-[#FF5500] font-bold">₹{350 * itDeviceCount}</span>
                               </li>
                             )}
                             {itNeedOffice && (
-                              <li className="flex justify-between text-slate-400">
+                              <li className="flex justify-between">
                                 <span>+ Genuine Productivity help:</span>
                                 <span className="text-[#FF5500] font-bold">₹{250 * itDeviceCount}</span>
                               </li>
                             )}
                             {itSsdUpgrade && (
-                              <li className="flex justify-between text-slate-400">
+                              <li className="flex justify-between">
                                 <span>+ Solid State Drive labor:</span>
                                 <span className="text-[#FF5500] font-bold">₹{450 * itDeviceCount}</span>
                               </li>
@@ -1715,19 +1727,19 @@ export default function App() {
                               </span>
                             </li>
                             {photoNeedPreWedding && (
-                              <li className="flex justify-between text-slate-400">
+                              <li className="flex justify-between">
                                 <span>+ Cinematic Couple session:</span>
                                 <span className="text-[#FF5500] font-bold">₹5000</span>
                               </li>
                             )}
                             {photoNeedDrone && (
-                              <li className="flex justify-between text-slate-400">
+                              <li className="flex justify-between">
                                 <span>+ 4K Aerial Drone capture:</span>
                                 <span className="text-[#FF5500] font-bold">₹4000</span>
                               </li>
                             )}
                             {photoNeedAlbum && (
-                              <li className="flex justify-between text-slate-400">
+                              <li className="flex justify-between">
                                 <span>+ Printed Coffee Album:</span>
                                 <span className="text-[#FF5500] font-bold">₹3500</span>
                               </li>
@@ -1737,7 +1749,7 @@ export default function App() {
                       </ul>
                     </div>
 
-                    <div className="pt-6 mt-6 border-t border-white/5 space-y-3">
+                    <div className={`pt-6 mt-6 border-t ${s.divider} space-y-3`}>
                       <button
                         onClick={quoteType === 'pixelfix' ? handleSendITQuoteWhatsApp : handleSendPhotoQuoteWhatsApp}
                         className="w-full bg-green-600 hover:bg-green-700 text-white py-4 rounded-xl font-extrabold text-sm uppercase tracking-wider flex items-center justify-center gap-2 transition-colors shadow-lg cursor-pointer"
@@ -1899,6 +1911,23 @@ export default function App() {
                   <ArrowUpRight size={12} className="text-slate-400 group-hover:text-teal-500 transition-colors flex-shrink-0" />
                 </a>
 
+                {/* PulsePX Handle */}
+                <a
+                  href="https://pulsepx.com/profile/mpanjiyar100?view=entries"
+                  target="_blank"
+                  rel="noreferrer"
+                  className={`group flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all duration-300 ${s.card} ${s.cardHover} min-w-[200px] flex-1 max-w-sm`}
+                >
+                  <div className="w-8 h-8 rounded-lg bg-orange-500/10 flex items-center justify-center text-[#FF5500] group-hover:scale-105 transition-transform flex-shrink-0">
+                    <Camera size={15} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className={`text-[11px] font-bold ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'} leading-tight`}>PulsePX Profile</p>
+                    <p className="text-[10px] text-[#FF5500] font-semibold tracking-tight">mpanjiyar100</p>
+                  </div>
+                  <ArrowUpRight size={12} className="text-slate-400 group-hover:text-[#FF5500] transition-colors flex-shrink-0" />
+                </a>
+
               </div>
             </section>
 
@@ -1940,7 +1969,7 @@ export default function App() {
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -15 }}
-            transition={{ duration: 0.35, ease: "easeInOut" }}
+            transition={{ type: "spring", stiffness: 180, damping: 20 }}
             className="space-y-12 text-left"
           >
             {/* Header branding taglines */}
@@ -1948,16 +1977,20 @@ export default function App() {
               <span className="inline-block bg-[#FF5500]/10 text-[#FF5500] text-xs font-bold uppercase tracking-widest px-4 py-1 rounded-full border border-[#FF5500]/20 font-mono">
                 PIXEL FIX — AT-DOORSTEP IT Support
               </span>
-              <h1 className={`text-3xl md:text-5xl font-black uppercase tracking-tight ${
-                currentTheme === 'light' ? 'text-slate-900' : 'text-white'
-              }`}>
-                AFFORDABLE DOORSTEP COMPUTER ENGINEERS
-              </h1>
-              <p className={`text-sm md:text-base ${
-                currentTheme === 'light' ? 'text-slate-650 font-medium' : 'text-slate-300'
-              }`}>
-                Get operating system upgrades (Windows 10/11), productivity licensing configuration help for Microsoft Office, system speedups, and rapid diagnostic hardware audits on demand. Call anytime at +918638875231.
-              </p>
+              <ScrollRevealText
+                tag="h1"
+                className={`text-3xl md:text-4xl lg:text-5xl font-black uppercase tracking-tight ${
+                  currentTheme === 'light' ? 'text-slate-900' : 'text-white'
+                }`}
+                text="AFFORDABLE DOORSTEP COMPUTER ENGINEERS"
+              />
+              <ScrollReveal variant="fade-up" delay={0.15}>
+                <p className={`text-sm md:text-base ${
+                  currentTheme === 'light' ? 'text-slate-650 font-medium' : 'text-slate-300'
+                }`}>
+                  Get operating system upgrades (Windows 10/11), productivity licensing configuration help for Microsoft Office, system speedups, and rapid diagnostic hardware audits on demand. Call anytime at +918638875231.
+                </p>
+              </ScrollReveal>
               
               <div className="pt-2 flex flex-wrap justify-center gap-3">
                 <button
@@ -1978,8 +2011,10 @@ export default function App() {
             {/* List offerings */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               {itServices.map((srv, index) => (
-                <div
+                <ScrollReveal
                   key={index}
+                  variant="fade-up"
+                  delay={index * 0.1}
                   className={`p-6 rounded-3xl border ${s.card} flex flex-col justify-between hover:border-[#FF5500]/40 transition-all duration-300`}
                 >
                   <div>
@@ -2038,7 +2073,7 @@ export default function App() {
                       Configure Estimate
                     </button>
                   </div>
-                </div>
+                </ScrollReveal>
               ))}
             </div>
 
@@ -2157,7 +2192,7 @@ export default function App() {
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -15 }}
-            transition={{ duration: 0.35, ease: "easeInOut" }}
+            transition={{ type: "spring", stiffness: 180, damping: 20 }}
             className="space-y-12 text-left"
           >
             {/* Header branding */}
@@ -2165,16 +2200,20 @@ export default function App() {
               <span className="inline-block bg-[#FF5500]/10 text-[#FF5500] text-xs font-bold uppercase tracking-widest px-4 py-1 rounded-full border border-[#FF5500]/20 font-mono">
                 PIXEL FRAME — Professional Wedding events
               </span>
-              <h1 className={`text-3xl md:text-5xl font-black uppercase tracking-tight ${
-                currentTheme === 'light' ? 'text-slate-900' : 'text-white animate-pulse'
-              }`}>
-                Framing Your Precious Moments Forever
-              </h1>
-              <p className={`text-sm md:text-base ${
-                currentTheme === 'light' ? 'text-slate-650 font-medium' : 'text-slate-300'
-              }`}>
-                Discover candidacy portraiture, high-contrast wedding frames, post-production cinematic retouching, and aerial drone recording. Check custom budget estimates and secure your booking date instantly on WhatsApp at +919864361940.
-              </p>
+              <ScrollRevealText
+                tag="h1"
+                className={`text-3xl md:text-4xl lg:text-5xl font-black uppercase tracking-tight ${
+                  currentTheme === 'light' ? 'text-slate-900' : 'text-white'
+                }`}
+                text="Framing Your Precious Moments Forever"
+              />
+              <ScrollReveal variant="fade-up" delay={0.15}>
+                <p className={`text-sm md:text-base ${
+                  currentTheme === 'light' ? 'text-slate-650 font-medium' : 'text-slate-300'
+                }`}>
+                  Discover candidacy portraiture, high-contrast wedding frames, post-production cinematic retouching, and aerial drone recording. Check custom budget estimates and secure your booking date instantly on WhatsApp at +919864361940.
+                </p>
+              </ScrollReveal>
 
               <div className="pt-2 flex flex-wrap justify-center gap-3">
                 <button
@@ -2197,8 +2236,10 @@ export default function App() {
             {/* Matrix of services */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               {photoServices.map((srv, index) => (
-                <div
+                <ScrollReveal
                   key={index}
+                  variant="fade-up"
+                  delay={index * 0.08}
                   className={`p-5 rounded-2xl border ${s.card} flex flex-col justify-between hover:border-[#FF5500]/30 transition-all duration-300`}
                 >
                   <div>
@@ -2255,7 +2296,7 @@ export default function App() {
                   >
                     Estimate Cost
                   </button>
-                </div>
+                </ScrollReveal>
               ))}
             </div>
 
@@ -2353,7 +2394,7 @@ export default function App() {
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -15 }}
-            transition={{ duration: 0.35, ease: "easeInOut" }}
+            transition={{ type: "spring", stiffness: 180, damping: 20 }}
             className="space-y-8 text-left"
           >
             {/* Header titles */}
@@ -2361,16 +2402,20 @@ export default function App() {
               <span className={`text-[10px] uppercase tracking-[0.2em] font-bold block mb-1 ${s.tagline}`}>
                 PIXEL FRAME — DIGITAL IMAGE SHOWCASE DATABASE
               </span>
-              <h1 className={`text-3xl font-black ${
-                currentTheme === 'light' ? 'text-slate-900' : 'text-white'
-              }`}>
-                CURATED CLIENT PORTFOLIOS
-              </h1>
-              <p className={`text-xs md:text-sm mt-1 max-w-2xl ${
-                currentTheme === 'light' ? 'text-slate-600 font-medium' : 'text-slate-400'
-              }`}>
-                Filter through our wedding cinematic highlights, anniversary files, custom outdoor solo outputs and professional corporate captures. Click any card to expand and view full image specifications.
-              </p>
+              <ScrollRevealText
+                tag="h1"
+                className={`text-3xl font-black ${
+                  currentTheme === 'light' ? 'text-slate-900' : 'text-white'
+                }`}
+                text="CURATED CLIENT PORTFOLIOS"
+              />
+              <ScrollReveal variant="fade-up" delay={0.15}>
+                <p className={`text-xs md:text-sm mt-1 max-w-2xl ${
+                  currentTheme === 'light' ? 'text-slate-600 font-medium' : 'text-slate-400'
+                }`}>
+                  Filter through our wedding cinematic highlights, anniversary files, custom outdoor solo outputs and professional corporate captures. Click any card to expand and view full image specifications.
+                </p>
+              </ScrollReveal>
             </div>
 
             {/* Filter segments */}
@@ -2521,7 +2566,7 @@ export default function App() {
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -15 }}
-            transition={{ duration: 0.35, ease: "easeInOut" }}
+            transition={{ type: "spring", stiffness: 180, damping: 20 }}
             className="space-y-12 text-left max-w-5xl mx-auto"
           >
             {/* Split row bio */}
@@ -2579,20 +2624,24 @@ export default function App() {
                       </button>
                     )}
                   </div>
-                  <h1 className={`text-3xl md:text-4xl font-black uppercase leading-none ${
-                    currentTheme === 'light' ? 'text-slate-900' : 'text-white'
-                  }`}>
-                    The Mind Behind the Lens and the Machine
-                  </h1>
+                  <ScrollRevealText
+                    tag="h1"
+                    className={`text-3xl md:text-4xl font-black uppercase leading-none ${
+                      currentTheme === 'light' ? 'text-slate-900' : 'text-white'
+                    }`}
+                    text="The Mind Behind the Lens and the Machine"
+                  />
                 </div>
 
                 <div className={`space-y-4 text-xs md:text-sm leading-relaxed ${
                   currentTheme === 'light' ? 'text-slate-700' : 'text-slate-300'
                 }`}>
-                  <h2 className="font-extrabold text-sm uppercase tracking-wider text-[#FF5500] mb-2">{bioHeadline}</h2>
-                  <p className="whitespace-pre-line leading-relaxed italic border-l-2 border-[#FF5500]/55 pl-4 py-1">
-                    {bioText}
-                  </p>
+                  <ScrollReveal variant="fade-up" delay={0.1}>
+                    <h2 className="font-extrabold text-sm uppercase tracking-wider text-[#FF5500] mb-2">{bioHeadline}</h2>
+                    <p className="whitespace-pre-line leading-relaxed italic border-l-2 border-[#FF5500]/55 pl-4 py-1">
+                      {bioText}
+                    </p>
+                  </ScrollReveal>
                   <p className="text-slate-500 italic text-xs">
                     *Pictured above: Murari Panjiyar, presenting his technical expertise and artistic perspective.*
                   </p>
@@ -2757,22 +2806,26 @@ export default function App() {
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -15 }}
-            transition={{ duration: 0.35, ease: "easeInOut" }}
+            transition={{ type: "spring", stiffness: 180, damping: 20 }}
             className="space-y-12 text-left max-w-4xl mx-auto"
           >
             {/* Banner titles */}
             <div className="text-center space-y-2">
               <span className="text-[9px] uppercase font-mono tracking-widest text-[#FF5500] font-bold">DIRECTORY COMMUNICATIONS DIRECT DISPATCH</span>
-              <h1 className={`text-3xl font-black ${
-                currentTheme === 'light' ? 'text-slate-900' : 'text-white'
-              }`}>
-                INSTANT TELEPHONIC CONTACT PORTAL
-              </h1>
-              <p className={`text-xs md:text-sm ${
-                currentTheme === 'light' ? 'text-slate-600 font-medium' : 'text-slate-400'
-              }`}>
-                No complex paperwork. Dial or text Murari directly on WhatsApp based on your target requirement. We answer within 15 minutes!
-              </p>
+              <ScrollRevealText
+                tag="h1"
+                className={`text-2xl md:text-3xl font-black ${
+                  currentTheme === 'light' ? 'text-slate-900' : 'text-white'
+                }`}
+                text="INSTANT TELEPHONIC CONTACT PORTAL"
+              />
+              <ScrollReveal variant="fade-up" delay={0.15}>
+                <p className={`text-xs md:text-sm ${
+                  currentTheme === 'light' ? 'text-slate-600 font-medium' : 'text-slate-400'
+                }`}>
+                  No complex paperwork. Dial or text Murari directly on WhatsApp based on your target requirement. We answer within 15 minutes!
+                </p>
+              </ScrollReveal>
             </div>
 
             {/* Split cards phone numbers */}
@@ -2875,7 +2928,7 @@ export default function App() {
             initial={{ opacity: 0, scale: 0.98, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.98, y: -10 }}
-            transition={{ duration: 0.35, ease: "easeInOut" }}
+            transition={{ type: "spring", stiffness: 180, damping: 20 }}
             className="space-y-12 text-left"
           >
             {/* Admin Key Check */}
@@ -2919,10 +2972,10 @@ export default function App() {
             ) : (
               // FULL ADMIN SUITE PANEL
               <div className="space-y-8">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/5">
+                <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b ${s.divider}`}>
                   <div>
                     <span className="text-xs font-bold uppercase text-[#FF5500] block mb-1">PIXEL FIX &amp; PIXEL FRAME CONTROL DESK</span>
-                    <h1 className="text-2xl font-black text-white">STUDIO DYNAMIC ENGINE</h1>
+                    <h1 className={`text-2xl font-black ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>STUDIO DYNAMIC ENGINE</h1>
                   </div>
 
                   <button
@@ -2938,14 +2991,14 @@ export default function App() {
                   {/* Left Column: Gallery management uploader */}
                   <div className="lg:col-span-6 space-y-6">
                     <div className={`p-6 rounded-3xl border ${s.card} space-y-6`}>
-                      <h3 className="text-lg font-black text-white flex items-center gap-2">
+                      <h3 className={`text-lg font-black flex items-center gap-2 ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
                         <Upload size={18} className="text-[#FF5500]" />
                         <span>Instant Image Uploader (Local Cache DB)</span>
                       </h3>
                       
                       <form onSubmit={handleCreateGalleryItem} className="space-y-4 text-left">
                         <div className="space-y-1">
-                          <label className="text-xs font-extrabold text-slate-400 block">Photo Session Title:</label>
+                          <label className={`text-xs font-extrabold block ${currentTheme === 'light' ? 'text-slate-650' : 'text-slate-400'}`}>Photo Session Title:</label>
                           <input
                             type="text"
                             required
@@ -2958,7 +3011,7 @@ export default function App() {
 
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-1">
-                            <label className="text-xs font-extrabold text-slate-400 block">Category:</label>
+                            <label className={`text-xs font-extrabold block ${currentTheme === 'light' ? 'text-slate-650' : 'text-slate-400'}`}>Category:</label>
                             <select
                               value={newImageCategory}
                               onChange={(e) => setNewImageCategory(e.target.value as any)}
@@ -2972,7 +3025,7 @@ export default function App() {
                           </div>
                           
                           <div className="space-y-1">
-                            <label className="text-xs font-extrabold text-slate-400 block">Camera Lens Meta Info:</label>
+                            <label className={`text-xs font-extrabold block ${currentTheme === 'light' ? 'text-slate-650' : 'text-slate-400'}`}>Camera Lens Meta Info:</label>
                             <input
                               type="text"
                               value={newImageCamera}
@@ -2985,7 +3038,7 @@ export default function App() {
 
                         {/* Drag and Drop implementation */}
                         <div className="space-y-1">
-                          <label className="text-xs font-extrabold text-slate-400 block">Choose Portfolio Picture File:</label>
+                          <label className={`text-xs font-extrabold block ${currentTheme === 'light' ? 'text-slate-650' : 'text-slate-400'}`}>Choose Portfolio Picture File:</label>
                           <div
                             onDragOver={handleDragOver}
                             onDragLeave={handleDragLeave}
@@ -2996,7 +3049,9 @@ export default function App() {
                                 ? 'border-[#FF5500] bg-[#FF5500]/5' 
                                 : newImageBase64 
                                   ? 'border-green-500 bg-green-500/5' 
-                                  : 'border-white/10 hover:border-white/20'
+                                  : currentTheme === 'light'
+                                    ? 'border-slate-350 hover:border-[#FF5500]'
+                                    : 'border-white/10 hover:border-white/20'
                             }`}
                           >
                             <input
@@ -3009,19 +3064,19 @@ export default function App() {
                             
                             {newImageBase64 ? (
                               <div className="space-y-2">
-                                <span className="w-12 h-12 bg-green-500/10 text-green-400 rounded-full flex items-center justify-center mx-auto text-xs font-bold">
+                                <span className="w-12 h-12 bg-green-500/10 text-green-500 rounded-full flex items-center justify-center mx-auto text-xs font-bold">
                                   ✓
                                 </span>
-                                <p className="text-xs text-slate-300 font-extrabold">Photo file loaded successfully!</p>
-                                <p className="text-[10px] text-slate-500 truncate max-w-xs mx-auto">Double check file dimensions. click again to overwrite.</p>
+                                <p className={`text-xs font-extrabold ${currentTheme === 'light' ? 'text-emerald-700' : 'text-slate-300'}`}>Photo file loaded successfully!</p>
+                                <p className={`text-[10px] truncate max-w-xs mx-auto ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-500'}`}>Double check file dimensions. click again to overwrite.</p>
                               </div>
                             ) : (
                               <div className="space-y-2">
                                 <span className="w-12 h-12 bg-orange-600/10 text-[#FF5500] rounded-full flex items-center justify-center mx-auto">
                                   <ImageIcon size={20} />
                                 </span>
-                                <p className="text-xs text-slate-300"><strong className="text-white hover:underline">Click to browse file</strong> or drag here</p>
-                                <p className="text-[9px] text-slate-600">Supports WebP, JPEG, PNG formats</p>
+                                <p className={`text-xs ${currentTheme === 'light' ? 'text-slate-600' : 'text-slate-350'}`}><strong className={`${currentTheme === 'light' ? 'text-slate-900' : 'text-white'} hover:underline`}>Click to browse file</strong> or drag here</p>
+                                <p className={`text-[9px] ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-600'}`}>Supports WebP, JPEG, PNG formats</p>
                               </div>
                             )}
                           </div>
@@ -3038,12 +3093,12 @@ export default function App() {
 
                     {/* Notification Alert System */}
                     <div className={`p-6 rounded-3xl border ${s.card} space-y-4`}>
-                      <h3 className="text-lg font-black text-white flex items-center gap-2">
+                      <h3 className={`text-lg font-black flex items-center gap-2 ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
                         <Bell size={18} className="text-[#FF5500]" />
                         <span>Automated Client Notification Hub</span>
                       </h3>
                       
-                      <p className="text-xs text-slate-400 leading-normal">
+                      <p className={`text-xs leading-normal ${currentTheme === 'light' ? 'text-slate-600' : 'text-slate-400'}`}>
                         Simulate launching automated alert emails telling local clients their portfolio pictures are edited and ready to view instantly in the secure interface!
                       </p>
 
@@ -3069,20 +3124,30 @@ export default function App() {
 
                         <button
                           type="submit"
-                          className="w-full py-2.5 bg-white text-black font-extrabold text-xs uppercase rounded-lg hover:bg-zinc-200 transition-colors"
+                          className={`w-full py-2.5 font-extrabold text-xs uppercase rounded-lg transition-colors border ${
+                            currentTheme === 'light'
+                              ? 'bg-slate-900 hover:bg-slate-800 text-white border-transparent'
+                              : 'bg-white text-black hover:bg-zinc-200 border-transparent'
+                          }`}
                         >
                           Simulate Email Alert Trigger
                         </button>
                       </form>
 
                       {notificationSuccess && lastSentEmailPreview && (
-                        <div className="p-4 bg-black border border-green-500/30 rounded-xl space-y-2 text-left font-mono text-[10px]">
-                          <span className="text-green-400 font-extrabold block">✓ AUTOMATED DIGITAL COMMUNICATION LOG:</span>
-                          <div className="text-zinc-500">
+                        <div className={`p-4 border rounded-xl space-y-2 text-left font-mono text-[10px] ${
+                          currentTheme === 'light' ? 'bg-emerald-50 border-emerald-500/20 text-emerald-950' : 'bg-black border-green-500/30'
+                        }`}>
+                          <span className={`font-extrabold block ${currentTheme === 'light' ? 'text-emerald-700' : 'text-green-400'}`}>
+                            ✓ AUTOMATED DIGITAL COMMUNICATION LOG:
+                          </span>
+                          <div className={currentTheme === 'light' ? 'text-slate-600' : 'text-zinc-500'}>
                             <strong>To:</strong> {lastSentEmailPreview.clientEmail}<br />
                             <strong>Subject:</strong> {lastSentEmailPreview.subject}
                           </div>
-                          <div className="text-zinc-300 whitespace-pre-wrap mt-1 leading-normal text-[9px]">
+                          <div className={`whitespace-pre-wrap mt-1 leading-normal text-[9px] ${
+                            currentTheme === 'light' ? 'text-slate-700' : 'text-zinc-300'
+                          }`}>
                             {lastSentEmailPreview.body}
                           </div>
                         </div>
@@ -3093,12 +3158,12 @@ export default function App() {
                   {/* Right Column: Manage records */}
                   <div className="lg:col-span-6 space-y-6">
                     <div className={`p-6 rounded-3xl border ${s.card} space-y-4`}>
-                      <h3 className="text-lg font-black text-white flex items-center gap-2">
+                      <h3 className={`text-lg font-black flex items-center gap-2 ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
                         <SlidersHorizontal size={18} className="text-[#FF5500]" />
                         <span>Manage Showcase Gallery Images</span>
                       </h3>
 
-                      <p className="text-xs text-slate-400">
+                      <p className={`text-xs ${currentTheme === 'light' ? 'text-slate-600' : 'text-slate-400'}`}>
                         Historical list of elements in local database storage. Total items tracked: <strong>{galleryItems.length}</strong>
                       </p>
 
@@ -3106,7 +3171,9 @@ export default function App() {
                         {galleryItems.map((item) => (
                           <div
                             key={item.id}
-                            className="bg-black/35 p-3 rounded-xl border border-white/5 flex items-center justify-between text-xs font-mono"
+                            className={`p-3 rounded-xl border flex items-center justify-between text-xs font-mono mb-2 ${
+                              currentTheme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-black/35 border-white/5'
+                            }`}
                           >
                             <div className="flex items-center space-x-3 text-left">
                               <img
@@ -3116,7 +3183,9 @@ export default function App() {
                                 referrerPolicy="no-referrer"
                               />
                               <div className="max-w-[200px]">
-                                <span className="text-white font-extrabold block truncate">{item.title}</span>
+                                <span className={`font-extrabold block truncate ${currentTheme === 'light' ? 'text-slate-800' : 'text-white'}`}>
+                                  {item.title}
+                                </span>
                                 <span className="text-[10px] text-[#FF5500] uppercase font-bold">{item.category}</span>
                               </div>
                             </div>
@@ -3135,19 +3204,21 @@ export default function App() {
 
                     {/* Booking inquiries from client contact forms logged locally */}
                     <div className={`p-6 rounded-3xl border ${s.card} space-y-4`}>
-                      <h3 className="text-lg font-black text-white flex items-center gap-2">
+                      <h3 className={`text-lg font-black flex items-center gap-2 ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
                         <MessageSquare size={18} className="text-[#FF5500]" />
                         <span>Client Inquiry Log Stream</span>
                       </h3>
 
                       {contactMessages.length === 0 ? (
-                        <div className="py-8 text-center text-zinc-600 font-mono text-xs">
+                        <div className={`py-8 text-center font-mono text-xs ${currentTheme === 'light' ? 'text-slate-400' : 'text-zinc-650'}`}>
                           -- No logging operations stream yet --
                         </div>
                       ) : (
                         <div className="space-y-3 max-h-[300px] overflow-y-auto">
                           {contactMessages.map((msg) => (
-                            <div key={msg.id} className="p-3 bg-black/40 rounded-xl border border-white/5 text-xs text-left relative">
+                            <div key={msg.id} className={`p-3 rounded-xl border text-xs text-left relative ${
+                              currentTheme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-black/40 border-white/5'
+                            }`}>
                               <button
                                 onClick={() => {
                                   if (confirm('Delete inquiry entry?')) {
@@ -3159,19 +3230,31 @@ export default function App() {
                                 <X size={11} />
                               </button>
                               
-                              <div className="font-extrabold text-white flex items-center gap-2">
+                              <div className={`font-extrabold flex items-center gap-2 ${
+                                currentTheme === 'light' ? 'text-slate-900' : 'text-white'
+                              }`}>
                                 <span>{msg.name}</span>
-                                <span className="text-[10px] text-slate-500 font-mono font-normal">({msg.timestamp})</span>
+                                <span className={`text-[10px] font-mono font-normal ${currentTheme === 'light' ? 'text-slate-400' : 'text-slate-500'}`}>
+                                  ({msg.timestamp})
+                                </span>
                               </div>
-                              <div className="text-[#FF5500] font-mono text-[9px] uppercase tracking-wider mt-0.5">{msg.serviceType === 'it_fix' ? 'Pixel Fix Service' : 'Pixel Frame shoot'}</div>
-                              <div className="text-slate-350 text-[11px] leading-relaxed mt-1 font-sans">{msg.message}</div>
-                              <div className="text-slate-400 font-mono text-[10px] pt-1.5 border-t border-white/5 mt-1.5 flex gap-3">
-                                <span>📞 Mobile: <a href={`tel:${msg.phone}`} className="text-white hover:underline">{msg.phone}</a></span>
+                              <div className="text-[#FF5500] font-mono text-[9px] uppercase tracking-wider mt-0.5">
+                                {msg.serviceType === 'it_fix' ? 'Pixel Fix Service' : 'Pixel Frame shoot'}
+                              </div>
+                              <div className={`text-[11px] leading-relaxed mt-1 font-sans ${
+                                currentTheme === 'light' ? 'text-slate-700' : 'text-slate-350'
+                              }`}>
+                                {msg.message}
+                              </div>
+                              <div className={`font-mono text-[10px] pt-1.5 border-t mt-1.5 flex gap-3 ${
+                                currentTheme === 'light' ? 'border-slate-200 text-slate-500' : 'border-white/5 text-slate-400'
+                              }`}>
+                                <span>📞 Mobile: <a href={`tel:${msg.phone}`} className={`hover:underline ${currentTheme === 'light' ? 'text-slate-900 font-semibold' : 'text-white'}`}>{msg.phone}</a></span>
                                 <a
                                   href={`https://wa.me/${msg.phone.replace(/[^0-9]/g, '')}?text=Hi%20${msg.name},%20this%20is%20Murari.`}
                                   target="_blank"
                                   rel="noreferrer"
-                                  className="text-green-400 hover:underline inline-flex items-center gap-1"
+                                  className="text-green-500 hover:underline inline-flex items-center gap-1 font-semibold"
                                 >
                                   <WhatsAppIcon size={12} /> WhatsApp Callback
                                 </a>
@@ -3184,18 +3267,20 @@ export default function App() {
 
                     {/* Instagram Real-time Api Sync Panel */}
                     <div className={`p-6 rounded-3xl border ${s.card} space-y-4`}>
-                      <h3 className="text-lg font-black text-white flex items-center gap-2">
+                      <h3 className={`text-lg font-black flex items-center gap-2 ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
                         <Instagram size={18} className="text-[#FF5500]" />
                         <span>Instagram Automated Sync Hub</span>
                       </h3>
 
-                      <p className="text-xs text-slate-400 leading-normal">
+                      <p className={`text-xs leading-normal ${currentTheme === 'light' ? 'text-slate-650' : 'text-slate-400'}`}>
                         Connect your portfolio live to your actual Instagram stream! Provide your Instagram Long-Lived Access Token to display all live posts automatically on the Origin section.
                       </p>
 
                       <div className="space-y-3 text-left">
                         <div className="space-y-1">
-                          <label className="text-xs font-extrabold text-slate-400 block">Instagram Access Token:</label>
+                          <label className={`text-xs font-extrabold block ${currentTheme === 'light' ? 'text-slate-650' : 'text-slate-400'}`}>
+                            Instagram Access Token:
+                          </label>
                           <input
                             type="password"
                             value={instagramAccessToken}
@@ -3250,7 +3335,11 @@ export default function App() {
 
                         {/* Automated Sync Timing Status tracker */}
                         {localStorage.getItem('mp_instagram_last_sync') && (
-                          <div className="text-[10px] text-green-400 font-mono text-left bg-green-950/20 border border-green-500/10 p-2.5 rounded-xl flex items-center justify-between">
+                          <div className={`text-[10px] font-mono text-left p-2.5 rounded-xl flex items-center justify-between ${
+                            currentTheme === 'light'
+                              ? 'bg-green-150/40 border-green-500/20 text-emerald-800 font-bold'
+                              : 'bg-green-950/20 border-green-500/10 text-green-400'
+                          }`}>
                             <span>✓ Last Stream Fetch Success:</span>
                             <span>
                               {new Date(parseInt(localStorage.getItem('mp_instagram_last_sync') || '0', 10)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -3259,10 +3348,14 @@ export default function App() {
                         )}
 
                         {/* Integration Helper Guidance */}
-                        <div className="p-4 bg-black/45 border border-white/5 rounded-2xl space-y-2.5">
+                        <div className={`p-4 border rounded-2xl space-y-2.5 ${
+                          currentTheme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-black/45 border-white/5'
+                        }`}>
                           <span className="text-[10.5px] font-bold uppercase tracking-wider text-[#FF5500] block">🔑 How to Generate Your Token (Takes 2 Minutes)</span>
-                          <ol className="list-decimal list-inside text-[10px] text-slate-500 space-y-1.5 leading-relaxed pl-1">
-                            <li>Go to <a href="https://developers.facebook.com" target="_blank" rel="noreferrer" className="text-white hover:underline decoration-[#FF5500]">Meta Developers Portal</a> and create an App.</li>
+                          <ol className={`list-decimal list-inside text-[10px] space-y-1.5 leading-relaxed pl-1 ${
+                            currentTheme === 'light' ? 'text-slate-600' : 'text-slate-500'
+                          }`}>
+                            <li>Go to <a href="https://developers.facebook.com" target="_blank" rel="noreferrer" className={`hover:underline decoration-[#FF5500] ${currentTheme === 'light' ? 'text-slate-900 font-bold' : 'text-white'}`}>Meta Developers Portal</a> and create an App.</li>
                             <li>Add the <strong>Instagram Basic Display API</strong> and scroll to test accounts.</li>
                             <li>Add your Instagram Handle <strong>@mpanjiyar1</strong> under Tester Invitation.</li>
                             <li>Log in to your Instagram on Web, go to <i>Settings &gt; Apps &amp; Websites</i> and accept the request.</li>
@@ -3276,7 +3369,9 @@ export default function App() {
 
                   {/* GOOGLE DRIVE SYNC & ARCHIVE SUITE (FULL WIDTH CONTAINER) */}
                   <div className={`p-6 rounded-3xl border ${s.card} space-y-6 lg:col-span-12 mt-4 text-left`}>
-                    <h3 className="text-lg font-black text-white flex items-center justify-between gap-2 flex-wrap">
+                    <h3 className={`text-lg font-black flex items-center justify-between gap-2 flex-wrap ${
+                      currentTheme === 'light' ? 'text-slate-900' : 'text-white'
+                    }`}>
                       <div className="flex items-center gap-2">
                         <Cloud size={18} className="text-[#FF5500]" />
                         <span>Google Drive Cloud Backup & Recovery Suite</span>
@@ -3298,24 +3393,28 @@ export default function App() {
                       )}
                     </h3>
 
-                    <p className="text-xs text-slate-400 leading-relaxed">
+                    <p className={`text-xs leading-relaxed ${currentTheme === 'light' ? 'text-slate-650' : 'text-slate-400'}`}>
                       Secure and backup all your portfolio customizations, live Instagram stream bindings, and client inquiry log streams directly into your personal Google Drive storage. Restores take a single click!
                     </p>
 
                     {!driveUser ? (
-                      <div className="flex flex-col items-center justify-center p-8 bg-black/35 rounded-2xl border border-dashed border-white/10 text-center space-y-4">
+                      <div className={`flex flex-col items-center justify-center p-8 rounded-2xl border border-dashed text-center space-y-4 ${
+                        currentTheme === 'light' ? 'bg-slate-50 border-slate-350' : 'bg-black/35 border-white/10'
+                      }`}>
                         <div className="w-12 h-12 bg-[#FF5500]/10 rounded-full flex items-center justify-center text-[#FF5500]">
                           <HardDrive size={24} />
                         </div>
                         <div className="space-y-1">
-                          <h4 className="text-sm font-bold text-white">Google Workspace Drive Integration</h4>
-                          <p className="text-xs text-slate-400 max-w-md">Connect your personal Google Drive account with secure permissions to create and restore complete automated backups of your online portfolio.</p>
+                          <h4 className={`text-sm font-bold ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>Google Workspace Drive Integration</h4>
+                          <p className={`text-xs max-w-md ${currentTheme === 'light' ? 'text-slate-600' : 'text-slate-400'}`}>Connect your personal Google Drive account with secure permissions to create and restore complete automated backups of your online portfolio.</p>
                         </div>
                         <button
                           type="button"
                           onClick={handleDriveSignIn}
                           disabled={isDriveLoading}
-                          className="hover:opacity-95 py-3 px-6 bg-white text-slate-900 font-extrabold text-xs rounded-xl flex items-center gap-2.5 shadow transition-all cursor-pointer hover:scale-[1.01]"
+                          className={`hover:opacity-95 py-3 px-6 bg-white text-slate-900 font-extrabold text-xs rounded-xl flex items-center gap-2.5 shadow transition-all cursor-pointer hover:scale-[1.01] ${
+                            currentTheme === 'light' ? 'border border-slate-200' : ''
+                          }`}
                         >
                           <svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" className="w-4 h-4">
                             <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path>
@@ -3338,8 +3437,12 @@ export default function App() {
                               </span>
                             )}
                             <div>
-                              <span className="text-white font-extrabold text-xs block leading-tight">{driveUser.displayName || 'Authorized Google Drive Session'}</span>
-                              <span className="text-slate-450 text-[10px] block font-mono">{driveUser.email}</span>
+                              <span className={`font-extrabold text-xs block leading-tight ${
+                                currentTheme === 'light' ? 'text-slate-900' : 'text-white'
+                              }`}>{driveUser.displayName || 'Authorized Google Drive Session'}</span>
+                              <span className={`text-[10px] block font-mono ${
+                                currentTheme === 'light' ? 'text-slate-500 font-semibold' : 'text-slate-450'
+                              }`}>{driveUser.email}</span>
                             </div>
                           </div>
 
@@ -3393,35 +3496,45 @@ export default function App() {
                         {/* List historical cloud backups */}
                         <div className="space-y-3">
                           <div className="flex items-center justify-between">
-                            <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider block">☁ Cloud Space Backups List ({driveBackups.length})</span>
+                            <span className={`text-xs font-extrabold uppercase tracking-wider block ${
+                              currentTheme === 'light' ? 'text-slate-700' : 'text-slate-400'
+                            }`}>☁ Cloud Space Backups List ({driveBackups.length})</span>
                             <button
                               type="button"
                               onClick={() => loadBackups(driveToken!)}
                               disabled={isDriveLoading}
-                              className="text-[10px] text-slate-500 hover:text-white font-mono flex items-center gap-1 leading-none uppercase tracking-wide cursor-pointer"
+                              className="text-[10px] text-slate-500 hover:text-[#FF5500] font-mono flex items-center gap-1 leading-none uppercase tracking-wide cursor-pointer transition-colors"
                             >
                               <RefreshCw size={9} className={isDriveLoading ? 'animate-spin' : ''} /> Refresh Catalog
                             </button>
                           </div>
 
                           {driveBackups.length === 0 ? (
-                            <div className="py-8 text-center text-zinc-650 font-mono text-xs bg-black/20 border border-dashed border-white/5 rounded-2xl">
+                            <div className={`py-8 text-center font-mono text-xs border border-dashed rounded-2xl ${
+                              currentTheme === 'light' ? 'bg-slate-50 border-slate-300 text-slate-600' : 'bg-black/20 border-white/5 text-zinc-650'
+                            }`}>
                               -- No backup files found in this Google Drive --<br />
-                              <span className="text-[10px] text-slate-550 font-sans mt-1 block">Click "Create Cloud Backup" to secure your digital configurations.</span>
+                              <span className={`text-[10px] font-sans mt-1 block ${
+                                currentTheme === 'light' ? 'text-slate-500' : 'text-slate-550'
+                              }`}>Click "Create Cloud Backup" to secure your digital configurations.</span>
                             </div>
                           ) : (
                             <div className="space-y-2 max-h-[350px] overflow-y-auto pr-1">
                               {driveBackups.map((file) => (
                                 <div
                                   key={file.id}
-                                  className="bg-black/40 p-3.5 rounded-2xl border border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs"
+                                  className={`p-3.5 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs ${
+                                    currentTheme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-black/40 border-white/5'
+                                  }`}
                                 >
                                   <div className="flex items-start space-x-3 text-left">
                                     <div className="w-9 h-9 bg-[#FF5500]/10 rounded-xl flex items-center justify-center text-[#FF5500] shrink-0 mt-0.5 font-mono text-[9px] font-black">
                                       JSON
                                     </div>
                                     <div className="min-w-0">
-                                      <span className="text-white font-extrabold block truncate leading-tight mb-0.5">{file.name}</span>
+                                      <span className={`font-extrabold block truncate leading-tight mb-0.5 ${
+                                        currentTheme === 'light' ? 'text-slate-800' : 'text-white'
+                                      }`}>{file.name}</span>
                                       <div className="flex items-center flex-wrap gap-2 text-[10px] text-slate-500">
                                         <span>📅 {new Date(file.createdTime).toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
                                         {file.size && <span>• 💾 {Math.round(parseInt(file.size, 10) / 1024 * 100) / 100} KB</span>}
@@ -3443,7 +3556,11 @@ export default function App() {
                                         href={file.webViewLink}
                                         target="_blank"
                                         rel="noreferrer"
-                                        className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-750 text-slate-300 text-[10px] font-extrabold uppercase rounded-lg transition-all inline-block text-center border border-white/5 cursor-pointer"
+                                        className={`px-2.5 py-1.5 text-[10px] font-extrabold uppercase rounded-lg transition-all inline-block text-center border cursor-pointer ${
+                                          currentTheme === 'light'
+                                            ? 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-200'
+                                            : 'bg-slate-800 hover:bg-slate-750 text-slate-300 border-white/5'
+                                        }`}
                                       >
                                         View File
                                       </a>
@@ -3491,16 +3608,22 @@ export default function App() {
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.95, y: 15 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-[#18181F] border border-white/10 rounded-3xl p-4 md:p-6 max-w-3xl w-full text-left space-y-4 relative"
+              className={`border rounded-3xl p-4 md:p-6 max-w-3xl w-full text-left space-y-4 relative ${
+                currentTheme === 'light' ? 'bg-white border-slate-200 shadow-2xl' : 'bg-[#18181F] border border-white/10'
+              }`}
             >
               <button
                 onClick={() => setPreviewImage(null)}
-                className="absolute top-4 right-4 text-slate-400 hover:text-white bg-black/60 p-1.5 rounded-full cursor-pointer z-10"
+                className={`absolute top-4 right-4 p-1.5 rounded-full cursor-pointer z-10 transition-colors ${
+                  currentTheme === 'light' ? 'text-slate-500 hover:text-slate-900 bg-slate-100' : 'text-slate-400 hover:text-white bg-black/60'
+                }`}
               >
                 <X size={18} />
               </button>
 
-              <div className="aspect-video w-full rounded-2xl overflow-hidden bg-black border border-white/5 relative">
+              <div className={`aspect-video w-full rounded-2xl overflow-hidden relative border ${
+                currentTheme === 'light' ? 'bg-slate-100 border-slate-200' : 'bg-black border-white/5'
+              }`}>
                 <img
                   src={previewImage.imageUrl}
                   alt={previewImage.altText}
@@ -3513,27 +3636,37 @@ export default function App() {
                 <span className="text-[10px] uppercase font-mono font-bold text-[#FF5500] tracking-wider px-2 py-0.5 bg-[#FF5500]/10 rounded border border-[#FF5500]/20 inline-block">
                   {previewImage.category.toUpperCase()}
                 </span>
-                <h3 className="text-lg md:text-xl font-black text-white">{previewImage.title}</h3>
+                <h3 className={`text-lg md:text-xl font-black ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
+                  {previewImage.title}
+                </h3>
                 
-                <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 font-mono pt-2 border-t border-white/5">
+                <div className={`flex flex-wrap items-center gap-4 text-xs font-mono pt-2 border-t ${
+                  currentTheme === 'light' ? 'text-slate-600 border-slate-200' : 'text-slate-500 border-white/5'
+                }`}>
                   <span>🗓️ Shot Date: {previewImage.date}</span>
-                  <span>📷 Camera Parameters: <strong className="text-white font-normal">{previewImage.cameraInfo || 'Nikon Z8 • High Definition Output'}</strong></span>
+                  <span>📷 Camera Parameters: <strong className={currentTheme === 'light' ? 'text-slate-900 font-bold' : 'text-white font-normal'}>{previewImage.cameraInfo || 'Nikon Z8 • High Definition Output'}</strong></span>
                 </div>
               </div>
 
-              <div className="pt-4 border-t border-white/5 flex flex-col sm:flex-row gap-3">
+              <div className={`pt-4 border-t flex flex-col sm:flex-row gap-3 ${
+                currentTheme === 'light' ? 'border-slate-200' : 'border-white/5'
+              }`}>
                 <button
                   onClick={() => {
                     setPreviewImage(null);
                     triggerQuickBooking('photography', `Hi Murari, I just saw your photo "${previewImage.title}" in your portfolio! I would like to inquire about similar event coverage details.`);
                   }}
-                  className="bg-[#FF5500] hover:bg-[#FF4400] text-zinc-100 px-5 py-2.5 rounded-xl text-xs font-extrabold uppercase tracking-wide flex items-center justify-center gap-1.5"
+                  className="bg-[#FF5500] hover:bg-[#FF4400] text-zinc-100 px-5 py-2.5 rounded-xl text-xs font-extrabold uppercase tracking-wide flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <WhatsAppIcon size={14} /> Request Portfolio Similar Shoot
                 </button>
                 <button
                   onClick={() => setPreviewImage(null)}
-                  className="bg-white/5 hover:bg-white/10 text-white px-5 py-2.5 rounded-xl text-xs font-extrabold uppercase tracking-wide"
+                  className={`px-5 py-2.5 rounded-xl text-xs font-extrabold uppercase tracking-wide cursor-pointer transition-colors ${
+                    currentTheme === 'light'
+                      ? 'bg-slate-100 hover:bg-slate-200 text-slate-800'
+                      : 'bg-white/5 hover:bg-white/10 text-white'
+                  }`}
                 >
                   Close Spec Preview
                 </button>
@@ -3544,14 +3677,20 @@ export default function App() {
       </AnimatePresence>
 
       {/* COMPANION FOOTER FOOTER MATRIX */}
-      <footer className="mt-20 bg-[#08080C] border-t border-white/10 py-16 px-4 lg:px-8 text-left text-slate-500 text-xs">
+      <footer className={`mt-20 border-t py-16 px-4 lg:px-8 text-left text-xs ${
+        currentTheme === 'light'
+          ? 'bg-slate-100/80 border-slate-200 text-slate-600'
+          : 'bg-[#08080C] border-white/10 text-slate-500'
+      }`}>
         <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
           
           <div className="col-span-1 md:col-span-4 space-y-4">
             <div className="flex items-center space-x-3">
               <PFLogo size={34} />
               <div>
-                <span className="font-extrabold text-sm tracking-wider text-white uppercase block leading-none">
+                <span className={`font-extrabold text-sm tracking-wider uppercase block leading-none ${
+                  currentTheme === 'light' ? 'text-slate-900' : 'text-white'
+                }`}>
                   MURARI PANJIYAR
                 </span>
                 <span className="text-[10px] uppercase tracking-[0.2em] text-[#FF5500] font-bold block mt-1">
@@ -3559,17 +3698,21 @@ export default function App() {
                 </span>
               </div>
             </div>
-            <p className="text-slate-400 max-w-sm leading-relaxed text-[11px]">
+            <p className={`max-w-sm leading-relaxed text-[11px] ${
+              currentTheme === 'light' ? 'text-slate-600' : 'text-slate-400'
+            }`}>
               Discover expert doorstep IT hardware repairs and genuine operating system installations from Pixel Fix, alongside cinematic high-contrast wedding frames from Pixel Frame.
             </p>
           </div>
 
           <div className="col-span-1 md:col-span-4 space-y-3">
-            <h4 className="font-bold text-white uppercase tracking-widest text-xs text-[#FF5500]">SEO Target Neighborhoods</h4>
-            <ul className="space-y-2 text-slate-400 font-mono text-[11px]">
+            <h4 className={`font-bold uppercase tracking-widest text-xs text-[#FF5500]`}>SEO Target Neighborhoods</h4>
+            <ul className={`space-y-2 font-mono text-[11px] ${
+              currentTheme === 'light' ? 'text-slate-600' : 'text-slate-400'
+            }`}>
               <li className="flex items-center gap-1.5">
                 <MapPin size={12} className="text-[#FF5500]" />
-                <span>Primary Base: Guwahati, Assam, India</span>
+                <span className={currentTheme === 'light' ? 'text-slate-800 font-semibold' : 'text-zinc-300'}>Primary Base: Guwahati, Assam, India</span>
               </li>
               <li>• Dispatched on-site technician doorstep computing repair</li>
               <li>• Custom destination photographer services across Northeast regions</li>
@@ -3577,15 +3720,21 @@ export default function App() {
           </div>
 
           <div className="col-span-1 md:col-span-4 space-y-3">
-            <h4 className="font-bold text-white uppercase tracking-widest text-xs text-[#FF5500]">Telephonic Contact Directory</h4>
-            <div className="space-y-2 text-[11px] font-mono">
-              <div className="flex items-center justify-between border-b border-white/5 pb-1">
+            <h4 className={`font-bold uppercase tracking-widest text-xs text-[#FF5500]`}>Telephonic Contact Directory</h4>
+            <div className={`space-y-2 text-[11px] font-mono ${
+              currentTheme === 'light' ? 'text-slate-600' : 'text-slate-400'
+            }`}>
+              <div className={`flex items-center justify-between border-b pb-1 ${
+                currentTheme === 'light' ? 'border-slate-200' : 'border-white/5'
+              }`}>
                 <span>Pixel Fix Support:</span>
                 <a href="tel:8638875231" className="text-[#FF5500] font-bold hover:underline">
                   +91-8638875231
                 </a>
               </div>
-              <div className="flex items-center justify-between border-b border-white/5 pb-1">
+              <div className={`flex items-center justify-between border-b pb-1 ${
+                currentTheme === 'light' ? 'border-slate-200' : 'border-white/5'
+              }`}>
                 <span>Pixel Frame Photography:</span>
                 <a href="tel:9864361940" className="text-[#FF5500] font-bold hover:underline">
                   +91-9864361940
@@ -3596,12 +3745,16 @@ export default function App() {
 
         </div>
 
-        <div className="max-w-7xl mx-auto pt-8 mt-12 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-4 font-mono text-[10px]">
+        <div className={`max-w-7xl mx-auto pt-8 mt-12 border-t flex flex-col sm:flex-row items-center justify-between gap-4 font-mono text-[10px] ${
+          currentTheme === 'light' ? 'border-slate-200 text-slate-500' : 'border-white/5 text-slate-500'
+        }`}>
           <div>
             © 2026 Murari Panjiyar Portfolio. All rights reserved.
           </div>
-          <div className="flex space-x-3 text-slate-600">
-            <a href="https://instagram.com/mpanjiyar1" target="_blank" rel="noreferrer" className="hover:text-white">
+          <div className="flex space-x-3">
+            <a href="https://instagram.com/mpanjiyar1" target="_blank" rel="noreferrer" className={`hover:text-[#FF5500] transition-colors ${
+              currentTheme === 'light' ? 'text-slate-600' : 'text-slate-400'
+            }`}>
               @mpanjiyar1
             </a>
           </div>
