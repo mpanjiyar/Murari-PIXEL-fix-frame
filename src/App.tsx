@@ -153,11 +153,39 @@ const themeStyles: Record<'normal' | 'mono' | 'light', ThemeStyle> = {
   }
 };
 
+const toDirectDriveUrl = (url: string): string => {
+  if (!url) return url;
+  if (url.includes('drive.google.com/file/d/')) {
+    const parts = url.split('/file/d/');
+    if (parts[1]) {
+      const fileId = parts[1].split('/')[0].split('?')[0];
+      return `https://lh3.googleusercontent.com/d/${fileId}`;
+    }
+  }
+  if (url.includes('drive.google.com/open?id=')) {
+    const parts = url.split('?id=');
+    if (parts[1]) {
+      const fileId = parts[1].split('&')[0];
+      return `https://lh3.googleusercontent.com/d/${fileId}`;
+    }
+  }
+  if (url.includes('drive.google.com/uc?')) {
+    const match = url.match(/[?&]id=([^&]+)/);
+    if (match && match[1]) {
+      return `https://lh3.googleusercontent.com/d/${match[1]}`;
+    }
+  }
+  return url;
+};
+
 export default function App() {
   // Navigation & Primary Settings
   const [activeTab, setActiveTab] = useState<'home' | 'about' | 'pixelfix' | 'pixelframe' | 'gallery' | 'contact' | 'dashboard'>('home');
   const [currentTheme, setCurrentTheme] = useState<'normal' | 'mono' | 'light'>(() => {
-    const saved = localStorage.getItem('mp_portfolio_theme');
+    const saved = localStorage.getItem('mp_portfolio_theme_v2');
+    if (!saved) {
+      return 'light'; // Standard default is light mode
+    }
     return (saved as any) || 'light';
   });
 
@@ -267,7 +295,11 @@ export default function App() {
   });
 
   const [profilePhotoUrl, setProfilePhotoUrl] = useState<string>(() => {
-    return localStorage.getItem('mp_profile_photo_url') || 'https://images.unsplash.com/photo-1618018352910-72bdafdc72a8?auto=format&fit=crop&q=80&w=600';
+    const saved = localStorage.getItem('mp_profile_photo_url');
+    if (!saved || saved.includes('1618018352910-72bdafdc72a8')) {
+      return 'https://lh3.googleusercontent.com/d/1Bv7-RO-P4dzGVDa6kOEyZIepUOBz7npe';
+    }
+    return toDirectDriveUrl(saved);
   });
 
   const [bioHeadline, setBioHeadline] = useState<string>(() => {
@@ -332,7 +364,15 @@ export default function App() {
 
   // Sync state & Theme updates
   useEffect(() => {
+    localStorage.setItem('mp_portfolio_theme_v2', currentTheme);
     localStorage.setItem('mp_portfolio_theme', currentTheme);
+    if (currentTheme === 'light') {
+      document.body.className = 'bg-[#FAF9F5] text-slate-800 transition-colors duration-300';
+    } else if (currentTheme === 'mono') {
+      document.body.className = 'bg-black text-zinc-100 font-mono tracking-tight transition-colors duration-300';
+    } else {
+      document.body.className = 'bg-[#121212] text-white transition-colors duration-300';
+    }
   }, [currentTheme]);
 
   useEffect(() => {
@@ -409,7 +449,7 @@ export default function App() {
       localStorage.setItem('mp_instagram_last_sync', Date.now().toString());
       setInstagramSyncError('');
     } catch (err: any) {
-      console.error('Error syncing Instagram:', err);
+      console.warn('Error syncing Instagram (handled gracefully):', err);
       setInstagramSyncError(err.message || 'Verification failed. Please check your token validity.');
     } finally {
       setIsSyncingInstagram(false);
@@ -434,7 +474,7 @@ export default function App() {
       const list = await listBackupsOnDrive(token);
       setDriveBackups(list);
     } catch (err: any) {
-      console.error('Failed to retrieve cloud backups list:', err);
+      console.warn('Failed to retrieve cloud backups list (handled gracefully):', err);
       setDriveErrorMessage('Failed to list backups from Google Drive: ' + (err.message || err));
     }
   };
@@ -631,7 +671,7 @@ export default function App() {
         const list = await listBackupsOnDrive(driveToken);
         setDriveBackups(list);
       } catch (err: any) {
-        console.error('Automated back up failed:', err);
+        console.warn('Automated back up failed (handled gracefully):', err);
         setDriveErrorMessage('Auto-save sync to Google Drive failed: ' + (err.message || err));
       } finally {
         setIsDriveAutosaving(false);
@@ -735,7 +775,7 @@ export default function App() {
           if (err.message && err.message.includes('CORS')) {
             corsIssuesCount++;
           } else {
-            console.error(`Failed uploading ${photo.name}:`, err);
+            console.warn(`Failed uploading ${photo.name} (handled gracefully):`, err);
           }
         }
       }
@@ -3812,25 +3852,27 @@ export default function App() {
                       updated[editingItem.index!] = editingItem.data;
                       setPhotoServices(updated);
                     } else if (editingItem.type === 'instagram') {
-                      const exists = instagramPosts.some(p => p.id === editingItem.data.id);
+                      const itemData = { ...editingItem.data, imageUrl: toDirectDriveUrl(editingItem.data.imageUrl) };
+                      const exists = instagramPosts.some(p => p.id === itemData.id);
                       if (exists) {
-                        setInstagramPosts(instagramPosts.map(p => p.id === editingItem.data.id ? editingItem.data : p));
+                        setInstagramPosts(instagramPosts.map(p => p.id === itemData.id ? itemData : p));
                       } else {
-                        setInstagramPosts([editingItem.data, ...instagramPosts]);
+                        setInstagramPosts([itemData, ...instagramPosts]);
                       }
                     } else if (editingItem.type === 'hero') {
                       setHeroHeadline(editingItem.data.headline);
                       setHeroSubheadline(editingItem.data.subheadline);
-                      setProfilePhotoUrl(editingItem.data.photoUrl);
+                      setProfilePhotoUrl(toDirectDriveUrl(editingItem.data.photoUrl));
                     } else if (editingItem.type === 'about') {
                       setBioHeadline(editingItem.data.bioHeadline);
                       setBioText(editingItem.data.bioText);
                     } else if (editingItem.type === 'gallery_item') {
-                      const exists = galleryItems.some(item => item.id === editingItem.data.id);
+                      const itemData = { ...editingItem.data, imageUrl: toDirectDriveUrl(editingItem.data.imageUrl) };
+                      const exists = galleryItems.some(item => item.id === itemData.id);
                       if (exists) {
-                        setGalleryItems(galleryItems.map(item => item.id === editingItem.data.id ? editingItem.data : item));
+                        setGalleryItems(galleryItems.map(item => item.id === itemData.id ? itemData : item));
                       } else {
-                        setGalleryItems([editingItem.data, ...galleryItems]);
+                        setGalleryItems([itemData, ...galleryItems]);
                       }
                     } else if (editingItem.type === 'testimonial') {
                       const exists = testimonials.some(t => t.id === editingItem.data.id);
