@@ -195,9 +195,10 @@ export default function App() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        const hasNewItems = parsed.some((p: any) => p.id === 'g9') && parsed.some((p: any) => p.id === 'g10');
-        const hasNewTitles = parsed.some((p: any) => p.title && p.title.includes('Royal Bridal Elegance & Crimson Lehenga'));
-        if (!hasNewItems || !hasNewTitles || parsed.some((p: any) => p.title && (p.title.includes('Enterprise Server Assembly') || p.title.includes('Executive Portraiture') || p.title.includes('Tech Summit') || p.cameraInfo?.includes('Sony') || p.title.includes('Traditional Wedding Ceremony')))) {
+        // Clean reset if they have old Unsplash images, if the order has changed, or if length doesn't match our new high-end 16 items
+        const hasUnsplash = parsed.some((p: any) => p.imageUrl && p.imageUrl.includes('unsplash.com'));
+        const firstIsTarget = parsed[0]?.imageUrl && parsed[0].imageUrl.includes('10-HoXkMa_X3axop53ogpiPEyDv_w3Nbn');
+        if (hasUnsplash || parsed.length !== 16 || !firstIsTarget) {
           return INITIAL_GALLERY_ITEMS;
         }
         return parsed;

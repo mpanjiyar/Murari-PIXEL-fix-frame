@@ -110,93 +110,147 @@ export const INITIAL_PHOTO_SERVICES: ServiceDetail[] = [
 export const INITIAL_GALLERY_ITEMS: GalleryItem[] = [
   {
     id: 'g1',
-    title: 'Royal Bridal Elegance & Crimson Lehenga, Guwahati, Assam, India',
+    title: 'Devotional Moments & Traditional Festivities, Guwahati, Assam, India',
     category: 'wedding',
-    imageUrl: 'https://images.unsplash.com/photo-1607190074257-dd4b7af0309f?q=80&w=800&auto=format&fit=crop',
-    altText: 'Stunning high-contrast Indian bridal portrait showcasing rich crimson silk Lehenga, heavy matha patti, and detailed Kundan jewelry, captured with authentic Nikon warmth by Murari Panjiyar',
-    date: '2026-04-12',
-    cameraInfo: 'Nikon Z9 • NIKKOR Z 85mm f/1.2 S • Studio Flash Setup'
+    imageUrl: 'https://lh3.googleusercontent.com/d/10-HoXkMa_X3axop53ogpiPEyDv_w3Nbn',
+    altText: 'Stunning celebratory capture displaying devotional traditional Indian wedding festivities, photographed beautifully by Murari Panjiyar',
+    date: '2026-06-08',
+    cameraInfo: 'Nikon Z9 • NIKKOR Z 50mm f/1.2 S • Beautiful Traditional Light'
   },
   {
     id: 'g2',
-    title: 'Grand Palace Mandap & Floral Decor, Bangalore Palace, India',
-    category: 'corporate',
-    imageUrl: 'https://images.unsplash.com/photo-1604017011826-d3b4c23f8914?q=80&w=800&auto=format&fit=crop',
-    altText: 'Grand royal Indian wedding mandap backdrop setup with luxurious marigold garlands, rich crystal chandeliers, and majestic floral arches captured in high definition by Murari Panjiyar',
-    date: '2026-05-18',
-    cameraInfo: 'Nikon Z8 • NIKKOR Z 24-70mm f/2.8 S • Cinematic Ambient Light'
+    title: 'Elegant Traditional Assamese Bride & Handwoven Silk Mekhela Chador',
+    category: 'wedding',
+    imageUrl: 'https://lh3.googleusercontent.com/d/1Lf19vDAD8mmFtpI2GH2t8v0IFd2s7hZU',
+    altText: 'Detailed bridal portrait highlighting the exquisite handwoven zari embroidery, traditional Assamese jewelry, and serene expressions of the bride',
+    date: '2026-06-08',
+    cameraInfo: 'Nikon Z9 • NIKKOR Z 85mm f/1.2 S • Beautiful Rim Lighting'
   },
   {
     id: 'g3',
-    title: 'Joyful Mehndi Henna Festivity, New Delhi, India',
+    title: 'Joyful Outdoor Candid Laughs & Authentic Wedding Moments, Guwahati',
     category: 'wedding',
-    imageUrl: 'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?q=80&w=800&auto=format&fit=crop',
-    altText: 'Candid smiles and pure traditional joy during an Indian bride\'s mehendi ceremony, highlighting detailed henna patterns on her hands, photographed with Nikon professional optics',
-    date: '2026-02-14',
-    cameraInfo: 'Nikon Z7 II • NIKKOR Z 50mm f/1.2 S • Candid Speedlight'
+    imageUrl: 'https://lh3.googleusercontent.com/d/1NDzHguseCZyHVR57bnsOwtdu8kuZTa9n',
+    altText: 'Spontaneous laughing candid captured beautiful outdoors against luxurious lush greenery of Guwahati, showcasing genuine emotions',
+    date: '2026-06-08',
+    cameraInfo: 'Nikon Z8 • NIKKOR Z 135mm f/1.8 S Plena • Dreamy Bokeh'
   },
   {
     id: 'g4',
-    title: 'Couples Sunset Pre-Wedding Silhouette, Marine Drive, Mumbai, India',
+    title: 'Royal Imperial Bridal Entry Under Hand-Crafted Phoolon Ki Chaadar',
     category: 'wedding',
-    imageUrl: 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=800&auto=format&fit=crop',
-    altText: 'Sleek pre-wedding golden hour couples portrait at Marine Drive shoreline, framed beautifully with dramatic backlighting and crimson sunsets by Murari Panjiyar',
-    date: '2026-05-10',
-    cameraInfo: 'Nikon Z9 • NIKKOR Z 135mm f/1.8 S Plena • Natural Backlight rim'
+    imageUrl: 'https://lh3.googleusercontent.com/d/1NZ5KZgS7OnNAlh-2LK73Z5vFxQEXqHBF',
+    altText: 'Dramatic wide-angle coverage of the grand bridal gateway entry surrounded by brothers holding a beautifully decorated floral canopy',
+    date: '2026-06-08',
+    cameraInfo: 'Nikon Z9 • NIKKOR Z 24-70mm f/2.8 S • Dynamic Flash Mix'
   },
   {
     id: 'g5',
-    title: 'Traditional Groom Imperial Sherwani Assembly, Mumbai Palace, India',
-    category: 'corporate',
-    imageUrl: 'https://images.unsplash.com/photo-1621184455862-c163dfb30e0f?q=80&w=800&auto=format&fit=crop',
-    altText: 'Sophisticated professional groom portrait as he prepares his embroidered sherwani, with a close-up focus on the designer buttons, gold chains, and traditional fabrics',
-    date: '2026-03-22',
-    cameraInfo: 'Nikon D850 • AF-S NIKKOR 105mm f/1.4E ED • Softbox Keylight'
+    title: 'Grand Reception Elegance, Imperial Ballroom Setup, Assam',
+    category: 'wedding',
+    imageUrl: 'https://lh3.googleusercontent.com/d/17AUU6FGOxRaje1nElUUDqGKQTboJ5kYX',
+    altText: 'Cinematic wide frame showcasing the grandeur of the reception stage setup with warm ambient lighting, beautiful candles, and majestic floral arches',
+    date: '2026-06-08',
+    cameraInfo: 'Nikon Z8 • NIKKOR Z 14-24mm f/2.8 S • Ultrawide Perspective'
   },
   {
     id: 'g6',
-    title: 'Sangeet Choreography & Musical Celebration Night, Kolkata, India',
-    category: 'party',
-    imageUrl: 'https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?q=80&w=800&auto=format&fit=crop',
-    altText: 'Dynamic candid capture of dancing bridesmaids and high-energy guests performing choreographed dances under traditional fairy lights',
-    date: '2026-01-05',
-    cameraInfo: 'Nikon Z6 II • NIKKOR Z 35mm f/1.8 S • Dynamic ISO Correction'
+    title: 'Captivating Bride Portrait with Intricate Mehndhi & Custom Henna Art',
+    category: 'wedding',
+    imageUrl: 'https://lh3.googleusercontent.com/d/159c6sugb6tfSr8LLyEax4VHSP5MUnQnI',
+    altText: 'Stunning close-up view highlighting the detailed bridal henna patterns on hands, showcasing fine artwork and elegant traditional bangles',
+    date: '2026-06-08',
+    cameraInfo: 'Nikon Z9 • NIKKOR Z 85mm f/1.2 S • Close-up Micro Focus'
   },
   {
     id: 'g7',
-    title: 'Elite Traditional Kanjeevaram Saree Portrait, Munnar, Kerala, India',
-    category: 'custom',
-    imageUrl: 'https://images.unsplash.com/photo-1595777457583-95e059d581b8?q=80&w=800&auto=format&fit=crop',
-    altText: 'Aesthetic traditional bridal portrait featuring an elegant gold-embroidered silk saree, classic temple ornaments, and a pure vermilion red veil, shot in soft natural daylight',
-    date: '2026-04-30',
-    cameraInfo: 'Nikon Z7 II • NIKKOR Z 85mm f/1.2 S • Natural Golden Hour'
+    title: 'Groom Imperial Portrait & Classic Designer Sherwani Details',
+    category: 'wedding',
+    imageUrl: 'https://lh3.googleusercontent.com/d/1WLA_PUnuRhc182D-Ch0mX25wWASXC7-E',
+    altText: 'Polished studio-lit portrait of the groom showcasing authentic red and gold sherwani, pearl garlands, and poised look',
+    date: '2026-06-08',
+    cameraInfo: 'Nikon D850 • AF-S NIKKOR 105mm f/1.4E • Soft Portrait Keylight'
   },
   {
     id: 'g8',
-    title: 'Sacred Varmala Garland Exchange, Taj Falaknuma Palace, India',
-    category: 'corporate',
-    imageUrl: 'https://images.unsplash.com/photo-1583939003579-730e3918a45a?q=80&w=800&auto=format&fit=crop',
-    altText: 'Joyous traditional moments of wedding couple exchanging beautiful floral varmala garlands of roses and jasmine in front of a grand palatial background',
-    date: '2026-05-02',
-    cameraInfo: 'Nikon Z8 • NIKKOR Z 70-200mm f/2.8 VR S • High Speed Sync'
+    title: 'Warm Family Smiles, Auspicious Blessings Ceremony, Assam',
+    category: 'custom',
+    imageUrl: 'https://lh3.googleusercontent.com/d/1dhsMr79VPK1J0Uq_gpYz2uqy7WOJZ3ut',
+    altText: 'Warm-toned picture celebrating togetherness, authentic smiles and family elders gifting pure gold blessings to the couple',
+    date: '2026-06-08',
+    cameraInfo: 'Nikon Z8 • NIKKOR Z 35mm f/1.8 S • Soft Speedlight Fill'
   },
   {
     id: 'g9',
-    title: 'Auspicious Haldi Ceremony Blessing Ritual, Guwahati, Assam, India',
-    category: 'wedding',
-    imageUrl: 'https://images.unsplash.com/photo-1610030469668-93535c17b6b3?q=80&w=800&auto=format&fit=crop',
-    altText: 'Vibrant yellow-themed traditional Haldi rasam ritual with celebratory splashing of marigold petals and turmeric blessings on the groom with pure smiles',
-    date: '2026-05-15',
-    cameraInfo: 'Nikon Z9 • NIKKOR Z 50mm f/1.2 S • High-speed action lock'
+    title: 'Vibrant Traditional Festivity Sangeet Dance & High Energy Beats',
+    category: 'party',
+    imageUrl: 'https://lh3.googleusercontent.com/d/1GxdfLNiDk_-pACb3JMSv08TzFGNL7woS',
+    altText: 'Action-packed celebration group shot under glowing fairy lights, capturing full of joy and beautiful traditional attire',
+    date: '2026-06-08',
+    cameraInfo: 'Nikon Z9 • NIKKOR Z 24-70mm f/2.8 S • Dynamic Motion Lock'
   },
   {
     id: 'g10',
-    title: 'Auspicious Godh Bharai Traditional Baby Shower, Guwahati, India',
+    title: 'Auspicious Varmala Garland Exchange Under Floral Mandap',
+    category: 'wedding',
+    imageUrl: 'https://lh3.googleusercontent.com/d/1SDFtvLDtPOMwBV7zPtRJ_uIfVB9mcSXR',
+    altText: 'Beautiful wide lens portrait of the grand varmala custom under a lavish stage styled with countless imported white and red roses',
+    date: '2026-06-08',
+    cameraInfo: 'Nikon Z9 • NIKKOR Z 24-70mm f/2.8 S • High Contrast Flare Sync'
+  },
+  {
+    id: 'g11',
+    title: 'Elegant Bridal Veil Details & Classic Hand Jewelry, India',
     category: 'custom',
-    imageUrl: 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?q=80&w=800&auto=format&fit=crop',
-    altText: 'Traditional and warm Indian pregnancy celebration ceremony, showing beautiful traditional bangles, hand ornaments, and close family members gifting coconut blessings',
-    date: '2026-05-24',
-    cameraInfo: 'Nikon Z7 II • NIKKOR Z 85mm f/1.2 S • Ambient Fill Flash'
+    imageUrl: 'https://lh3.googleusercontent.com/d/1BrmUP0gZJ1-k8qhkOWteNMNB4fxirA2D',
+    altText: 'Stunning artistic close-up of intricate gold jewelry, traditional red attire, henna, and fine wedding ornaments in ambient golden lighting',
+    date: '2026-06-08',
+    cameraInfo: 'Nikon Z7 II • NIKKOR Z 85mm f/1.2 S • Professional Portrait Light'
+  },
+  {
+    id: 'g12',
+    title: 'Vibrant Haldi Ceremony Celebration & Golden Turmeric Blessings',
+    category: 'wedding',
+    imageUrl: 'https://lh3.googleusercontent.com/d/1ZVDqvzzWSrJ_NZsku_evg29MeOK69Prr',
+    altText: 'Candid joyful shot of family showering turmeric water and celebratory marigold flowers onto the couple in their custom modern lawn setup',
+    date: '2026-06-08',
+    cameraInfo: 'Nikon Z8 • NIKKOR Z 50mm f/1.2 S • Fast Action Freeze'
+  },
+  {
+    id: 'g13',
+    title: 'Sacred Vermilion Sindoor Ritual, Classical Wedding Assam, India',
+    category: 'wedding',
+    imageUrl: 'https://lh3.googleusercontent.com/d/19CKvI4tsQ7-OCNbjaMMTh4e7QVAxzuJu',
+    altText: 'Capturing a timeless and devotional traditional Indian wedding moment with close-up focus on the gold accents, vermilion, and beautiful family blessings',
+    date: '2026-06-08',
+    cameraInfo: 'Nikon Z7 II • NIKKOR Z 50mm f/1.2 S • Soft Studio Ring Light'
+  },
+  {
+    id: 'g14',
+    title: 'Groom Entrance & Traditional Baraat Procession, Guwahati',
+    category: 'wedding',
+    imageUrl: 'https://lh3.googleusercontent.com/d/1tdGCsa4KwKyrCMl9F4cMLaMNPfzQqFmB',
+    altText: 'An energetic baraat dance capture with vibrant colors, lively expressions, and beautiful natural environment coverage by Murari Panjiyar Portfolio',
+    date: '2026-06-08',
+    cameraInfo: 'Nikon Z9 • NIKKOR Z 24-70mm f/2.8 S • Dynamic Action Track'
+  },
+  {
+    id: 'g15',
+    title: 'Premium Candid Wedding Expressions & Ceremonial Joy, Assam',
+    category: 'wedding',
+    imageUrl: 'https://lh3.googleusercontent.com/d/1kig015zZ81sKM_eG_Bn523aFCsLf812w',
+    altText: 'Breathtaking close-up of a smiling bride and groom sharing raw emotions during an auspicious ritual, shot beautifully by Murari Panjiyar',
+    date: '2026-06-08',
+    cameraInfo: 'Nikon Z9 • NIKKOR Z 85mm f/1.2 S • Creative Speedlight'
+  },
+  {
+    id: 'g16',
+    title: 'Authentic Traditional Ceremony Rituals, Guwahati, Assam',
+    category: 'wedding',
+    imageUrl: 'https://lh3.googleusercontent.com/d/1ujSDKi4hwO5sN6L_tEVpzfn80k1L35d4',
+    altText: 'Detailed capture of auspicious wedding customs, traditional brass utensils, holy fire blessings, and emotional family participations',
+    date: '2026-06-08',
+    cameraInfo: 'Nikon Z7 II • NIKKOR Z 50mm f/1.2 S • Ambient Warm Light'
   }
 ];
 
