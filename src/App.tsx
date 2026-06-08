@@ -254,12 +254,14 @@ export default function App() {
         const hasDriveImages = parsed.some((p: any) => p.imageUrl && p.imageUrl.includes('1TI7y2H4O31gv3qOdwxg2oUY_r2mK4-kz'));
         const hasUnsplash = parsed.some((p: any) => p.imageUrl && p.imageUrl.includes('unsplash.com'));
         if (parsed.length !== 6 || !hasDriveImages || hasUnsplash) {
-          return INSTAGRAM_POSTS;
+          return INSTAGRAM_POSTS.map(p => ({ ...p, permalink: 'https://www.instagram.com/mpanjiyar1' }));
         }
-        return parsed;
-      } catch (e) { return INSTAGRAM_POSTS; }
+        return parsed.map((p: any) => ({ ...p, permalink: 'https://www.instagram.com/mpanjiyar1' }));
+      } catch (e) {
+        return INSTAGRAM_POSTS.map(p => ({ ...p, permalink: 'https://www.instagram.com/mpanjiyar1' }));
+      }
     }
-    return INSTAGRAM_POSTS;
+    return INSTAGRAM_POSTS.map(p => ({ ...p, permalink: 'https://www.instagram.com/mpanjiyar1' }));
   });
 
   const [instagramAccessToken, setInstagramAccessToken] = useState<string>(() => {
@@ -2641,28 +2643,64 @@ export default function App() {
                 }`}>
                   <div className="relative rounded-2xl overflow-hidden group">
                     {profileImageError ? (
-                      <div className={`rounded-2xl w-full h-[400px] flex flex-col items-center justify-center p-6 border-2 border-dashed ${
-                        currentTheme === 'light' ? 'bg-slate-50 border-slate-300 text-slate-500' : 'bg-zinc-900/50 border-white/10 text-slate-400'
+                      <div className={`rounded-2xl w-full h-[400px] flex flex-col justify-between p-6 relative overflow-hidden ${
+                        currentTheme === 'light' ? 'bg-slate-50 border border-slate-200 text-slate-500' : 'bg-zinc-900/50 border border-white/10 text-slate-400'
                       }`}>
-                        <div className="w-12 h-12 rounded-full bg-[#FF5500]/10 flex items-center justify-center text-[#FF5500] mb-4 animate-pulse">
-                          <User size={24} />
-                        </div>
-                        <h3 className={`font-bold text-base mb-1 text-center ${currentTheme === 'light' ? 'text-slate-800' : 'text-slate-200'}`}>Image Access Restricted</h3>
-                        <p className="text-xs text-center max-w-xs mb-4">
-                          This Google Drive profile photo is currently private. It only displays for you because you are logged into Google.
-                        </p>
-                        <div className="p-3 bg-[#FF5500]/5 border border-[#FF5500]/10 rounded-xl max-w-xs">
-                          <p className={`text-[10px] text-left leading-relaxed ${currentTheme === 'light' ? 'text-[#e04400]' : 'text-[#FF7733]'} font-semibold`}>
-                            <strong>To make it public:</strong> Open Google Drive, right-click this photo, select <strong>"Share"</strong>, and change General Access to <strong>"Anyone with the link" (Viewer)</strong>.
+                        {/* Beautiful artistic abstract background avatar */}
+                        <div className="absolute inset-0 bg-gradient-to-tr from-[#FF5500]/10 via-amber-500/5 to-violet-600/10 opacity-60 pointer-events-none" />
+                        <div className="absolute -right-20 -top-20 w-48 h-48 rounded-full bg-[#FF5500]/10 blur-2xl pointer-events-none" />
+                        <div className="absolute -left-20 -bottom-20 w-48 h-48 rounded-full bg-violet-500/10 blur-2xl pointer-events-none" />
+
+                        <div className="relative z-10 flex flex-col items-center pt-2">
+                          <div className="w-14 h-14 rounded-full bg-[#FF5500]/10 border border-[#FF5500]/20 flex items-center justify-center text-[#FF5500] mb-3 shadow-[0_4px_12px_rgba(255,85,0,0.15)] animate-pulse">
+                            <User size={26} />
+                          </div>
+                          <h3 className={`font-black text-base tracking-tight mb-1 text-center uppercase ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
+                            Profile Photo restricted
+                          </h3>
+                          <p className="text-[11px] text-center max-w-xs leading-relaxed opacity-80 px-2">
+                            Google Drive permission limits prevent this photo from displaying publicly to other devices unless shared.
                           </p>
+                        </div>
+
+                        <div className="relative z-10 w-full p-3.5 bg-black/5 dark:bg-black/40 border border-black/10 dark:border-white/5 backdrop-blur-md rounded-2xl space-y-2">
+                          <div className="flex items-center space-x-2 text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+                            <span className="w-1.5 h-1.5 rounded-full bg-[#FF5500] animate-ping" />
+                            <span>How to display for everyone:</span>
+                          </div>
+                          <p className="text-[10px] text-left leading-relaxed opacity-90 font-medium">
+                            1. Open your Google Drive photo link.<br />
+                            2. Click <strong>Share</strong> (or Triple-dot menu ➡️ Share).<br />
+                            3. Under General Access, select <strong>"Anyone with the link"</strong> (Viewer).
+                          </p>
+                        </div>
+
+                        <div className="relative z-10 flex items-center gap-2.5 w-full justify-center">
+                          <a
+                            href="https://drive.google.com/file/d/1cKkwgAa3qplkkzj15-EEiQQ1nnHOy0Gk/view?usp=drive_link"
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex-1 py-2 text-center text-[10px] font-bold uppercase tracking-wider bg-slate-200/80 hover:bg-slate-300 dark:bg-white/10 dark:hover:bg-white/15 text-slate-800 dark:text-white rounded-xl transition-all"
+                          >
+                            Open Drive Link
+                          </a>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setProfileImageError(false);
+                            }}
+                            className="flex-1 py-2 text-center text-[10px] font-bold uppercase tracking-wider bg-[#FF5500] hover:bg-[#FF4400] text-white rounded-xl shadow-lg transition-all hover:scale-[1.02] cursor-pointer"
+                          >
+                            Retry Loading
+                          </button>
                         </div>
                       </div>
                     ) : (
-                      <img
+                      <LazyImage
                         src={profilePhotoUrl}
                         alt="Murari Panjiyar - smiling young Indian technical artist with a short beard and mustache"
-                        className="rounded-2xl w-full h-[400px] object-cover hover:scale-[1.02] transition-all duration-500"
-                        referrerPolicy="no-referrer"
+                        className="rounded-2xl w-full h-[400px] object-cover hover:scale-[1.02] transition-all duration-500 z-10 relative"
+                        placeholderClassName="absolute inset-0 min-h-[400px]"
                         onError={() => setProfileImageError(true)}
                       />
                     )}
@@ -2798,8 +2836,8 @@ export default function App() {
                   <motion.div
                     key={post.id}
                     onClick={() => {
-                      if (!isAuthorized && (post.permalink || post.imageUrl)) {
-                        window.open(post.permalink || post.imageUrl, '_blank');
+                      if (!isAuthorized) {
+                        window.open(post.permalink || 'https://www.instagram.com/mpanjiyar1', '_blank');
                       }
                     }}
                     initial={{ opacity: 0, scale: 0.92 }}

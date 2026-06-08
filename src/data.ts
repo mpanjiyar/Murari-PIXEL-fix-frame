@@ -289,7 +289,7 @@ export const INSTAGRAM_POSTS = [
     likes: 452,
     comments: 28,
     caption: 'Chasing timeless moments and candid smiles under the morning sun. Truly beautiful. ✨🌸 #PixelFrame #GuwahatiWeddings #AssamDiaries',
-    permalink: 'https://www.instagram.com/p/C-TI7y2H4O31/'
+    permalink: 'https://www.instagram.com/mpanjiyar1'
   },
   {
     id: 'i2',
@@ -297,7 +297,7 @@ export const INSTAGRAM_POSTS = [
     likes: 389,
     comments: 21,
     caption: 'The majestic grandeur of high-energy celebration beats! Drum rolls and rich traditional dances. 🥁🤵‍♂️ #PixelFrame #GuwahatiEvents #BaraatJoy',
-    permalink: 'https://www.instagram.com/p/C-JgyjpBwhra/'
+    permalink: 'https://www.instagram.com/mpanjiyar1'
   },
   {
     id: 'i3',
@@ -305,7 +305,7 @@ export const INSTAGRAM_POSTS = [
     likes: 512,
     comments: 34,
     caption: 'Intricate ornaments, detailed silk embroidery, and elegance of the traditional Assamese bridal wear. 💍🌾 #MekhelaChador #BridalPortraits #AssamesePride',
-    permalink: 'https://www.instagram.com/p/C-OlD8wVZo43/'
+    permalink: 'https://www.instagram.com/mpanjiyar1'
   },
   {
     id: 'i4',
@@ -313,7 +313,7 @@ export const INSTAGRAM_POSTS = [
     likes: 421,
     comments: 19,
     caption: 'Bound by sacred vows and holy fire blessings, custom designed stages crafted with pure white roses. 🔥💒 #CandidVows #SanskritBlessings #GuwahatiPhotographer',
-    permalink: 'https://www.instagram.com/p/C-RpZqOPwkNc/'
+    permalink: 'https://www.instagram.com/mpanjiyar1'
   },
   {
     id: 'i5',
@@ -321,7 +321,7 @@ export const INSTAGRAM_POSTS = [
     likes: 378,
     comments: 15,
     caption: 'Raw expressions of pure love and blissful family smiles during classic traditional morning customs. 😍✨ #PureMoments #PixelFramePortraits #Guwahati',
-    permalink: 'https://www.instagram.com/p/C-S7ucq14Q1Y/'
+    permalink: 'https://www.instagram.com/mpanjiyar1'
   },
   {
     id: 'i6',
@@ -329,7 +329,7 @@ export const INSTAGRAM_POSTS = [
     likes: 495,
     comments: 42,
     caption: 'Immersive majestic ballroom reception setup with flickering candles and beautiful high-contrast floral design. 🍿🕯️ #BallroomSetup #ReceptionAesthetics #PixelFrame',
-    permalink: 'https://www.instagram.com/p/C-M36Zil8MtG/'
+    permalink: 'https://www.instagram.com/mpanjiyar1'
   }
 ];
 

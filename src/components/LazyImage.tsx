@@ -7,7 +7,25 @@ interface LazyImageProps {
   placeholderClassName?: string;
   referrerPolicy?: React.HTMLAttributeReferrerPolicy;
   id?: string;
+  onError?: () => void;
 }
+
+const getDriveFileId = (url: string): string | null => {
+  if (!url) return null;
+  // Match lh3.googleusercontent.com/d/{id} or /u/0/d/{id}
+  let match = url.match(/lh3\.googleusercontent\.com\/(?:u\/\d+\/)?d\/([^/&#?]+)/);
+  if (match) return match[1];
+
+  // Match docs.google.com/uc?id={id} or drive.google.com/uc?id={id}
+  match = url.match(/[?&]id=([^&]+)/);
+  if (match) return match[1];
+
+  // Match drive.google.com/file/d/{id}
+  match = url.match(/drive\.google\.com\/file\/d\/([^/&#?]+)/);
+  if (match) return match[1];
+
+  return null;
+};
 
 export const LazyImage: React.FC<LazyImageProps> = ({
   src,
@@ -16,10 +34,19 @@ export const LazyImage: React.FC<LazyImageProps> = ({
   placeholderClassName = '',
   referrerPolicy = 'no-referrer',
   id,
+  onError,
 }) => {
   const [isInView, setIsInView] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [currentSrc, setCurrentSrc] = useState(src);
+  const [attempt, setAttempt] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setCurrentSrc(src);
+    setAttempt(0);
+    setIsLoaded(false);
+  }, [src]);
 
   useEffect(() => {
     // If the browser doesn't support IntersectionObserver, load immediately
@@ -54,6 +81,33 @@ export const LazyImage: React.FC<LazyImageProps> = ({
     };
   }, []);
 
+  const handleImageError = () => {
+    const fileId = getDriveFileId(src);
+    if (fileId) {
+      if (attempt === 0) {
+        // Fallback 1: Standard raw export download query
+        setCurrentSrc(`https://drive.google.com/uc?export=download&id=${fileId}`);
+        setAttempt(1);
+        return;
+      } else if (attempt === 1) {
+        // Fallback 2: docs.google.com domain export
+        setCurrentSrc(`https://docs.google.com/uc?export=download&id=${fileId}`);
+        setAttempt(2);
+        return;
+      } else if (attempt === 2) {
+        // Fallback 3: Standard drive view / uc link without forced download
+        setCurrentSrc(`https://drive.google.com/uc?id=${fileId}`);
+        setAttempt(3);
+        return;
+      }
+    }
+    
+    // Call the parent component's error handler if all attempts fail
+    if (onError) {
+      onError();
+    }
+  };
+
   return (
     <div
       ref={containerRef}
@@ -62,9 +116,9 @@ export const LazyImage: React.FC<LazyImageProps> = ({
     >
       {/* Loading states / blur placeholder */}
       {!isLoaded && (
-        <div className="absolute inset-0 bg-slate-200 dark:bg-zinc-800 animate-pulse flex items-center justify-center">
+        <div className="absolute inset-0 bg-slate-200 dark:bg-zinc-800 animate-pulse flex items-center justify-center z-10">
           <svg
-            className="w-8 h-8 text-slate-300 dark:text-zinc-600 animate-spin"
+            className="w-8 h-8 text-slate-400 dark:text-zinc-600 animate-spin"
             xmlns="http://www.w3.org/2000/svg"
             fill="none"
             viewBox="0 0 24 24"
@@ -88,13 +142,14 @@ export const LazyImage: React.FC<LazyImageProps> = ({
 
       {isInView && (
         <img
-          src={src}
+          src={currentSrc}
           alt={alt}
           className={`${className} transition-opacity duration-700 ease-out ${
             isLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
           }`}
           referrerPolicy={referrerPolicy}
           onLoad={() => setIsLoaded(true)}
+          onError={handleImageError}
         />
       )}
     </div>
