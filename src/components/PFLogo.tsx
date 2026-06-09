@@ -8,7 +8,7 @@ interface LogoProps {
   size?: number;
 }
 
-export default function PFLogo({ className = '', size = 48 }: LogoProps) {
+export default function PFLogo({ className = '', size }: LogoProps) {
   // Constructing a precise grid vector representing the interlocking "P" and "F" logo.
   // The grid is 5x5, mapping the exact orange block pixels.
   // We can draw this cleanly as a single responsive SVG.
@@ -19,7 +19,7 @@ export default function PFLogo({ className = '', size = 48 }: LogoProps) {
       viewBox="0 0 100 100"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
-      className={`${className} transition-all duration-300 hover:scale-105`}
+      className={`w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 shrink-0 ${className} transition-all duration-300 hover:scale-105`}
     >
       {/* 
         Grid analysis based on the logo image:

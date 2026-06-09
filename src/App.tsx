@@ -1228,15 +1228,15 @@ export default function App() {
           {/* Main Mobile/Desktop Top Row */}
           <div className="flex items-center justify-between w-full md:w-auto">
             {/* Logo Brand Brand Identity */}
-            <div className="flex items-center space-x-3 cursor-pointer select-none" onClick={() => { setActiveTab('home'); setIsMobileMenuOpen(false); }}>
-              <PFLogo size={34} className={`md:size-[38px] ${currentTheme === 'mono' ? 'filter grayscale brightness-200' : ''}`} />
+            <div className="flex items-center space-x-2 sm:space-x-3 cursor-pointer select-none" onClick={() => { setActiveTab('home'); setIsMobileMenuOpen(false); }}>
+              <PFLogo className={`${currentTheme === 'mono' ? 'filter grayscale brightness-200' : ''}`} />
               <div className="min-w-0">
-                <span className={`font-black text-sm sm:text-base md:text-xl tracking-tight block uppercase leading-none whitespace-nowrap ${
+                <span className={`font-black text-xs sm:text-base md:text-xl tracking-tight block uppercase leading-none whitespace-nowrap ${
                   currentTheme === 'light' ? 'text-slate-900' : 'text-white'
                 }`}>
                   MURARI PANJIYAR <span className="text-[#FF5500] font-mono select-none">.</span>
                 </span>
-                <span className={`text-[8px] xs:text-[9px] uppercase tracking-[0.2em] xs:tracking-[0.3em] font-extrabold block leading-none mt-1.5 whitespace-nowrap ${
+                <span className={`text-[8px] sm:text-[9px] uppercase tracking-[0.1em] sm:tracking-[0.3em] font-extrabold block leading-none mt-1 whitespace-nowrap ${
                   currentTheme === 'mono' ? 'text-zinc-500' : 'text-[#FF5500]'
                 }`}>
                   Pixel Fix &amp; Pixel Frame
@@ -2303,7 +2303,7 @@ export default function App() {
               {itServices.map((srv, index) => (
                 <ScrollReveal
                   key={index}
-                  variant="fade-up"
+                  variant="slide-in-up"
                   delay={index * 0.1}
                   className={`p-6 rounded-3xl border ${s.card} flex flex-col justify-between hover:border-[#FF5500]/40 transition-all duration-300`}
                 >
@@ -2533,7 +2533,7 @@ export default function App() {
               {photoServices.map((srv, index) => (
                 <ScrollReveal
                   key={index}
-                  variant="fade-up"
+                  variant="slide-in-up"
                   delay={index * 0.08}
                   className={`p-5 rounded-2xl border ${s.card} flex flex-col justify-between hover:border-[#FF5500]/30 transition-all duration-300`}
                 >
@@ -4135,15 +4135,15 @@ export default function App() {
         <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
           
           <div className="col-span-1 md:col-span-4 space-y-4">
-            <div className="flex items-center space-x-3">
-              <PFLogo size={34} />
+            <div className="flex items-center space-x-2 sm:space-x-3">
+              <PFLogo />
               <div>
-                <span className={`font-extrabold text-sm tracking-wider uppercase block leading-none ${
+                <span className={`font-black text-xs sm:text-sm tracking-wider uppercase block leading-none ${
                   currentTheme === 'light' ? 'text-slate-900' : 'text-white'
                 }`}>
                   MURARI PANJIYAR
                 </span>
-                <span className="text-[10px] uppercase tracking-[0.2em] text-[#FF5500] font-bold block mt-1">
+                <span className="text-[9px] uppercase tracking-[0.1em] sm:tracking-[0.2em] text-[#FF5500] font-bold block mt-1 leading-none">
                   Pixel Fix &amp; Pixel Frame
                 </span>
               </div>

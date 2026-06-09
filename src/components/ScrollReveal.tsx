@@ -4,7 +4,7 @@ import { motion, useScroll, useTransform } from 'motion/react';
 interface ScrollRevealProps {
   children: React.ReactNode;
   className?: string;
-  variant?: 'fade-up' | 'fade-in' | 'scale-up' | 'slide-left' | 'slide-right' | 'reveal-under';
+  variant?: 'fade-up' | 'fade-in' | 'scale-up' | 'slide-left' | 'slide-right' | 'reveal-under' | 'slide-in-up';
   delay?: number;
   duration?: number;
   once?: boolean;
@@ -79,6 +79,20 @@ export const ScrollReveal: React.FC<ScrollRevealProps> = ({
             clipPath: 'inset(0% 0% 0% 0%)',
             opacity: 1,
             transition: { duration: duration * 1.5, ease: [0.16, 1, 0.3, 1], delay },
+          },
+        };
+      case 'slide-in-up':
+        return {
+          hidden: { opacity: 0, y: 45 },
+          visible: {
+            opacity: 1,
+            y: 0,
+            transition: {
+              type: 'spring',
+              stiffness: 95,
+              damping: 15,
+              delay,
+            },
           },
         };
       case 'fade-up':
