@@ -24,6 +24,7 @@ import {
   ArrowUpRight,
   Sliders,
   X,
+  Menu,
   MapPin,
   Calendar,
   Award,
@@ -62,11 +63,13 @@ import WhatsAppIcon from './components/WhatsAppIcon';
 import { ImageUploader } from './components/ImageUploader';
 import { ScrollReveal, ScrollRevealText } from './components/ScrollReveal';
 import { LazyImage } from './components/LazyImage';
+import { PixelFrameBackground } from './components/PixelFrameBackground';
+import { PixelFixBackground } from './components/PixelFixBackground';
 import { initAuth, googleSignIn, googleSignOut } from './lib/driveAuth';
 import { uploadBackupToDrive, listBackupsOnDrive, downloadBackupFromDrive, deleteBackupFromDrive, upsertLiveSyncBackup, getOrCreateFolder, uploadPhotoFileToDrive } from './lib/driveService';
 import type { DriveBackupFile } from './lib/driveService';
 import type { User as FirebaseUser } from 'firebase/auth';
-import { HardDrive, Cloud, LogOut, AlertCircle, FolderOpen } from 'lucide-react';
+import { HardDrive, Cloud, LogOut, AlertCircle, FolderOpen, Download, UploadCloud } from 'lucide-react';
 
 // Structuring our Theme Styles
 const getInstagramShortcode = (url: string): string | null => {
@@ -183,6 +186,7 @@ const toDirectDriveUrl = (url: string): string => {
 export default function App() {
   // Navigation & Primary Settings
   const [activeTab, setActiveTab] = useState<'home' | 'about' | 'pixelfix' | 'pixelframe' | 'gallery' | 'contact' | 'dashboard'>('home');
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [currentTheme, setCurrentTheme] = useState<'normal' | 'mono' | 'light'>(() => {
     const saved = localStorage.getItem('mp_portfolio_theme_v2');
     if (!saved) {
@@ -280,13 +284,31 @@ export default function App() {
   const [driveStatusMessage, setDriveStatusMessage] = useState<string>('');
   const [driveErrorMessage, setDriveErrorMessage] = useState<string>('');
 
+  const [packStatusMessage, setPackStatusMessage] = useState<string>('');
+  const [packErrorMessage, setPackErrorMessage] = useState<string>('');
+
   const isRestoringRef = useRef<boolean>(false);
   const isInitialMountRef = useRef<boolean>(true);
 
   const [testimonials, setTestimonials] = useState<any[]>(() => {
     const saved = localStorage.getItem('mp_testimonials_custom');
     if (saved) {
-      try { return JSON.parse(saved); } catch (e) { return INITIAL_TESTIMONIALS; }
+      try {
+        const parsed = JSON.parse(saved);
+        // If it contains the old testimonials ('Rajinder Sharma' or lacks explicit Assam locations in role), reset to new INITIAL_TESTIMONIALS
+        const hasOldReview = parsed.some((t: any) => 
+          t.name === 'Rajinder Sharma' || 
+          t.name === 'Vikram Phukan' ||
+          (!t.role.toLowerCase().includes('guwahati') && 
+           !t.role.toLowerCase().includes('jorhat') && 
+           !t.role.toLowerCase().includes('tezpur') && 
+           !t.role.toLowerCase().includes('assam'))
+        );
+        if (hasOldReview) {
+          return INITIAL_TESTIMONIALS;
+        }
+        return parsed;
+      } catch (e) { return INITIAL_TESTIMONIALS; }
     }
     return INITIAL_TESTIMONIALS;
   });
@@ -819,6 +841,113 @@ export default function App() {
     }
   };
 
+  const handleExportSyncPack = () => {
+    setPackErrorMessage('');
+    setPackStatusMessage('Generating portable Sync Pack...');
+    try {
+      const backupPayload = {
+        galleryItems,
+        contactMessages,
+        notificationLogs,
+        itServices,
+        photoServices,
+        instagramPosts,
+        testimonials,
+        pixelFixReviews,
+        heroHeadline,
+        heroSubheadline,
+        profilePhotoUrl,
+        bioHeadline,
+        bioText,
+        instagramAccessToken,
+        meta: {
+          exporter: 'Pixel Studio Engine',
+          exportedAt: new Date().toISOString(),
+          version: '2.0.0'
+        }
+      };
+
+      const jsonStr = JSON.stringify(backupPayload, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      
+      const link = document.createElement('a');
+      const nowRaw = new Date();
+      const dateFormatted = `${nowRaw.getFullYear()}-${String(nowRaw.getMonth() + 1).padStart(2, '0')}-${String(nowRaw.getDate()).padStart(2, '0')}`;
+      link.href = url;
+      link.download = `Pixel_SyncPack_${dateFormatted}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      setPackStatusMessage('Sync Pack file successfully downloaded to your computer!');
+    } catch (err: any) {
+      setPackErrorMessage('Failed to compile Sync Pack: ' + (err.message || err));
+    }
+  };
+
+  const handleImportSyncPack = (file: File) => {
+    setPackErrorMessage('');
+    setPackStatusMessage('');
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const result = e.target?.result as string;
+        const backupData = JSON.parse(result);
+
+        // Basic schema verification
+        if (!backupData || (
+          !backupData.galleryItems && 
+          !backupData.contactMessages && 
+          !backupData.itServices && 
+          !backupData.photoServices && 
+          !backupData.testimonials &&
+          !backupData.pixelFixReviews
+        )) {
+          throw new Error('Invalid Sync Pack schema. The uploaded JSON does not contain recognized pixel portfolio structures.');
+        }
+
+        isRestoringRef.current = true;
+
+        // Restore everything cleanly
+        if (backupData.galleryItems) setGalleryItems(backupData.galleryItems);
+        if (backupData.contactMessages) setContactMessages(backupData.contactMessages);
+        if (backupData.notificationLogs) setNotificationLogs(backupData.notificationLogs);
+        if (backupData.itServices) setItServices(backupData.itServices);
+        if (backupData.photoServices) setPhotoServices(backupData.photoServices);
+        if (backupData.instagramPosts) setInstagramPosts(backupData.instagramPosts);
+        if (backupData.testimonials) setTestimonials(backupData.testimonials);
+        if (backupData.pixelFixReviews) setPixelFixReviews(backupData.pixelFixReviews);
+        
+        if (backupData.heroHeadline !== undefined) setHeroHeadline(backupData.heroHeadline);
+        if (backupData.heroSubheadline !== undefined) setHeroSubheadline(backupData.heroSubheadline);
+        if (backupData.profilePhotoUrl !== undefined) setProfilePhotoUrl(backupData.profilePhotoUrl);
+        if (backupData.bioHeadline !== undefined) setBioHeadline(backupData.bioHeadline);
+        if (backupData.bioText !== undefined) setBioText(backupData.bioText);
+        if (backupData.instagramAccessToken !== undefined) setInstagramAccessToken(backupData.instagramAccessToken);
+
+        setPackStatusMessage('Sync Pack synchronized perfectly! All custom portfolios, text assets, and logs have been updated.');
+
+        setTimeout(() => {
+          isRestoringRef.current = false;
+        }, 1500);
+
+      } catch (err: any) {
+        isRestoringRef.current = false;
+        setPackErrorMessage('Failed to read or apply Sync Pack: ' + (err.message || err));
+      }
+    };
+
+    reader.onerror = () => {
+      setPackErrorMessage('Failed to read the selected file properly.');
+    };
+
+    reader.readAsText(file);
+  };
+
   useEffect(() => {
     localStorage.setItem('mp_testimonials_custom', JSON.stringify(testimonials));
   }, [testimonials]);
@@ -1094,119 +1223,211 @@ export default function App() {
 
       {/* HEADER SECTION WITH ADVANCED THEME CONTROLLERS */}
       <header className={`sticky top-0 z-40 backdrop-blur-md border-b ${s.headerBg} transition-all duration-300`}>
-        <div className="max-w-7xl mx-auto px-4 lg:px-8 py-3.5 flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="max-w-7xl mx-auto px-4 lg:px-8 py-3.5 flex flex-col md:flex-row md:items-center justify-between gap-4">
           
-          {/* Logo Brand Brand Identity */}
-          <div className="flex items-center space-x-3 cursor-pointer select-none" onClick={() => setActiveTab('home')}>
-            <PFLogo size={38} className={currentTheme === 'mono' ? 'filter grayscale brightness-200' : ''} />
-            <div>
-              <span className={`font-black text-base md:text-xl tracking-tight block uppercase leading-none ${
-                currentTheme === 'light' ? 'text-slate-900' : 'text-white'
+          {/* Main Mobile/Desktop Top Row */}
+          <div className="flex items-center justify-between w-full md:w-auto">
+            {/* Logo Brand Brand Identity */}
+            <div className="flex items-center space-x-3 cursor-pointer select-none" onClick={() => { setActiveTab('home'); setIsMobileMenuOpen(false); }}>
+              <PFLogo size={34} className={`md:size-[38px] ${currentTheme === 'mono' ? 'filter grayscale brightness-200' : ''}`} />
+              <div className="min-w-0">
+                <span className={`font-black text-sm sm:text-base md:text-xl tracking-tight block uppercase leading-none whitespace-nowrap ${
+                  currentTheme === 'light' ? 'text-slate-900' : 'text-white'
+                }`}>
+                  MURARI PANJIYAR <span className="text-[#FF5500] font-mono select-none">.</span>
+                </span>
+                <span className={`text-[8px] xs:text-[9px] uppercase tracking-[0.2em] xs:tracking-[0.3em] font-extrabold block leading-none mt-1.5 whitespace-nowrap ${
+                  currentTheme === 'mono' ? 'text-zinc-500' : 'text-[#FF5500]'
+                }`}>
+                  Pixel Fix &amp; Pixel Frame
+                </span>
+              </div>
+            </div>
+
+            {/* Mobile Actions and Hamburger Trigger */}
+            <div className="flex items-center gap-2 md:hidden">
+              {/* Theme controllers quick for mobile */}
+              <div className={`flex items-center rounded-full p-0.5 border ${
+                currentTheme === 'light' ? 'bg-slate-100 border-slate-200' : 'bg-black/40 border-white/5'
               }`}>
-                MURARI PANJIYAR <span className="text-[#FF5500] font-mono select-none">.</span>
-              </span>
-              <span className={`text-[9px] uppercase tracking-[0.3em] font-extrabold block leading-none mt-1 ${
-                currentTheme === 'mono' ? 'text-zinc-500' : 'text-[#FF5500]'
-              }`}>
-                Pixel Fix &amp; Pixel Frame
-              </span>
+                <button
+                  onClick={() => setCurrentTheme('normal')}
+                  title="Sleek Cyber Orange (Default)"
+                  className={`p-1 rounded-full text-xs transition-colors ${
+                    currentTheme === 'normal' 
+                      ? 'bg-[#FF5500] text-white scale-105' 
+                      : 'text-slate-500'
+                  }`}
+                >
+                  <Sparkles size={11} />
+                </button>
+                <button
+                  onClick={() => setCurrentTheme('mono')}
+                  title="Noir Monochrome"
+                  className={`p-1 rounded-full text-xs transition-colors ${
+                    currentTheme === 'mono' 
+                      ? 'bg-zinc-200 text-black scale-105' 
+                      : 'text-slate-500'
+                  }`}
+                >
+                  <Hash size={11} />
+                </button>
+                <button
+                  onClick={() => setCurrentTheme('light')}
+                  title="Alabaster Elegant"
+                  className={`p-1 rounded-full text-xs transition-colors ${
+                    currentTheme === 'light' 
+                      ? 'bg-slate-900 text-white scale-105' 
+                      : 'text-slate-500'
+                  }`}
+                >
+                  <SunIcon size={11} />
+                </button>
+              </div>
+
+              {/* Hamburger Button */}
+              <button
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                className={`p-2 rounded-lg border transition-all cursor-pointer ${
+                  currentTheme === 'light'
+                    ? 'border-slate-200 hover:bg-slate-100 text-slate-700'
+                    : 'border-white/5 hover:bg-white/5 text-slate-300'
+                }`}
+                aria-label="Toggle Navigation Menu"
+              >
+                {isMobileMenuOpen ? <X size={16} /> : <Menu size={16} />}
+              </button>
             </div>
           </div>
 
-          {/* Desktop and Mobile Tabs Container */}
-          <div className={`flex flex-wrap items-center justify-center gap-1.5 p-1 rounded-lg border ${
-            currentTheme === 'light' ? 'bg-slate-100 border-slate-200/60' : 'bg-black/20 border-white/5'
-          }`}>
-            {[
-              { id: 'home', label: 'Home' },
-              { id: 'pixelfix', label: 'Pixel Fix (IT)' },
-              { id: 'pixelframe', label: 'Pixel Frame (Photo)' },
-              { id: 'gallery', label: 'Live Gallery' },
-              { id: 'about', label: 'Origin' },
-              { id: 'contact', label: 'Direct Booking' }
-            ].map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                className={`relative px-3 py-1.5 rounded-md text-xs uppercase tracking-wider font-extrabold transition-all duration-200 outline-none cursor-pointer ${
-                  activeTab === tab.id
-                    ? 'text-white'
-                    : currentTheme === 'light'
-                      ? 'text-slate-600 hover:text-[#FF5500] hover:bg-slate-200/30'
-                      : 'text-slate-400 hover:text-white hover:bg-white/5'
-                }`}
-              >
-                {activeTab === tab.id && (
-                  <motion.span
-                    layoutId="activeTabIndicator"
-                    className="absolute inset-0 rounded-md -z-10 bg-[#FF5500]"
-                    transition={{ type: "spring", stiffness: 380, damping: 30 }}
-                  />
-                )}
-                <span className="relative z-10">{tab.label}</span>
-              </button>
-            ))}
-          </div>
-
-          {/* EYE MATCHING DUAL CONTROL MATRIX */}
-          <div className="flex items-center gap-2">
-            <span className="text-[9px] uppercase font-bold tracking-widest text-slate-500 hidden lg:inline">Theme Profile:</span>
-            <div className={`flex items-center rounded-full p-1 self-stretch border ${
-              currentTheme === 'light' ? 'bg-slate-100 border-slate-200' : 'bg-black/40 border-white/5'
+          {/* Navigation and Advanced settings, adapts on mobile vs desktop */}
+          <div className={`${isMobileMenuOpen ? 'flex' : 'hidden'} md:flex flex-col md:flex-row items-stretch md:items-center gap-4 w-full md:w-auto transition-all duration-300`}>
+            
+            {/* Desktop and Mobile Tabs Container */}
+            <div className={`flex flex-col md:flex-row gap-1 p-1 rounded-lg border ${
+              currentTheme === 'light' ? 'bg-slate-100 border-slate-200/60' : 'bg-black/20 border-white/5'
             }`}>
-              <button
-                onClick={() => setCurrentTheme('normal')}
-                title="Sleek Cyber Orange (Default)"
-                className={`p-1.5 rounded-full text-xs transition-all ${
-                  currentTheme === 'normal' 
-                    ? 'bg-[#FF5500] text-white scale-110' 
-                    : currentTheme === 'light' 
-                      ? 'text-slate-500 hover:text-[#FF5500]' 
+              {[
+                { id: 'home', label: 'Home' },
+                { id: 'pixelfix', label: 'Pixel Fix (IT)' },
+                { id: 'pixelframe', label: 'Pixel Frame (Photo)' },
+                { id: 'gallery', label: 'Live Gallery' },
+                { id: 'about', label: 'Origin' },
+                { id: 'contact', label: 'Direct Booking' }
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => {
+                    setActiveTab(tab.id as any);
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className={`relative px-3 py-2 md:py-1.5 rounded-md text-xs uppercase tracking-wider font-extrabold transition-all duration-200 outline-none cursor-pointer text-left md:text-center ${
+                    activeTab === tab.id
+                      ? 'text-white bg-[#FF5500] md:bg-transparent'
+                      : currentTheme === 'light'
+                        ? 'text-slate-600 hover:text-[#FF5500] hover:bg-slate-200/30'
+                        : 'text-slate-400 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  {activeTab === tab.id && (
+                    <motion.span
+                      layoutId="activeTabIndicator"
+                      className="absolute inset-0 rounded-md -z-10 bg-[#FF5500] hidden md:block"
+                      transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                    />
+                  )}
+                  <span className="relative z-10">{tab.label}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* EYE MATCHING DUAL CONTROL MATRIX (Hidden on Mobile, handled in top-bar) */}
+            <div className="hidden md:flex items-center gap-2">
+              <span className="text-[9px] uppercase font-bold tracking-widest text-slate-500 hidden lg:inline">Theme Profile:</span>
+              <div className={`flex items-center rounded-full p-1 self-stretch border ${
+                currentTheme === 'light' ? 'bg-slate-100 border-slate-200' : 'bg-black/40 border-white/5'
+              }`}>
+                <button
+                  onClick={() => setCurrentTheme('normal')}
+                  title="Sleek Cyber Orange (Default)"
+                  className={`p-1.5 rounded-full text-xs transition-all ${
+                    currentTheme === 'normal' 
+                      ? 'bg-[#FF5500] text-white scale-110' 
+                      : currentTheme === 'light' 
+                        ? 'text-slate-500 hover:text-[#FF5500]' 
+                        : 'text-slate-500 hover:text-slate-300'
+                  }`}
+                >
+                  <Sparkles size={13} />
+                </button>
+                <button
+                  onClick={() => setCurrentTheme('mono')}
+                  title="Noir Monochrome (Black & White)"
+                  className={`p-1.5 rounded-full text-xs transition-all ${
+                    currentTheme === 'mono' 
+                      ? 'bg-white text-black scale-110' 
+                      : currentTheme === 'light'
+                        ? 'text-slate-500 hover:text-slate-900'
+                        : 'text-slate-500 hover:text-slate-300'
+                  }`}
+                >
+                  <Hash size={13} />
+                </button>
+                <button
+                  onClick={() => setCurrentTheme('light')}
+                  title="Alabaster Elegant (Eye-friendly Light)"
+                  className={`p-1.5 rounded-full text-xs transition-all ${
+                    currentTheme === 'light' 
+                      ? 'bg-slate-900 text-white scale-110' 
                       : 'text-slate-500 hover:text-slate-300'
-                }`}
-              >
-                <Sparkles size={13} />
-              </button>
+                  }`}
+                >
+                  <SunIcon size={13} />
+                </button>
+              </div>
+
+              {/* Studio backend panel triggers */}
               <button
-                onClick={() => setCurrentTheme('mono')}
-                title="Noir Monochrome (Black & White)"
-                className={`p-1.5 rounded-full text-xs transition-all ${
-                  currentTheme === 'mono' 
-                    ? 'bg-white text-black scale-110' 
-                    : currentTheme === 'light'
-                      ? 'text-slate-500 hover:text-slate-900'
-                      : 'text-slate-500 hover:text-slate-300'
-                }`}
+                 onClick={() => {
+                   setActiveTab('dashboard');
+                   setIsMobileMenuOpen(false);
+                 }}
+                 className={`p-1.5 rounded-full border transition-all ${
+                   activeTab === 'dashboard'
+                     ? 'bg-[#FF5500] text-white border-[#FF5500]'
+                     : currentTheme === 'light'
+                       ? 'border-slate-300 hover:border-[#FF5500] text-slate-500 hover:text-slate-800 bg-white'
+                       : 'border-white/10 hover:border-[#FF5500] text-slate-400 hover:text-white'
+                 }`}
+                title="Studio Management Dashboard"
               >
-                <Hash size={13} />
-              </button>
-              <button
-                onClick={() => setCurrentTheme('light')}
-                title="Alabaster Elegant (Eye-friendly Light)"
-                className={`p-1.5 rounded-full text-xs transition-all ${
-                  currentTheme === 'light' 
-                    ? 'bg-slate-900 text-white scale-110' 
-                    : 'text-slate-500 hover:text-slate-300'
-                }`}
-              >
-                <SunIcon size={13} />
+                <Sliders size={14} />
               </button>
             </div>
 
-            {/* Studio backend panel triggers */}
-            <button
-               onClick={() => setActiveTab('dashboard')}
-               className={`p-1.5 rounded-full border transition-all ${
-                 activeTab === 'dashboard'
-                   ? 'bg-[#FF5500] text-white border-[#FF5500]'
-                   : currentTheme === 'light'
-                     ? 'border-slate-300 hover:border-[#FF5500] text-slate-500 hover:text-slate-800 bg-white'
-                     : 'border-white/10 hover:border-[#FF5500] text-slate-400 hover:text-white'
-               }`}
-              title="Studio Management Dashboard"
-            >
-              <Sliders size={14} />
-            </button>
+            {/* Mobile Admin panel portal access */}
+            <div className="md:hidden pt-3 border-t border-dashed border-slate-200/50 dark:border-white/5 flex items-center justify-between">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                Dashboard Portal
+              </span>
+              <button
+                onClick={() => {
+                  setActiveTab('dashboard');
+                  setIsMobileMenuOpen(false);
+                }}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-extrabold uppercase tracking-wide transition-all ${
+                  activeTab === 'dashboard'
+                    ? 'bg-[#FF5500] text-white'
+                    : currentTheme === 'light'
+                      ? 'bg-slate-200 text-slate-700'
+                      : 'bg-white/5 text-zinc-300'
+                }`}
+              >
+                <Sliders size={12} />
+                <span>Admin Panel</span>
+              </button>
+            </div>
+
           </div>
         </div>
       </header>
@@ -2035,8 +2256,12 @@ export default function App() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -15 }}
             transition={{ type: "spring", stiffness: 180, damping: 20 }}
-            className="space-y-12 text-left"
+            className="text-left relative overflow-hidden rounded-3xl p-4 md:p-8"
           >
+            {/* Ambient Background with subtle IT hardware/networking animations */}
+            <PixelFixBackground currentTheme={currentTheme} />
+
+            <div className="relative z-10 space-y-12">
             {/* Header branding taglines */}
             <div className="text-center space-y-4 max-w-3xl mx-auto">
               <span className="inline-block bg-[#FF5500]/10 text-[#FF5500] text-xs font-bold uppercase tracking-widest px-4 py-1 rounded-full border border-[#FF5500]/20 font-mono">
@@ -2247,6 +2472,7 @@ export default function App() {
                 ))}
               </div>
             </div>
+            </div>
           </motion.div>
         )}
 
@@ -2258,8 +2484,12 @@ export default function App() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -15 }}
             transition={{ type: "spring", stiffness: 180, damping: 20 }}
-            className="space-y-12 text-left"
+            className="text-left relative overflow-hidden rounded-3xl p-4 md:p-8"
           >
+            {/* Ambient Background with subtle photography animations */}
+            <PixelFrameBackground currentTheme={currentTheme} />
+
+            <div className="relative z-10 space-y-12">
             {/* Header branding */}
             <div className="text-center space-y-4 max-w-3xl mx-auto">
               <span className="inline-block bg-[#FF5500]/10 text-[#FF5500] text-xs font-bold uppercase tracking-widest px-4 py-1 rounded-full border border-[#FF5500]/20 font-mono">
@@ -2449,6 +2679,7 @@ export default function App() {
                 ))}
               </div>
             </section>
+            </div>
           </motion.div>
         )}
 
@@ -3701,6 +3932,104 @@ export default function App() {
                             </div>
                           )}
                         </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* PORTABLE LOCAL SYNC PACK WORKSPACE */}
+                  <div className={`p-6 rounded-3xl border ${s.card} space-y-6 lg:col-span-12 mt-4 text-left relative overflow-hidden`}>
+                    <div className="absolute top-2 right-2 text-[10px] font-mono text-[#FF5500]/10 select-none">SYNC_CORE</div>
+                    
+                    <h3 className={`text-lg font-black flex items-center justify-between gap-2 flex-wrap ${
+                      currentTheme === 'light' ? 'text-slate-900' : 'text-white'
+                    }`}>
+                      <div className="flex items-center gap-2">
+                        <FolderOpen size={18} className="text-[#FF5500]" />
+                        <span>Offline Portable Sync Pack Engine</span>
+                      </div>
+                      <span className="text-[10px] bg-[#FF5500]/10 text-[#FF5500] font-mono tracking-wider font-extrabold px-2.5 py-1 rounded-full border border-[#FF5500]/20 leading-none">
+                        Self-Hosted / Standard JSON
+                      </span>
+                    </h3>
+
+                    <p className={`text-xs leading-relaxed ${currentTheme === 'light' ? 'text-slate-650' : 'text-slate-400'}`}>
+                      Don't have a Google account connected? No problem! Use **Portable Sync Packs** to manually export and import your entire website database. Sync Packs are standard JSON files containing your customized services, client logs, portfolio galleries, and theme configurations that you can store locally on your computer.
+                    </p>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+                      {/* Left: Export panel */}
+                      <div className={`p-5 rounded-2xl border flex flex-col justify-between space-y-4 ${
+                        currentTheme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-black/35 border-white/5'
+                      }`}>
+                        <div className="space-y-2">
+                          <span className="text-xs font-bold uppercase text-[#FF5500] tracking-wider block font-mono">STEP 1 — Export Sync Pack</span>
+                          <h4 className={`text-sm font-extrabold ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>Save Current Database File</h4>
+                          <p className={`text-xs ${currentTheme === 'light' ? 'text-slate-650' : 'text-slate-450'}`}>
+                            Compile all profile statistics, review items, media arrays, and contact mailbox entries into a download-ready JSON file instantly.
+                          </p>
+                        </div>
+                        
+                        <button
+                          type="button"
+                          onClick={handleExportSyncPack}
+                          className="w-full py-3 bg-[#FF5500] hover:bg-[#FF4400] text-white font-extrabold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 active:scale-[0.99]"
+                        >
+                          <Download size={14} />
+                          <span>Download Portable Sync Pack</span>
+                        </button>
+                      </div>
+
+                      {/* Right: Import panel */}
+                      <div className={`p-5 rounded-2xl border flex flex-col justify-between space-y-4 ${
+                        currentTheme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-black/35 border-white/5'
+                      }`}>
+                        <div className="space-y-2">
+                          <span className="text-xs font-bold uppercase text-indigo-500 dark:text-sky-400 tracking-wider block font-mono">STEP 2 — Import Sync Pack</span>
+                          <h4 className={`text-sm font-extrabold ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>Restore settings or Migrate</h4>
+                          <p className={`text-xs ${currentTheme === 'light' ? 'text-slate-650' : 'text-slate-450'}`}>
+                            Restore from a previously saved JSON Sync Pack or migrate settings from another system. <span className="text-rose-500 font-extrabold">Warning:</span> This will overwrite current live database states.
+                          </p>
+                        </div>
+
+                        <div className="relative">
+                          <input
+                            type="file"
+                            id="sync-pack-uploader-input"
+                            accept="application/json,.json"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) handleImportSyncPack(file);
+                            }}
+                            className="hidden"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => document.getElementById('sync-pack-uploader-input')?.click()}
+                            className={`w-full py-3 font-extrabold text-xs uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2 border cursor-pointer active:scale-[0.99] ${
+                              currentTheme === 'light'
+                                ? 'bg-white text-slate-800 border-slate-300 hover:bg-slate-50'
+                                : 'bg-slate-800 text-slate-200 border-white/5 hover:bg-slate-750'
+                            }`}
+                          >
+                            <UploadCloud size={14} />
+                            <span>Select & Upload Sync Pack</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Pack Messages feedback info */}
+                    {packStatusMessage && (
+                      <div className="p-3.5 bg-green-500/10 text-green-400 border border-green-500/20 rounded-xl text-xs font-mono leading-relaxed text-left flex items-start gap-2">
+                        <CheckCircle size={14} className="mt-0.5 shrink-0" />
+                        <div>{packStatusMessage}</div>
+                      </div>
+                    )}
+
+                    {packErrorMessage && (
+                      <div className="p-3.5 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-xl text-xs font-mono leading-relaxed text-left flex items-start gap-2">
+                        <AlertCircle size={14} className="mt-0.5 shrink-0" />
+                        <div>{packErrorMessage}</div>
                       </div>
                     )}
                   </div>

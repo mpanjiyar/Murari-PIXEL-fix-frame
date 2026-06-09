@@ -257,27 +257,27 @@ export const INITIAL_GALLERY_ITEMS: GalleryItem[] = [
 export const INITIAL_TESTIMONIALS: Testimony[] = [
   {
     id: 't1',
-    name: 'Rajinder Sharma',
-    role: 'Small Business Owner, IT Client',
-    comment: 'Murari is extremely swift with tech troubleshooting! He came directly to my home-office, diagnosed a complex network error and successfully configured genuine Windows 11 and MS Office 2024 within two hours. Superb service of Pixel Fix!',
+    name: 'Pranab Borah',
+    role: 'Traditional Wedding Client, Guwahati',
+    comment: 'Pixel Frame made our Assamese wedding memories absolutely eternal! From the traditional biya customs to our families wearing beautiful silk Mekhela Chador, Murari captured every candid laugh and authentic emotion flawlessly. His doorstep professionalism in Guwahati is unmatched.',
     rating: 5,
     avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=150'
   },
   {
     id: 't2',
     name: 'Priyanka & Anand',
-    role: 'Wedding Clients',
-    comment: 'Pixel Frame captured our wedding wonderfully! The candid shots are full of sheer raw emotion and beautiful lighting. Best photographer near Guwahati. He delivered the final WebP web gallery super fast, which our guests loved viewing immediately!',
+    role: 'Post-Wedding Session, Jorhat',
+    comment: 'Simply incredible! Pixel Frame shot our traditional reception near Jorhat beautifully. Every single photograph feels alive, and he holds an amazing eye for candid expressions under ambient lighting. Best traditional wedding photographer in all of Assam, plus he delivered our digital gallery so fast!',
     rating: 5,
     avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=150'
   },
   {
     id: 't3',
-    name: 'Vikram Phukan',
-    role: 'Event Organizer',
-    comment: 'For our annual regional startup meetup, Pixel Frame handled the executive portrait corner. Crisp lighting, pristine background work, and high-quality files. Also, Murari helped us fix our office network setup right before the conference! True multi-talented professional!',
+    name: 'Himakshi Saikia',
+    role: 'Cultural Portfolio, Tezpur',
+    comment: 'Murari did an outdoor cultural Bihu portfolio for me near Tezpur, and the result was stunning! Crisp high-speed shutter capture, gorgeous background depth, and elegant warm color grading. He even helped diagnose my laptop network configuration right after the shoot. Highly talented professional!',
     rating: 5,
-    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=150'
+    avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=150'
   }
 ];
 
