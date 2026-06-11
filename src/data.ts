@@ -74,7 +74,7 @@ export const INITIAL_PHOTO_SERVICES: ServiceDetail[] = [
     price: 'Flexible Packages',
     description: 'Birthdays, anniversaries, family gatherings, and social celebrations captured with vibrant, high-energy storytelling shots.',
     features: [
-      'High-energy documentation of candidate action and guest reactions',
+      'High-energy documentation of candid action and guest reactions',
       'Professional portrait setups & dynamic party photo corners',
       'Express photo correction & digital album transfer within 48h',
       'Low-light customized lens configuration for ambient party lights',
@@ -129,7 +129,7 @@ export const INITIAL_GALLERY_ITEMS: GalleryItem[] = [
   {
     id: 'g3',
     title: 'Joyful Outdoor Candid Laughs & Authentic Wedding Moments, Guwahati',
-    category: 'wedding',
+    category: 'custom',
     imageUrl: 'https://lh3.googleusercontent.com/d/1NDzHguseCZyHVR57bnsOwtdu8kuZTa9n',
     altText: 'Spontaneous laughing candid captured beautiful outdoors against luxurious lush greenery of Guwahati, showcasing genuine emotions',
     date: '2026-06-08',
@@ -137,7 +137,7 @@ export const INITIAL_GALLERY_ITEMS: GalleryItem[] = [
   },
   {
     id: 'g4',
-    title: 'Royal Imperial Bridal Entry Under Hand-Crafted Phoolon Ki Chaadar',
+    title: 'Royal Imperial Bridal Entry Under Hand-Crafted Phoolon Ki Chadar',
     category: 'wedding',
     imageUrl: 'https://lh3.googleusercontent.com/d/1NZ5KZgS7OnNAlh-2LK73Z5vFxQEXqHBF',
     altText: 'Dramatic wide-angle coverage of the grand bridal gateway entry surrounded by brothers holding a beautifully decorated floral canopy',
@@ -146,16 +146,16 @@ export const INITIAL_GALLERY_ITEMS: GalleryItem[] = [
   },
   {
     id: 'g5',
-    title: 'Grand Reception Elegance, Imperial Ballroom Setup, Assam',
-    category: 'wedding',
+    title: 'Grand Corporate Gala & Summit Ballroom Setup, Assam',
+    category: 'corporate',
     imageUrl: 'https://lh3.googleusercontent.com/d/17AUU6FGOxRaje1nElUUDqGKQTboJ5kYX',
-    altText: 'Cinematic wide frame showcasing the grandeur of the reception stage setup with warm ambient lighting, beautiful candles, and majestic floral arches',
+    altText: 'Cinematic wide frame showcasing a majestic corporate banquet gala setup with high-contrast ambient lighting, fine table details, and grand chandeliers',
     date: '2026-06-08',
-    cameraInfo: 'Nikon Z8 • NIKKOR Z 14-24mm f/2.8 S • Ultrawide Perspective'
+    cameraInfo: 'Nikon Z8 • NIKKOR Z 14-24mm f/2.8 S • Professional Event Coverage'
   },
   {
     id: 'g6',
-    title: 'Captivating Bride Portrait with Intricate Mehndhi & Custom Henna Art',
+    title: 'Captivating Bride Portrait with Intricate Mehndi & Custom Henna Art',
     category: 'wedding',
     imageUrl: 'https://lh3.googleusercontent.com/d/159c6sugb6tfSr8LLyEax4VHSP5MUnQnI',
     altText: 'Stunning close-up view highlighting the detailed bridal henna patterns on hands, showcasing fine artwork and elegant traditional bangles',
@@ -174,7 +174,7 @@ export const INITIAL_GALLERY_ITEMS: GalleryItem[] = [
   {
     id: 'g8',
     title: 'Warm Family Smiles, Auspicious Blessings Ceremony, Assam',
-    category: 'custom',
+    category: 'party',
     imageUrl: 'https://lh3.googleusercontent.com/d/1dhsMr79VPK1J0Uq_gpYz2uqy7WOJZ3ut',
     altText: 'Warm-toned picture celebrating togetherness, authentic smiles and family elders gifting pure gold blessings to the couple',
     date: '2026-06-08',
@@ -201,7 +201,7 @@ export const INITIAL_GALLERY_ITEMS: GalleryItem[] = [
   {
     id: 'g11',
     title: 'Elegant Bridal Veil Details & Classic Hand Jewelry, India',
-    category: 'custom',
+    category: 'wedding',
     imageUrl: 'https://lh3.googleusercontent.com/d/1BrmUP0gZJ1-k8qhkOWteNMNB4fxirA2D',
     altText: 'Stunning artistic close-up of intricate gold jewelry, traditional red attire, henna, and fine wedding ornaments in ambient golden lighting',
     date: '2026-06-08',
@@ -218,7 +218,7 @@ export const INITIAL_GALLERY_ITEMS: GalleryItem[] = [
   },
   {
     id: 'g13',
-    title: 'Sacred Vermilion Sindoor Ritual, Classical Wedding Assam, India',
+    title: 'Sacred Vermilion Sindoor Ritual, Classical Wedding Ceremony, Assam, India',
     category: 'wedding',
     imageUrl: 'https://lh3.googleusercontent.com/d/19CKvI4tsQ7-OCNbjaMMTh4e7QVAxzuJu',
     altText: 'Capturing a timeless and devotional traditional Indian wedding moment with close-up focus on the gold accents, vermilion, and beautiful family blessings',

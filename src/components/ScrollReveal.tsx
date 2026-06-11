@@ -83,14 +83,14 @@ export const ScrollReveal: React.FC<ScrollRevealProps> = ({
         };
       case 'slide-in-up':
         return {
-          hidden: { opacity: 0, y: 45 },
+          hidden: { opacity: 0, y: 15 },
           visible: {
             opacity: 1,
             y: 0,
             transition: {
               type: 'spring',
-              stiffness: 95,
-              damping: 15,
+              stiffness: 80,
+              damping: 20,
               delay,
             },
           },

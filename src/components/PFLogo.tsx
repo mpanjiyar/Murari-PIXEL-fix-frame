@@ -14,8 +14,8 @@ export default function PFLogo({ className = '', size }: LogoProps) {
   // We can draw this cleanly as a single responsive SVG.
   return (
     <svg
-      width={size}
-      height={size}
+      width={size || 36}
+      height={size || 36}
       viewBox="0 0 100 100"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
@@ -30,7 +30,7 @@ export default function PFLogo({ className = '', size }: LogoProps) {
         - F Top bar: (40, 0) to (100, 20).
         - F Crossbar: (60, 40) to (80, 60).
       */}
-      <g fill="#FF5500">
+      <g fill="currentColor">
         {/* P Stem (Leftmost col) */}
         <rect x="0" y="20" width="20" height="80" rx="1" />
         

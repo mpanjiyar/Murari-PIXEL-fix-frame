@@ -204,7 +204,8 @@ export default function App() {
         // Clean reset if they have old Unsplash images, if the order has changed, or if length doesn't match our new high-end 16 items
         const hasUnsplash = parsed.some((p: any) => p.imageUrl && p.imageUrl.includes('unsplash.com'));
         const firstIsTarget = parsed[0]?.imageUrl && parsed[0].imageUrl.includes('10-HoXkMa_X3axop53ogpiPEyDv_w3Nbn');
-        if (hasUnsplash || parsed.length !== 16 || !firstIsTarget) {
+        const hasOldCategories = parsed.some((p: any) => (p.id === 'g11' && p.category === 'custom') || (p.id === 'g5' && p.category === 'wedding'));
+        if (hasUnsplash || parsed.length !== 16 || !firstIsTarget || hasOldCategories) {
           return INITIAL_GALLERY_ITEMS;
         }
         return parsed;
@@ -1167,7 +1168,7 @@ export default function App() {
     : galleryItems.filter(p => p.category === activeGalleryFilter);
 
   return (
-    <div className={`min-h-screen ${s.bg} transition-colors duration-300 relative selection:bg-[#FF5500] selection:text-white pb-12`}>
+    <div className={`min-h-screen w-full overflow-x-hidden ${s.bg} transition-colors duration-300 relative selection:bg-[#FF5500] selection:text-white pb-12`}>
       {/* Admin Quick Status Control Ribbon */}
       {isAuthorized && (
         <div className="sticky top-0 z-50 bg-[#FF5500] text-white py-2 px-4 shadow-xl flex flex-col sm:flex-row items-center justify-between text-xs font-semibold gap-2">
@@ -1229,7 +1230,7 @@ export default function App() {
           <div className="flex items-center justify-between w-full md:w-auto">
             {/* Logo Brand Brand Identity */}
             <div className="flex items-center space-x-2 sm:space-x-3 cursor-pointer select-none" onClick={() => { setActiveTab('home'); setIsMobileMenuOpen(false); }}>
-              <PFLogo className={`${currentTheme === 'mono' ? 'filter grayscale brightness-200' : ''}`} />
+              <PFLogo className={currentTheme === 'mono' ? 'text-zinc-300' : 'text-[#FF5500]'} />
               <div className="min-w-0">
                 <span className={`font-black text-xs sm:text-base md:text-xl tracking-tight block uppercase leading-none whitespace-nowrap ${
                   currentTheme === 'light' ? 'text-slate-900' : 'text-white'
@@ -2214,6 +2215,35 @@ export default function App() {
                   <ArrowUpRight size={12} className="text-slate-400 group-hover:text-[#FF5500] transition-colors flex-shrink-0" />
                 </a>
 
+                {/* Etejo Gallery Handle */}
+                <a
+                  href="https://etejo.com/muraripanjiyar"
+                  target="_blank"
+                  rel="noreferrer"
+                  className={`group flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all duration-300 ${s.card} ${s.cardHover} min-w-[200px] flex-1 max-w-sm`}
+                >
+                  <div className="w-8 h-8 rounded-lg bg-orange-500/10 flex items-center justify-center text-[#FF5500] group-hover:scale-105 transition-transform flex-shrink-0">
+                    <svg
+                      viewBox="0 0 100 100"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="w-4 h-4 text-[#FF5500]"
+                    >
+                      {/* Stylized premium Etejo letter 'e' combined with finder & lens elements */}
+                      <rect x="12" y="12" width="76" height="76" rx="22" stroke="currentColor" strokeWidth="8" />
+                      <circle cx="50" cy="50" r="22" stroke="currentColor" strokeWidth="8" />
+                      <path d="M42 50 H58" stroke="currentColor" strokeWidth="8" strokeLinecap="round" />
+                      <path d="M50 38 A12 12 0 1 1 38 50" stroke="currentColor" strokeWidth="8" strokeLinecap="round" fill="none" />
+                      <circle cx="72" cy="28" r="5" fill="currentColor" />
+                    </svg>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className={`text-[11px] font-bold ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'} leading-tight`}>Etejo Gallery</p>
+                    <p className="text-[10px] text-[#FF5500] font-semibold tracking-tight">@muraripanjiyar</p>
+                  </div>
+                  <ArrowUpRight size={12} className="text-slate-400 group-hover:text-[#FF5500] transition-colors flex-shrink-0" />
+                </a>
+
               </div>
             </section>
 
@@ -2774,8 +2804,8 @@ export default function App() {
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true, margin: "-20px" }}
                     transition={{ duration: 0.4, delay: Math.min(index * 0.05, 0.3) }}
-                    whileHover={{ y: -6, scale: 1.015 }}
-                    className={`group rounded-2xl overflow-hidden border ${s.card} flex flex-col justify-between aspect-square relative cursor-pointer`}
+                    whileHover={{ y: -4, scale: 1.012, transition: { duration: 0.35, ease: 'easeOut' } }}
+                    className={`group rounded-2xl overflow-hidden border ${s.card} flex flex-col justify-between aspect-square relative cursor-pointer shadow-sm hover:shadow-md transition-shadow duration-300`}
                   >
                     {isAuthorized && (
                       <div className="absolute top-3 right-3 z-20 flex gap-1.5" onClick={(e) => e.stopPropagation()}>
@@ -2806,7 +2836,7 @@ export default function App() {
                     <LazyImage
                       src={item.imageUrl}
                       alt={item.altText}
-                      className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-300"
+                      className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-700 ease-out"
                       placeholderClassName="absolute inset-0 z-0"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent p-4 flex flex-col justify-end">
@@ -2866,7 +2896,7 @@ export default function App() {
             className="space-y-12 text-left max-w-5xl mx-auto"
           >
             {/* Split row bio */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 lg:gap-12 items-center">
               <div className="lg:col-span-5 relative">
                 <div className="absolute inset-0 bg-[#FF5500] rounded-3xl opacity-20 blur-2xl pointer-events-none" />
                 <div className={`relative z-10 p-2 rounded-3xl border ${
@@ -2874,7 +2904,7 @@ export default function App() {
                 }`}>
                   <div className="relative rounded-2xl overflow-hidden group">
                     {profileImageError ? (
-                      <div className={`rounded-2xl w-full h-[400px] flex flex-col justify-between p-6 relative overflow-hidden ${
+                      <div className={`rounded-2xl w-full min-h-[320px] min-[400px]:min-h-[360px] sm:min-h-[400px] h-auto flex flex-col justify-between p-4 sm:p-6 relative overflow-hidden ${
                         currentTheme === 'light' ? 'bg-slate-50 border border-slate-200 text-slate-500' : 'bg-zinc-900/50 border border-white/10 text-slate-400'
                       }`}>
                         {/* Beautiful artistic abstract background avatar */}
@@ -2883,35 +2913,35 @@ export default function App() {
                         <div className="absolute -left-20 -bottom-20 w-48 h-48 rounded-full bg-violet-500/10 blur-2xl pointer-events-none" />
 
                         <div className="relative z-10 flex flex-col items-center pt-2">
-                          <div className="w-14 h-14 rounded-full bg-[#FF5500]/10 border border-[#FF5500]/20 flex items-center justify-center text-[#FF5500] mb-3 shadow-[0_4px_12px_rgba(255,85,0,0.15)] animate-pulse">
-                            <User size={26} />
+                          <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-[#FF5500]/10 border border-[#FF5500]/20 flex items-center justify-center text-[#FF5500] mb-2 sm:mb-3 shadow-[0_4px_12px_rgba(255,85,0,0.15)] animate-pulse">
+                            <User size={22} className="sm:size-[26px]" />
                           </div>
-                          <h3 className={`font-black text-base tracking-tight mb-1 text-center uppercase ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
+                          <h3 className={`font-black text-xs sm:text-base tracking-tight mb-1 text-center uppercase ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
                             Profile Photo restricted
                           </h3>
-                          <p className="text-[11px] text-center max-w-xs leading-relaxed opacity-80 px-2">
+                          <p className="text-[10px] sm:text-[11px] text-center max-w-xs leading-relaxed opacity-80 px-2 overflow-hidden break-words">
                             Google Drive permission limits prevent this photo from displaying publicly to other devices unless shared.
                           </p>
                         </div>
 
-                        <div className="relative z-10 w-full p-3.5 bg-black/5 dark:bg-black/40 border border-black/10 dark:border-white/5 backdrop-blur-md rounded-2xl space-y-2">
-                          <div className="flex items-center space-x-2 text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+                        <div className="relative z-10 w-full p-2.5 sm:p-3.5 bg-black/5 dark:bg-black/40 border border-black/10 dark:border-white/5 backdrop-blur-md rounded-2xl space-y-1.5 sm:space-y-2 my-2">
+                          <div className="flex items-center space-x-2 text-[10px] sm:text-[11px] font-semibold text-slate-600 dark:text-slate-300">
                             <span className="w-1.5 h-1.5 rounded-full bg-[#FF5500] animate-ping" />
                             <span>How to display for everyone:</span>
                           </div>
-                          <p className="text-[10px] text-left leading-relaxed opacity-90 font-medium">
+                          <p className="text-[9px] sm:text-[10px] text-left leading-relaxed opacity-90 font-medium">
                             1. Open your Google Drive photo link.<br />
                             2. Click <strong>Share</strong> (or Triple-dot menu ➡️ Share).<br />
                             3. Under General Access, select <strong>"Anyone with the link"</strong> (Viewer).
                           </p>
                         </div>
 
-                        <div className="relative z-10 flex items-center gap-2.5 w-full justify-center">
+                        <div className="relative z-10 flex flex-col min-[360px]:flex-row gap-2 w-full justify-center">
                           <a
                             href="https://drive.google.com/file/d/1cKkwgAa3qplkkzj15-EEiQQ1nnHOy0Gk/view?usp=drive_link"
                             target="_blank"
                             rel="noreferrer"
-                            className="flex-1 py-2 text-center text-[10px] font-bold uppercase tracking-wider bg-slate-200/80 hover:bg-slate-300 dark:bg-white/10 dark:hover:bg-white/15 text-slate-800 dark:text-white rounded-xl transition-all"
+                            className="flex-1 py-2 text-center text-[9px] sm:text-[10px] font-bold uppercase tracking-wider bg-slate-200/80 hover:bg-slate-300 dark:bg-white/10 dark:hover:bg-white/15 text-slate-800 dark:text-white rounded-xl transition-all"
                           >
                             Open Drive Link
                           </a>
@@ -2920,7 +2950,7 @@ export default function App() {
                             onClick={() => {
                               setProfileImageError(false);
                             }}
-                            className="flex-1 py-2 text-center text-[10px] font-bold uppercase tracking-wider bg-[#FF5500] hover:bg-[#FF4400] text-white rounded-xl shadow-lg transition-all hover:scale-[1.02] cursor-pointer"
+                            className="flex-1 py-2 text-center text-[9px] sm:text-[10px] font-bold uppercase tracking-wider bg-[#FF5500] hover:bg-[#FF4400] text-white rounded-xl shadow-lg transition-all hover:scale-[1.02] cursor-pointer"
                           >
                             Retry Loading
                           </button>
@@ -2930,8 +2960,8 @@ export default function App() {
                       <LazyImage
                         src={profilePhotoUrl}
                         alt="Murari Panjiyar - smiling young Indian technical artist with a short beard and mustache"
-                        className="rounded-2xl w-full h-[400px] object-cover hover:scale-[1.02] transition-all duration-500 z-10 relative"
-                        placeholderClassName="absolute inset-0 min-h-[400px]"
+                        className="rounded-2xl w-full h-[280px] min-[400px]:h-[340px] sm:h-[400px] object-cover hover:scale-[1.02] transition-all duration-500 z-10 relative"
+                        placeholderClassName="absolute inset-0 min-h-[280px] min-[400px]:min-h-[340px] sm:min-h-[400px]"
                         onError={() => setProfileImageError(true)}
                       />
                     )}
@@ -2962,7 +2992,7 @@ export default function App() {
               <div className="lg:col-span-7 space-y-6">
                 <div>
                   <div className="flex items-center justify-between gap-4 mb-2">
-                    <span className="text-[10px] uppercase font-mono tracking-widest text-[#FF5500] block">ENTREPRENEUR PROFILE &amp; WORK PHILOSOPHY</span>
+                    <span className="text-[9px] min-[380px]:text-[10px] uppercase font-mono tracking-wider min-[380px]:tracking-widest text-[#FF5500] block break-words whitespace-normal leading-normal">ENTREPRENEUR PROFILE &amp; WORK PHILOSOPHY</span>
                     {isAuthorized && (
                       <button
                         type="button"
@@ -2978,19 +3008,19 @@ export default function App() {
                   </div>
                   <ScrollRevealText
                     tag="h1"
-                    className={`text-3xl md:text-4xl font-black uppercase leading-none ${
+                    className={`text-2xl sm:text-3xl md:text-4xl font-black uppercase leading-tight tracking-tight break-words ${
                       currentTheme === 'light' ? 'text-slate-900' : 'text-white'
                     }`}
                     text="The Mind Behind the Lens and the Machine"
                   />
                 </div>
 
-                <div className={`space-y-4 text-xs md:text-sm leading-relaxed ${
+                <div className={`space-y-4 text-xs md:text-sm leading-relaxed break-words ${
                   currentTheme === 'light' ? 'text-slate-700' : 'text-slate-300'
                 }`}>
                   <ScrollReveal variant="fade-up" delay={0.1}>
                     <h2 className="font-extrabold text-sm uppercase tracking-wider text-[#FF5500] mb-2">{bioHeadline}</h2>
-                    <p className="whitespace-pre-line leading-relaxed italic border-l-2 border-[#FF5500]/55 pl-4 py-1">
+                    <p className="whitespace-pre-line leading-relaxed italic border-l-2 border-[#FF5500]/55 pl-4 py-1 break-words">
                       {bioText}
                     </p>
                   </ScrollReveal>
@@ -2999,7 +3029,7 @@ export default function App() {
                   </p>
                 </div>
 
-                <div className={`grid grid-cols-2 gap-4 pt-4 border-t ${s.divider}`}>
+                <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 pt-4 border-t ${s.divider}`}>
                   <div className={`p-4 rounded-xl space-y-1 ${currentTheme === 'light' ? 'bg-slate-100' : 'bg-white/5'}`}>
                     <span className="text-xs font-black text-[#FF5500] uppercase block">🏠 PIXEL FIX SETUP</span>
                     <p className={`text-[11px] ${currentTheme === 'light' ? 'text-slate-600' : 'text-slate-400'}`}>Doorstep IT upgrades, driver alignments, malware cleansing, Router setups.</p>
@@ -4136,7 +4166,7 @@ export default function App() {
           
           <div className="col-span-1 md:col-span-4 space-y-4">
             <div className="flex items-center space-x-2 sm:space-x-3">
-              <PFLogo />
+              <PFLogo className={currentTheme === 'mono' ? 'text-zinc-500' : 'text-[#FF5500]'} />
               <div>
                 <span className={`font-black text-xs sm:text-sm tracking-wider uppercase block leading-none ${
                   currentTheme === 'light' ? 'text-slate-900' : 'text-white'
