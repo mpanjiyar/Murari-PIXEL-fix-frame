@@ -5116,7 +5116,16 @@ export default function App() {
                           setPixelFixReviews([...pixelFixReviews, editingItem.data]);
                         }
                       } else if (editingItem.type === 'affiliate_link') {
-                        const itemData = { ...editingItem.data, imageUrl: toDirectDriveUrl(editingItem.data.imageUrl) };
+                        const itemData = {
+                          id: editingItem.data.id || 'aff_' + Date.now().toString(),
+                          title: editingItem.data.title || '',
+                          description: editingItem.data.description || '',
+                          category: editingItem.data.category || '',
+                          url: editingItem.data.url || '',
+                          imageUrl: toDirectDriveUrl(editingItem.data.imageUrl || ''),
+                          discountCode: editingItem.data.discountCode || '',
+                          clicks: typeof editingItem.data.clicks === 'number' ? editingItem.data.clicks : 0
+                        };
                         
                         // Ensure local state is updated immediately before the Firestore network request to provide better UI feedback 
                         setAffiliateLinks((prev) => {
@@ -5140,7 +5149,18 @@ export default function App() {
                       setEditingItem(null);
                     } catch (err) {
                       console.error("Error applying updates: ", err);
-                      triggerToast('An error occurred while updating the portfolio item.', 'error');
+                      let errorMsg = 'An error occurred while updating the portfolio item.';
+                      if (err instanceof Error) {
+                        try {
+                          const parsed = JSON.parse(err.message);
+                          if (parsed.error) {
+                            errorMsg = `Error: ${parsed.error}`;
+                          }
+                        } catch {
+                          errorMsg = err.message;
+                        }
+                      }
+                      triggerToast(errorMsg, 'error');
                     } finally {
                       setIsSaving(false);
                     }

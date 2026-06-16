@@ -17,23 +17,23 @@ service cloud.firestore {
     }
 
     function isValidId(id) {
-      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+      return id is string && id.size() <= 128;
     }
 
     function isValidAffiliateLink(data) {
       return data.id is string && data.id.size() <= 128
-        && data.title is string && data.title.size() <= 150
-        && data.description is string && data.description.size() <= 2000
-        && data.category is string && data.category.size() <= 100
-        && data.url is string && data.url.size() <= 2000
-        && data.imageUrl is string && data.imageUrl.size() <= 2000
-        && (!data.keys().hasAll(['discountCode']) || (data.discountCode is string && data.discountCode.size() <= 100))
-        && (!data.keys().hasAll(['clicks']) || (data.clicks is int || data.clicks is float));
+        && data.title is string && data.title.size() <= 300
+        && data.description is string && data.description.size() <= 5000
+        && data.category is string && data.category.size() <= 200
+        && data.url is string && data.url.size() <= 3000
+        && data.imageUrl is string && data.imageUrl.size() <= 10000000
+        && (!('discountCode' in data) || (data.discountCode is string && data.discountCode.size() <= 200))
+        && (!('clicks' in data) || (data.clicks is int || data.clicks is float));
     }
 
     function isValidCategoryMap(data) {
       return data.id is string && data.id.size() <= 128
-        && data.labels is map;
+        && 'labels' in data && data.labels is map;
     }
 
     // Collection: Affiliate Links
