@@ -375,3 +375,57 @@ export const INITIAL_PIXELFIX_REVIEWS: Testimony[] = [
     avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=150'
   }
 ];
+
+export const INITIAL_AFFILIATE_LINKS: any[] = [
+  {
+    id: 'aff-1',
+    title: 'Samsung 990 PRO Gen4 NVMe M.2 SSD',
+    description: 'The absolute speed champion for workstation laptop and desktop upgrades. Boasts blistering 7450MB/s speeds. Highly recommended for Pixel Fix speed transformations.',
+    category: 'it_tech',
+    url: 'https://amazon.in/dp/B0BHJDY57J',
+    imageUrl: 'https://images.unsplash.com/photo-1563770660941-20978e870e26?auto=format&fit=crop&q=80&w=300',
+    discountCode: 'PIXELSSD990',
+    clicks: 142
+  },
+  {
+    id: 'aff-2',
+    title: 'Peak Design Slide Camera Strap (Ash)',
+    description: 'The world\'s most versatile quick-connecting camera strap. Features security anchor links. Essential for long, demanding Pixel Frame wedding shoots.',
+    category: 'accessories',
+    url: 'https://amazon.in/dp/B07519ZMK3',
+    imageUrl: 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&q=80&w=300',
+    discountCode: 'FRAMEANCHOR8',
+    clicks: 89
+  },
+  {
+    id: 'aff-3',
+    title: 'Crucial RAM 16GB DDR5 4800MHz Dual-Rank',
+    description: 'Boost multitasking workflows and eliminate Adobe Lightroom lag. Perfect upgrade companion for developers, designers, and dual-monitor multitasking.',
+    category: 'it_tech',
+    url: 'https://amazon.in/dp/B5HXQD29',
+    imageUrl: 'https://images.unsplash.com/photo-1591405351990-4726e33ae587?auto=format&fit=crop&q=80&w=300',
+    discountCode: 'FIXSPEEDRAM',
+    clicks: 118
+  },
+  {
+    id: 'aff-4',
+    title: 'SanDisk Extreme PRO UHS-II SDXC Card 128GB',
+    description: 'Ultra-fast read/write speeds up to 300MB/s. Captures seamless high-speed raw continuous bursts on Nikon Z8/Z9 without filling the internal camera buffer.',
+    category: 'photography',
+    url: 'https://amazon.in/dp/B010NE3O1G',
+    imageUrl: 'https://images.unsplash.com/photo-1623126908029-58cb08a2b272?auto=format&fit=crop&q=80&w=300',
+    discountCode: 'FRAMEBURST22',
+    clicks: 205
+  },
+  {
+    id: 'aff-5',
+    title: 'Adobe Creative Cloud Photography Plan',
+    description: 'Access the world\'s premium photo retouching suite, including Adobe Photoshop, Lightroom Classic, and 20GB cloud storage. Create flawless compositions.',
+    category: 'software',
+    url: 'https://adobe.com/creativecloud/photography',
+    imageUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&q=80&w=300',
+    discountCode: 'ADOBEDISC5',
+    clicks: 94
+  }
+];
+

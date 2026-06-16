@@ -25,6 +25,10 @@ import {
   Sliders,
   X,
   Menu,
+  ShoppingBag,
+  Tag,
+  Percent,
+  Edit,
   MapPin,
   Calendar,
   Award,
@@ -45,7 +49,8 @@ import {
   FileCode,
   SlidersHorizontal,
   ChevronDown,
-  User
+  User,
+  Settings
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -54,9 +59,10 @@ import {
   INITIAL_PHOTO_SERVICES,
   INITIAL_TESTIMONIALS,
   INITIAL_PIXELFIX_REVIEWS,
-  INSTAGRAM_POSTS
+  INSTAGRAM_POSTS,
+  INITIAL_AFFILIATE_LINKS
 } from './data';
-import { GalleryItem, ContactMessage, NotificationLog } from './types';
+import { GalleryItem, ContactMessage, NotificationLog, AffiliateLink } from './types';
 import PFLogo from './components/PFLogo';
 import CursorEffect from './components/CursorEffect';
 import WhatsAppIcon from './components/WhatsAppIcon';
@@ -185,7 +191,7 @@ const toDirectDriveUrl = (url: string): string => {
 
 export default function App() {
   // Navigation & Primary Settings
-  const [activeTab, setActiveTab] = useState<'home' | 'about' | 'pixelfix' | 'pixelframe' | 'gallery' | 'contact' | 'dashboard'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'about' | 'pixelfix' | 'pixelframe' | 'gallery' | 'contact' | 'dashboard' | 'affiliate'>('home');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [currentTheme, setCurrentTheme] = useState<'normal' | 'mono' | 'light'>(() => {
     const saved = localStorage.getItem('mp_portfolio_theme_v2');
@@ -358,8 +364,53 @@ export default function App() {
     return localStorage.getItem('mp_bio_text') || '"Through my dual business structures, I aim to offer seamless tech support that keeps your home-office or corporate workstation running smoothly on-demand via Pixel Fix, alongside stunning cinematography from Pixel Frame that helps you cherish life\'s biggest milestones forever."';
   });
 
+  const [affiliateLinks, setAffiliateLinks] = useState<AffiliateLink[]>(() => {
+    const saved = localStorage.getItem('mp_affiliate_links');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        // Fallback or validation
+        if (parsed && parsed.length > 0) {
+          return parsed;
+        }
+        return INITIAL_AFFILIATE_LINKS;
+      } catch (e) {
+        return INITIAL_AFFILIATE_LINKS;
+      }
+    }
+    return INITIAL_AFFILIATE_LINKS;
+  });
+
+  const [affiliateLabelMap, setAffiliateLabelMap] = useState<Record<string, string>>(() => {
+    const saved = localStorage.getItem('mp_affiliate_label_map_v2');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        // ignore
+      }
+    }
+    return {
+      all: 'All collections',
+      photography: 'Photography Gear',
+      it_tech: 'IT & Support',
+      software: 'Licensed Software',
+      accessories: 'Accessories'
+    };
+  });
+
+  const [isEditingCategories, setIsEditingCategories] = useState(false);
+
+  useEffect(() => {
+    localStorage.setItem('mp_affiliate_links', JSON.stringify(affiliateLinks));
+  }, [affiliateLinks]);
+
+  useEffect(() => {
+    localStorage.setItem('mp_affiliate_label_map_v2', JSON.stringify(affiliateLabelMap));
+  }, [affiliateLabelMap]);
+
   const [editingItem, setEditingItem] = useState<{
-    type: 'it_service' | 'photo_service' | 'instagram' | 'hero' | 'about' | 'gallery_item' | 'testimonial' | 'pixelfix_review';
+    type: 'it_service' | 'photo_service' | 'instagram' | 'hero' | 'about' | 'gallery_item' | 'testimonial' | 'pixelfix_review' | 'affiliate_link';
     index?: number;
     id?: string;
     data: any;
@@ -403,6 +454,32 @@ export default function App() {
   // Active picture preview modal
   const [previewImage, setPreviewImage] = useState<GalleryItem | null>(null);
   const [activeGalleryFilter, setActiveGalleryFilter] = useState<'all' | 'wedding' | 'party' | 'corporate' | 'custom'>('all');
+  const [activeAffiliateFilter, setActiveAffiliateFilter] = useState<string>('all');
+
+  // Custom Smooth Toast & Confirm states for UI interactions
+  const [activeToast, setActiveToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [activeConfirm, setActiveConfirm] = useState<{
+    message: string;
+    onConfirm: () => void;
+    onCancel?: () => void;
+  } | null>(null);
+
+  const triggerToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
+    setActiveToast({ message, type });
+  };
+
+  const triggerConfirm = (message: string, onConfirm: () => void, onCancel?: () => void) => {
+    setActiveConfirm({ message, onConfirm, onCancel });
+  };
+
+  useEffect(() => {
+    if (activeToast) {
+      const timer = setTimeout(() => {
+        setActiveToast(null);
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [activeToast]);
 
   // Contact form state
   const [bookingName, setBookingName] = useState('');
@@ -597,6 +674,7 @@ export default function App() {
         instagramPosts,
         testimonials,
         pixelFixReviews,
+        affiliateLinks,
         heroHeadline,
         heroSubheadline,
         profilePhotoUrl,
@@ -630,47 +708,50 @@ export default function App() {
       return;
     }
 
-    const confirmed = window.confirm(
-      `Are you sure you want to restore the backup "${backupFile.name}" created at ${new Date(backupFile.createdTime).toLocaleString()}?\n\nThis will overwrite all current services, headlines, custom gallery images, and message logs with the backed-up data.`
+    triggerConfirm(
+      `Are you sure you want to restore the backup "${backupFile.name}" created at ${new Date(backupFile.createdTime).toLocaleString()}? This will overwrite all current services, headlines, custom gallery images, and message logs with the backed-up data.`,
+      async () => {
+        setDriveErrorMessage('');
+        setDriveStatusMessage('Retrieving cloud archive package...');
+        setIsDriveLoading(true);
+
+        try {
+          isRestoringRef.current = true;
+          const backupData = await downloadBackupFromDrive(driveToken, backupFile.id);
+          
+          // Perform validation and graceful state restoration
+          if (backupData.galleryItems) setGalleryItems(backupData.galleryItems);
+          if (backupData.contactMessages) setContactMessages(backupData.contactMessages);
+          if (backupData.notificationLogs) setNotificationLogs(backupData.notificationLogs);
+          if (backupData.itServices) setItServices(backupData.itServices);
+          if (backupData.photoServices) setPhotoServices(backupData.photoServices);
+          if (backupData.instagramPosts) setInstagramPosts(backupData.instagramPosts);
+          if (backupData.testimonials) setTestimonials(backupData.testimonials);
+          if (backupData.pixelFixReviews) setPixelFixReviews(backupData.pixelFixReviews);
+          if (backupData.affiliateLinks) setAffiliateLinks(backupData.affiliateLinks);
+          
+          if (backupData.heroHeadline !== undefined) setHeroHeadline(backupData.heroHeadline);
+          if (backupData.heroSubheadline !== undefined) setHeroSubheadline(backupData.heroSubheadline);
+          if (backupData.profilePhotoUrl !== undefined) setProfilePhotoUrl(backupData.profilePhotoUrl);
+          if (backupData.bioHeadline !== undefined) setBioHeadline(backupData.bioHeadline);
+          if (backupData.bioText !== undefined) setBioText(backupData.bioText);
+          if (backupData.instagramAccessToken !== undefined) setInstagramAccessToken(backupData.instagramAccessToken);
+
+          setDriveStatusMessage('Congratulations! All settings, custom portfolio images, and message logs were successfully restored directly from Google Drive!');
+          triggerToast('Restore complete! All portfolio data synchronized successfully.', 'success');
+          
+          setTimeout(() => {
+            isRestoringRef.current = false;
+          }, 1500);
+        } catch (err: any) {
+          isRestoringRef.current = false;
+          setDriveErrorMessage('Failed to parse backup or restore states: ' + (err.message || err));
+          triggerToast('Cloud restore failed: ' + (err.message || err), 'error');
+        } finally {
+          setIsDriveLoading(false);
+        }
+      }
     );
-    if (!confirmed) return;
-
-    setDriveErrorMessage('');
-    setDriveStatusMessage('Retrieving cloud archive package...');
-    setIsDriveLoading(true);
-
-    try {
-      isRestoringRef.current = true;
-      const backupData = await downloadBackupFromDrive(driveToken, backupFile.id);
-      
-      // Perform validation and graceful state restoration
-      if (backupData.galleryItems) setGalleryItems(backupData.galleryItems);
-      if (backupData.contactMessages) setContactMessages(backupData.contactMessages);
-      if (backupData.notificationLogs) setNotificationLogs(backupData.notificationLogs);
-      if (backupData.itServices) setItServices(backupData.itServices);
-      if (backupData.photoServices) setPhotoServices(backupData.photoServices);
-      if (backupData.instagramPosts) setInstagramPosts(backupData.instagramPosts);
-      if (backupData.testimonials) setTestimonials(backupData.testimonials);
-      if (backupData.pixelFixReviews) setPixelFixReviews(backupData.pixelFixReviews);
-      
-      if (backupData.heroHeadline !== undefined) setHeroHeadline(backupData.heroHeadline);
-      if (backupData.heroSubheadline !== undefined) setHeroSubheadline(backupData.heroSubheadline);
-      if (backupData.profilePhotoUrl !== undefined) setProfilePhotoUrl(backupData.profilePhotoUrl);
-      if (backupData.bioHeadline !== undefined) setBioHeadline(backupData.bioHeadline);
-      if (backupData.bioText !== undefined) setBioText(backupData.bioText);
-      if (backupData.instagramAccessToken !== undefined) setInstagramAccessToken(backupData.instagramAccessToken);
-
-      setDriveStatusMessage('Congratulations! All settings, custom portfolio images, and message logs were successfully restored directly from Google Drive!');
-      
-      setTimeout(() => {
-        isRestoringRef.current = false;
-      }, 1500);
-    } catch (err: any) {
-      isRestoringRef.current = false;
-      setDriveErrorMessage('Failed to parse backup or restore states: ' + (err.message || err));
-    } finally {
-      setIsDriveLoading(false);
-    }
   };
 
   // Automated Google Drive Synchronizer
@@ -699,6 +780,7 @@ export default function App() {
           instagramPosts,
           testimonials,
           pixelFixReviews,
+          affiliateLinks,
           heroHeadline,
           heroSubheadline,
           profilePhotoUrl,
@@ -855,6 +937,7 @@ export default function App() {
         instagramPosts,
         testimonials,
         pixelFixReviews,
+        affiliateLinks,
         heroHeadline,
         heroSubheadline,
         profilePhotoUrl,
@@ -922,6 +1005,7 @@ export default function App() {
         if (backupData.instagramPosts) setInstagramPosts(backupData.instagramPosts);
         if (backupData.testimonials) setTestimonials(backupData.testimonials);
         if (backupData.pixelFixReviews) setPixelFixReviews(backupData.pixelFixReviews);
+        if (backupData.affiliateLinks) setAffiliateLinks(backupData.affiliateLinks);
         
         if (backupData.heroHeadline !== undefined) setHeroHeadline(backupData.heroHeadline);
         if (backupData.heroSubheadline !== undefined) setHeroSubheadline(backupData.heroSubheadline);
@@ -1018,6 +1102,7 @@ export default function App() {
       status: 'unread'
     };
     setContactMessages(prev => [newMsg, ...prev]);
+    triggerToast('Estimate proposal generated! Forwarding to WhatsApp support...', 'success');
 
     // Clean states & redirect
     window.open(`https://wa.me/918638875231?text=${encodeURIComponent(textMessage)}`, '_blank');
@@ -1039,6 +1124,7 @@ export default function App() {
       status: 'unread'
     };
     setContactMessages(prev => [newMsg, ...prev]);
+    triggerToast('Photography custom quote compiled! Connecting with WhatsApp optics desk...', 'success');
 
     window.open(`https://wa.me/919864361940?text=${encodeURIComponent(textMessage)}`, '_blank');
   };
@@ -1047,6 +1133,7 @@ export default function App() {
   const triggerQuickBooking = (service: 'it_fix' | 'photography', customText: string) => {
     const number = service === 'it_fix' ? '918638875231' : '919864361940';
     const text = encodeURIComponent(customText);
+    triggerToast('Preparing direct WhatsApp routing...', 'info');
     window.open(`https://wa.me/${number}?text=${text}`, '_blank');
   };
 
@@ -1055,14 +1142,16 @@ export default function App() {
     if (adminKeyInput === 'Dispur123@') {
       setIsAuthorized(true);
       localStorage.setItem('mp_admin_authorized', 'true');
+      triggerToast('Security decrypted successfully! Welcome back, Murari.', 'success');
     } else {
-      alert('Invalid access credentials. Please enter the correct password.');
+      triggerToast('Invalid access credentials. Please enter the correct password.', 'error');
     }
   };
 
   const logoutAdmin = () => {
     setIsAuthorized(false);
     localStorage.removeItem('mp_admin_authorized');
+    triggerToast('Secure dashboard locked successfully.', 'info');
   };
 
   // Image upload base64 process
@@ -1105,7 +1194,7 @@ export default function App() {
   const handleCreateGalleryItem = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newImageBase64) {
-      alert('Please select or drag an image showcase file to publish first!');
+      triggerToast('Please select or drag an image showcase file to publish first!', 'error');
       return;
     }
     const newItem: GalleryItem = {
@@ -1120,12 +1209,13 @@ export default function App() {
     setGalleryItems(prev => [newItem, ...prev]);
     setNewImageTitle('');
     setNewImageBase64('');
-    alert('Successfully added custom portfolio picture into showcase!');
+    triggerToast('Successfully added custom portfolio picture into showcase!', 'success');
   };
 
   const handleDeleteGalleryItem = (id: string) => {
     if (confirm('Are you sure you want to delete this portfolio photo from the live website?')) {
       setGalleryItems(prev => prev.filter(item => item.id !== id));
+      triggerToast('Portfolio image successfully deleted from database.', 'info');
     }
   };
 
@@ -1133,7 +1223,7 @@ export default function App() {
   const handleEmailSimulation = (e: React.FormEvent) => {
     e.preventDefault();
     if (!clientEmail || !clientName) {
-      alert('Please fill in client details to simulate notification emails.');
+      triggerToast('Please fill in client details to simulate notification emails.', 'error');
       return;
     }
 
@@ -1182,20 +1272,27 @@ export default function App() {
             <button 
               type="button"
               onClick={() => {
-                if (confirm('Apply system defaults? Warning: This restores standard prices and captions.')) {
-                  localStorage.removeItem('mp_it_services_custom');
-                  localStorage.removeItem('mp_photo_services_custom');
-                  localStorage.removeItem('mp_instagram_posts');
-                  localStorage.removeItem('mp_testimonials_custom');
-                  localStorage.removeItem('mp_pixelfix_reviews_custom');
-                  localStorage.removeItem('mp_gallery_items');
-                  localStorage.removeItem('mp_hero_headline');
-                  localStorage.removeItem('mp_hero_subheadline');
-                  localStorage.removeItem('mp_profile_photo_url');
-                  localStorage.removeItem('mp_bio_headline');
-                  localStorage.removeItem('mp_bio_text');
-                  window.location.reload();
-                }
+                triggerConfirm(
+                  'Apply system defaults? Warning: This restores standard prices and captions, clearing your customized configuration.',
+                  () => {
+                    localStorage.removeItem('mp_it_services_custom');
+                    localStorage.removeItem('mp_photo_services_custom');
+                    localStorage.removeItem('mp_instagram_posts');
+                    localStorage.removeItem('mp_testimonials_custom');
+                    localStorage.removeItem('mp_pixelfix_reviews_custom');
+                    localStorage.removeItem('mp_gallery_items');
+                    localStorage.removeItem('mp_affiliate_links');
+                    localStorage.removeItem('mp_hero_headline');
+                    localStorage.removeItem('mp_hero_subheadline');
+                    localStorage.removeItem('mp_profile_photo_url');
+                    localStorage.removeItem('mp_bio_headline');
+                    localStorage.removeItem('mp_bio_text');
+                    triggerToast('Reverting to database system defaults... Reloading Page.', 'info');
+                    setTimeout(() => {
+                      window.location.reload();
+                    }, 1200);
+                  }
+                );
               }}
               className="bg-black/35 hover:bg-black/55 px-2.5 py-1 rounded text-[10px] uppercase font-bold transition-colors cursor-pointer border border-white/10"
             >
@@ -1624,6 +1721,63 @@ export default function App() {
                 </motion.div>
               </div>
             </section>
+
+            {/* STRATEGIC HIGH-CONVERSION AFFILIATE RECOMMENDED HUB CARD */}
+            <motion.section 
+              initial={{ opacity: 0, y: 15 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5 }}
+              className="relative overflow-hidden py-2"
+            >
+              <div className={`p-6 md:p-8 rounded-3xl border text-left relative group overflow-hidden transition-all duration-300 ${
+                currentTheme === 'light' 
+                  ? 'bg-gradient-to-br from-amber-50/70 via-orange-50/30 to-white border-orange-200/50 shadow-sm hover:shadow-md' 
+                  : currentTheme === 'mono'
+                    ? 'bg-black border-zinc-800 shadow-none'
+                    : 'bg-zinc-900/60 border-white/5 shadow-2xl backdrop-blur-md'
+              }`}>
+                {/* Visual glow backdrop for modern depth */}
+                <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-br from-amber-500/10 to-transparent rounded-full blur-3xl pointer-events-none transition-transform duration-700 group-hover:scale-110" />
+                
+                <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 relative z-10">
+                  <div className="flex items-start sm:items-center gap-4">
+                    <div className="w-14 h-14 rounded-2xl bg-amber-500/10 flex items-center justify-center text-amber-500 shrink-0 group-hover:rotate-6 transition-transform duration-300">
+                      <ShoppingBag size={28} />
+                    </div>
+                    <div>
+                      <div className="inline-flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/20 rounded-full px-2.5 py-0.5 text-[9px] text-amber-500 font-extrabold tracking-widest uppercase font-mono">
+                        <Tag size={10} className="animate-pulse" />
+                        <span>VERIFIED RECOMMENDATIONS</span>
+                      </div>
+                      <h3 className={`text-xl font-black mt-1.5 ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
+                        Verified Hardware, Gear &amp; Tool Collections
+                      </h3>
+                      <p className={`text-xs md:text-sm mt-1.5 max-w-2xl leading-relaxed ${currentTheme === 'light' ? 'text-slate-600' : 'text-slate-300'}`}>
+                        Check out the exact workstation accessories, solid-state drives, photography lenses, and licensed software that power my dual IT and photography business architectures. Shop through direct partner links for secure purchases and verified discounts!
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="shrink-0 w-full lg:w-auto">
+                    <button
+                      onClick={() => {
+                        setActiveTab('affiliate');
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      className={`w-full lg:w-auto px-5 py-3 rounded-xl font-bold text-xs uppercase tracking-wider transition-all duration-250 flex items-center justify-center gap-2 cursor-pointer border ${
+                        currentTheme === 'light'
+                          ? 'border-slate-800 text-slate-800 bg-transparent hover:bg-slate-800 hover:text-white shadow-sm'
+                          : 'border-white/20 text-white bg-white/5 hover:bg-white hover:text-black hover:border-white shadow-lg'
+                      }`}
+                    >
+                      <span>Explore Collections</span>
+                      <ArrowUpRight size={14} className="stroke-[2.5px]" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </motion.section>
 
             {/* DYNAMIC WHATSAPP INTERACTIVE CALCULATOR (The Core Feature of Client Request) */}
             <section id="interactive-calculator-widget" className={`p-6 md:p-8 rounded-3xl border ${s.card} relative overflow-hidden text-left`}>
@@ -2804,8 +2958,8 @@ export default function App() {
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true, margin: "-20px" }}
                     transition={{ duration: 0.4, delay: Math.min(index * 0.05, 0.3) }}
-                    whileHover={{ y: -4, scale: 1.012, transition: { duration: 0.35, ease: 'easeOut' } }}
-                    className={`group rounded-2xl overflow-hidden border ${s.card} flex flex-col justify-between aspect-square relative cursor-pointer shadow-sm hover:shadow-md transition-shadow duration-300`}
+                    whileHover={{ y: -6, scale: 1.02, transition: { type: "spring", stiffness: 400, damping: 22 } }}
+                    className={`group rounded-2xl overflow-hidden border ${s.card} flex flex-col justify-between aspect-square relative cursor-pointer shadow-sm hover:shadow-lg hover:border-[#FF5500]/30 transition-all duration-300`}
                   >
                     {isAuthorized && (
                       <div className="absolute top-3 right-3 z-20 flex gap-1.5" onClick={(e) => e.stopPropagation()}>
@@ -2836,7 +2990,7 @@ export default function App() {
                     <LazyImage
                       src={item.imageUrl}
                       alt={item.altText}
-                      className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-700 ease-out"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
                       placeholderClassName="absolute inset-0 z-0"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent p-4 flex flex-col justify-end">
@@ -3178,6 +3332,425 @@ export default function App() {
                 )}
               </div>
             </div>
+          </motion.div>
+        )}
+
+        {/* AFFILIATE Curated Recommendations & Deals Tab */}
+        {activeTab === 'affiliate' && (
+          <motion.div
+            key="affiliate"
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            transition={{ type: "spring", stiffness: 180, damping: 20 }}
+            className="space-y-8 text-left max-w-6xl mx-auto"
+          >
+            {/* Breadcrumb Back Navigation */}
+            <div className="flex border-b border-slate-200/40 dark:border-white/5 pb-3">
+              <button
+                onClick={() => {
+                  setActiveTab('home');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className={`inline-flex items-center gap-2 text-[10px] font-mono font-extrabold tracking-widest transition-all uppercase cursor-pointer ${
+                  currentTheme === 'light' ? 'text-slate-500 hover:text-amber-600' : 'text-slate-400 hover:text-amber-500'
+                }`}
+              >
+                <span className="text-[14px]">←</span>
+                <span>Back to Hub</span>
+              </button>
+            </div>
+
+            {/* Post-Modern Editorial Header Panel */}
+            <div className={`relative p-6 md:p-8 rounded-3xl border text-left overflow-hidden ${
+              currentTheme === 'light' 
+                ? 'bg-amber-50/20 border-slate-200/80 shadow-md' 
+                : 'bg-zinc-950/80 border-white/5 shadow-2xl backdrop-blur-xl'
+            }`}>
+              <div className="absolute top-0 right-0 w-80 h-80 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
+              
+              <div className="space-y-3">
+                <h1 className={`text-3xl md:text-5xl font-black tracking-tight leading-none ${
+                  currentTheme === 'light' ? 'text-slate-900' : 'text-white'
+                }`}>
+                  THE DESIGNER’S <span className="text-amber-500">GEAR</span> SHEET
+                </h1>
+                
+                <p className={`text-xs md:text-sm max-w-3xl leading-relaxed ${
+                  currentTheme === 'light' ? 'text-slate-600 font-medium' : 'text-slate-400'
+                }`}>
+                  An uncompromised catalog of recommended camera optics, enterprise server setups, IT optimization utility suites, and creative workstations. Zero fluff, zero sponsor-forced bias. I only link tools compiled through rigorous, real-world deployment across Assam.
+                </p>
+              </div>
+            </div>
+
+            {/* Filter Utilities & Edit Panel Trigger Bar */}
+            <div className="flex flex-col md:flex-row items-center justify-between gap-4 border-b border-slate-200/50 dark:border-white/5 pb-4">
+              <div className="flex flex-wrap items-center gap-1.5 justify-center md:justify-start">
+                {(() => {
+                  const rawCategories = Array.from(new Set(affiliateLinks.map(a => a.category).filter(Boolean))) as string[];
+                  const dynamicCats = ['all', ...rawCategories];
+
+                  const getCategoryLabel = (cat: string) => {
+                    if (affiliateLabelMap[cat]) return affiliateLabelMap[cat];
+                    return cat.split(/[_-]/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+                  };
+
+                  const getCount = (cat: string) => {
+                    if (cat === 'all') return affiliateLinks.length;
+                    return affiliateLinks.filter(a => a.category === cat).length;
+                  };
+
+                  return dynamicCats.map((cat, idx) => {
+                    const isActive = activeAffiliateFilter === cat;
+                    const itemsCount = getCount(cat);
+                    
+                    return (
+                      <button
+                        key={cat}
+                        onClick={() => setActiveAffiliateFilter(cat)}
+                        className={`px-4 py-2 rounded-xl font-mono text-[9px] uppercase tracking-widest font-extrabold transition-all duration-200 flex items-center gap-2 cursor-pointer border ${
+                          isActive
+                            ? 'bg-amber-500 border-amber-500 text-white shadow-lg shadow-amber-500/15 scale-[1.02]'
+                            : currentTheme === 'light'
+                              ? 'bg-white border-slate-200 text-slate-600 hover:border-slate-400 hover:bg-slate-50'
+                              : 'bg-zinc-900/40 border-white/5 text-slate-300 hover:border-white/20 hover:bg-white/5'
+                        }`}
+                      >
+                        {isActive && <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />}
+                        <span>{getCategoryLabel(cat)}</span>
+                      </button>
+                    );
+                  });
+                })()}
+              </div>
+
+              {/* Administrative Buttons */}
+              {isAuthorized && (
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => setIsEditingCategories(!isEditingCategories)}
+                    className={`px-3 py-1.5 rounded-xl font-mono text-[9px] font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all shadow-sm cursor-pointer border ${
+                      isEditingCategories
+                        ? 'bg-amber-600 border-amber-600 text-white'
+                        : currentTheme === 'light'
+                          ? 'bg-white border-slate-200 text-slate-700 hover:border-amber-550'
+                          : 'bg-white/5 border-white/5 text-slate-200 hover:text-amber-500 hover:bg-white/10'
+                    }`}
+                  >
+                    <Settings size={12} className={isEditingCategories ? "animate-spin" : ""} />
+                    <span>{isEditingCategories ? 'Close Editor' : 'Edit Categories'}</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setEditingItem({
+                        type: 'affiliate_link',
+                        data: {
+                          id: 'aff_' + Date.now().toString(),
+                          title: '',
+                          description: '',
+                          category: 'photography',
+                          url: '',
+                          imageUrl: '',
+                          discountCode: '',
+                          clicks: 0
+                        }
+                      });
+                    }}
+                    className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-mono text-[9px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg shadow-amber-500/10 cursor-pointer"
+                  >
+                    <Plus size={12} className="stroke-[3px]" />
+                    <span>Add Deal</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Inline Dynamic Category Label Editor */}
+            {isAuthorized && isEditingCategories && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className={`p-4 rounded-2xl border text-left space-y-3 ${
+                  currentTheme === 'light' ? 'bg-amber-50/50 border-amber-200' : 'bg-amber-950/10 border-amber-500/20'
+                }`}
+              >
+                <div className="flex items-center justify-between border-b pb-1.5 border-slate-200/50 dark:border-white/5">
+                  <div>
+                    <h3 className="text-xs font-black uppercase tracking-wider text-amber-500 font-mono flex items-center gap-1">
+                      ⚙️ Customize Category display labels
+                    </h3>
+                    <p className="text-[10px] text-slate-400 font-sans">
+                      Rename any existing collection tab (like 'all' or custom categories) to custom titles in real-time.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setIsEditingCategories(false)}
+                    className="text-slate-400 hover:text-white"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {(() => {
+                    const rawCategories = Array.from(new Set(affiliateLinks.map(a => a.category).filter(Boolean))) as string[];
+                    const allKeys = ['all', ...rawCategories];
+                    return allKeys.map(key => {
+                      const currentVal = affiliateLabelMap[key];
+                      const friendlyPlaceholder = key === 'all' ? 'All collections' : key.split(/[_-]/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+                      return (
+                        <div key={key} className="space-y-1">
+                          <span className="text-[8.5px] font-mono uppercase tracking-wider text-slate-500 block">
+                            Key name: <span className="text-amber-500 font-extrabold">"{key}"</span>
+                          </span>
+                          <input
+                            type="text"
+                            value={currentVal || ''}
+                            placeholder={friendlyPlaceholder}
+                            onChange={(ev) => {
+                              setAffiliateLabelMap(prev => ({
+                                ...prev,
+                                [key]: ev.target.value
+                              }));
+                            }}
+                            className={`w-full p-2 rounded-lg border outline-none text-xs font-sans font-bold ${
+                              currentTheme === 'light'
+                                ? 'bg-white border-slate-300 text-slate-900 focus:border-amber-500'
+                                : 'bg-black/40 border-white/10 text-white focus:border-amber-500'
+                            }`}
+                          />
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+                
+                <div className="flex justify-end pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsEditingCategories(false);
+                      triggerToast('Collection labels successfully updated!', 'success');
+                    }}
+                    className="px-3.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-mono text-[9px] uppercase tracking-wider font-extrabold cursor-pointer"
+                  >
+                    Save &amp; Apply Labels
+                  </button>
+                </div>
+              </motion.div>
+            )}
+
+            {/* Curated Affiliate Recommendations Grid (3 columns on lg+, smaller card layout) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {affiliateLinks
+                .filter(item => activeAffiliateFilter === 'all' || item.category === activeAffiliateFilter)
+                .map((item, index) => {
+                  const categoryBadgeColor = (cat: string) => {
+                    switch (cat) {
+                      case 'photography':
+                        return 'bg-blue-500/10 text-blue-500 dark:text-blue-400 border-blue-500/20';
+                      case 'it_tech':
+                        return 'bg-emerald-500/10 text-emerald-500 dark:text-emerald-400 border-emerald-500/20';
+                      case 'software':
+                        return 'bg-violet-500/10 text-violet-500 dark:text-violet-400 border-violet-500/20';
+                      case 'accessories':
+                        return 'bg-amber-500/10 text-amber-500 border-amber-500/20';
+                      default:
+                        return 'bg-cyan-500/10 text-cyan-500 border-cyan-500/20';
+                    }
+                  };
+
+                  const categoryLabel = (cat: string) => {
+                    if (affiliateLabelMap[cat]) return affiliateLabelMap[cat];
+                    const defaultMap: Record<string, string> = {
+                      photography: 'Photography Gear',
+                      it_tech: 'IT & Support',
+                      software: 'Licensed Software',
+                      accessories: 'Accessories'
+                    };
+                    if (defaultMap[cat]) return defaultMap[cat];
+                    return cat.split(/[_-]/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+                  };
+
+                  const handleTrackClick = (id: string) => {
+                    setAffiliateLinks(prev => prev.map(a => a.id === id ? { ...a, clicks: (a.clicks || 0) + 1 } : a));
+                  };
+
+                  return (
+                    <motion.div
+                      key={item.id}
+                      initial={{ opacity: 0, y: 15 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true }}
+                      transition={{ duration: 0.4 }}
+                      whileHover={{ y: -6 }}
+                      className={`rounded-3xl border overflow-hidden flex flex-col justify-between group transition-all duration-300 relative h-full outline outline-1 outline-transparent hover:outline-amber-500/35 shadow-sm hover:shadow-2xl ${
+                        currentTheme === 'light'
+                          ? 'bg-white border-slate-200'
+                          : 'bg-zinc-950 border-white/5 backdrop-blur-md'
+                      }`}
+                    >
+                      {/* Asymmetrical Frame Title Bar */}
+                      <div className={`px-4 py-3 border-b flex items-center justify-between gap-2 ${
+                        currentTheme === 'light' ? 'bg-slate-50/50 border-slate-200/50' : 'bg-black/15 border-white/5'
+                      }`}>
+                        <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+                          <span className={`px-2.5 py-0.5 rounded-full text-[8px] uppercase tracking-widest font-mono font-bold border truncate max-w-[130px] ${categoryBadgeColor(item.category)}`}>
+                            {categoryLabel(item.category)}
+                          </span>
+                          
+                          {item.clicks ? (
+                            <span className={`px-1.5 py-0.5 rounded-full text-[8px] font-mono font-bold tracking-wide ${
+                              currentTheme === 'light' ? 'bg-slate-100 text-slate-500 border border-slate-200/50' : 'bg-white/5 text-zinc-400 border border-white/5'
+                            }`}>
+                              🔥 {item.clicks}
+                            </span>
+                          ) : null}
+                        </div>
+
+                        {/* Administrative Controls */}
+                        {isAuthorized && (
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              onClick={() => {
+                                setEditingItem({
+                                  type: 'affiliate_link',
+                                  data: item,
+                                  index
+                                });
+                              }}
+                              className="w-5.5 h-5.5 rounded-lg bg-amber-500/10 hover:bg-amber-500 text-amber-500 hover:text-white flex items-center justify-center transition-all cursor-pointer border border-amber-500/10"
+                              title="Edit product parameters"
+                            >
+                              <Edit size={9} />
+                            </button>
+                            <button
+                              onClick={() => {
+                                triggerConfirm(
+                                  `Confirm deletion: Are you absolutely sure you want to remove the affiliate card "${item.title}"? This cannot be undone.`,
+                                  () => {
+                                    setAffiliateLinks(prev => prev.filter(a => a.id !== item.id));
+                                    triggerToast('Curated recommendation deleted.', 'info');
+                                  }
+                                );
+                              }}
+                              className="w-5.5 h-5.5 rounded-lg bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white flex items-center justify-center transition-all cursor-pointer border border-red-500/10"
+                              title="Delete affiliate deal"
+                            >
+                              <X size={9} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Main Card Content */}
+                      <div className="flex-1 flex flex-col justify-between">
+                        <div>
+                          {/* Visual Frame Image: Post Mode Zoom, Desaturation Cycle, and Glare Sheen Sweep */}
+                          <div className="relative aspect-[16/10] w-full overflow-hidden bg-slate-900 border-b border-slate-200/50 dark:border-white/5 group-hover:bg-slate-950 transition-colors">
+                            <img
+                              src={item.imageUrl || 'https://images.unsplash.com/photo-1542751371-adc38448a05e'}
+                              alt={item.title}
+                              referrerPolicy="no-referrer"
+                              className="w-full h-full object-cover transition-transform duration-700 ease-in-out scale-100 group-hover:scale-105 filter grayscale-[30%] group-hover:grayscale-0 contrast-[1.02] group-hover:contrast-100"
+                            />
+                            
+                            {/* Glass reflection glider */}
+                            <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/12 to-transparent skew-x-12 transition-transform duration-1000 ease-out group-hover:translate-x-[180%] z-10 pointer-events-none" />
+                            
+                            {/* Visual chromatic depth backdrop gradient */}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent pointer-events-none" />
+                            
+                            {/* Product Title Banner overlay */}
+                            <div className="absolute bottom-3 left-4 right-4 z-10 text-left">
+                              <h3 className="text-xs md:text-sm font-black text-white uppercase tracking-wider line-clamp-1 leading-snug drop-shadow-md">
+                                {item.title}
+                              </h3>
+                            </div>
+                          </div>
+
+                          {/* Curated Testimony Body Block */}
+                          <div className="p-4 space-y-3.5 text-left">
+                            <div className={`p-3.5 pl-5 rounded-2xl border transition-colors leading-relaxed relative ${
+                              currentTheme === 'light' 
+                                ? 'bg-amber-50/15 border-slate-100 group-hover:bg-amber-50/20 text-slate-700' 
+                                : 'bg-black/25 border-white/5 group-hover:bg-black/35 text-slate-300'
+                            }`}>
+                              {/* Left vertical post-modern architectural flag */}
+                              <div className="absolute left-0 top-3 bottom-3 w-0.5 bg-amber-500 rounded-r" />
+                              
+                              <span className="text-[7.5px] font-mono tracking-widest uppercase text-amber-500 font-extrabold block mb-1">
+                                // TESTIMONY & FIELD EXPERIENCE:
+                              </span>
+                              <div className="italic font-sans text-[11px] leading-relaxed">
+                                "{item.description}"
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Buy Action Box */}
+                        <div className="p-4 pt-0 mt-auto">
+                          <a
+                            href={item.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={() => handleTrackClick(item.id)}
+                            className={`w-full py-2.5 rounded-xl font-bold font-mono text-[9px] uppercase tracking-wider flex items-center justify-center gap-2 transition-all duration-300 border cursor-pointer ${
+                              currentTheme === 'light'
+                                ? 'bg-slate-900 border-slate-900 text-white hover:bg-amber-500 hover:border-amber-500 hover:shadow-lg hover:shadow-amber-500/10'
+                                : 'bg-white/5 border-white/5 text-slate-150 hover:bg-amber-500 hover:border-amber-500 hover:text-white hover:shadow-lg hover:shadow-amber-500/10'
+                            }`}
+                          >
+                            <span>SHOP PARTNER DEAL</span>
+                            <ArrowUpRight size={10} className="stroke-[2px] transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                          </a>
+                        </div>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+            </div>
+
+            {/* Zero State empty placeholder */}
+            {affiliateLinks.filter(item => activeAffiliateFilter === 'all' || item.category === activeAffiliateFilter).length === 0 && (
+              <div className={`p-12 rounded-3xl border text-center space-y-3 ${
+                currentTheme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-white/5 border-white/5'
+              }`}>
+                <ShoppingBag className="mx-auto text-slate-400 stroke-[1.5px]" size={45} />
+                <h3 className={`text-sm font-black tracking-wider uppercase font-mono ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
+                  No listings registered under database catalog filter
+                </h3>
+                <p className="text-slate-400 text-[11px] max-w-sm mx-auto font-sans leading-relaxed">
+                  Murari hasn't indexed active gear recommendation cards in this category folder yet. Please query other categories or create records.
+                </p>
+                {isAuthorized && (
+                  <button
+                    onClick={() => {
+                      setEditingItem({
+                        type: 'affiliate_link',
+                        data: {
+                          id: 'aff_' + Date.now().toString(),
+                          title: '',
+                          description: '',
+                          category: activeAffiliateFilter === 'all' ? 'photography' : activeAffiliateFilter,
+                          url: '',
+                          imageUrl: '',
+                          discountCode: '',
+                          clicks: 0
+                        }
+                      });
+                    }}
+                    className="mt-2 text-[9px] font-bold uppercase font-mono text-amber-500 border border-amber-500/25 px-3 py-1 rounded-lg hover:bg-amber-500 hover:text-black transition-colors cursor-pointer"
+                  >
+                    Seed Curated Deal
+                  </button>
+                )}
+              </div>
+            )}
           </motion.div>
         )}
 
@@ -4249,7 +4822,7 @@ export default function App() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className={`w-full max-w-xl p-6 rounded-3xl border text-left shadow-2xl relative ${
+              className={`w-full max-w-xl p-6 rounded-3xl border text-left shadow-2xl relative max-h-[90vh] overflow-y-auto ${
                 currentTheme === 'light' ? 'bg-white border-slate-300 text-slate-900' : 'bg-zinc-950 border-white/10 text-white'
               }`}
             >
@@ -4275,6 +4848,7 @@ export default function App() {
                       {editingItem.type === 'gallery_item' && 'Configure Portfolio Showcase Item'}
                       {editingItem.type === 'testimonial' && 'Configure Customer Review'}
                       {editingItem.type === 'pixelfix_review' && 'Configure Pixel Fix IT Review'}
+                      {editingItem.type === 'affiliate_link' && 'Configure Curated Affiliate Deal'}
                     </h3>
                   </div>
                 </div>
@@ -4328,8 +4902,17 @@ export default function App() {
                       } else {
                         setPixelFixReviews([...pixelFixReviews, editingItem.data]);
                       }
+                    } else if (editingItem.type === 'affiliate_link') {
+                      const itemData = { ...editingItem.data, imageUrl: toDirectDriveUrl(editingItem.data.imageUrl) };
+                      const exists = affiliateLinks.some(a => a.id === itemData.id);
+                      if (exists) {
+                        setAffiliateLinks(affiliateLinks.map(a => a.id === itemData.id ? itemData : a));
+                      } else {
+                        setAffiliateLinks([itemData, ...affiliateLinks]);
+                      }
                     }
 
+                    triggerToast('Portfolio settings modified and saved successfully!', 'success');
                     setEditingItem(null);
                   }}
                   className="space-y-4 text-xs font-mono"
@@ -4811,6 +5394,183 @@ export default function App() {
                     </div>
                   )}
 
+                  {editingItem.type === 'affiliate_link' && (
+                    <div className="space-y-4">
+                      {/* Product Title Input */}
+                      <div className="space-y-1 text-left">
+                        <label className={`text-[10px] uppercase font-mono font-bold tracking-wider ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
+                          Product Title
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={editingItem.data.title || ''}
+                          onChange={(ev) => setEditingItem({
+                            ...editingItem,
+                            data: { ...editingItem.data, title: ev.target.value }
+                          })}
+                          className={`w-full p-2.5 rounded-xl border outline-none font-sans font-bold text-xs ${
+                            currentTheme === 'light' 
+                              ? 'bg-slate-50/50 border-slate-200 text-slate-900 focus:border-amber-500' 
+                              : 'bg-black/30 border-white/5 text-white focus:border-amber-500'
+                          }`}
+                          placeholder="e.g. Sony Alpha 7 IV Full-Frame Camera"
+                        />
+                      </div>
+
+                      {/* Category Selector & Preset Pills */}
+                      <div className="space-y-1 text-left">
+                        <label className={`text-[10px] uppercase font-mono font-bold tracking-wider ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
+                          Category Select / Create New
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={editingItem.data.category || ''}
+                          onChange={(ev) => setEditingItem({
+                            ...editingItem,
+                            data: { ...editingItem.data, category: ev.target.value.toLowerCase().replace(/\s+/g, '_') }
+                          })}
+                          className={`w-full p-2.5 rounded-xl border outline-none text-xs font-mono ${
+                            currentTheme === 'light' 
+                              ? 'bg-slate-50/50 border-slate-200 text-slate-800 focus:border-amber-500' 
+                              : 'bg-black/30 border-white/5 text-slate-200 focus:border-amber-500'
+                          }`}
+                          placeholder="e.g. photography, it_tech, software, accessories, custom_category"
+                        />
+                        <p className="text-[9px] text-slate-400 font-sans leading-normal">
+                          Type any lowercased alphanumeric string (spaces auto-convert to underscores) to start a new collection.
+                        </p>
+                        
+                        {/* Dynamic Quick Select Pills */}
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {(() => {
+                            const coreKeys = ['photography', 'it_tech', 'software', 'accessories'];
+                            const activeKeys = Array.from(new Set([
+                              ...coreKeys,
+                              ...affiliateLinks.map(a => a.category).filter(Boolean)
+                            ])) as string[];
+                            
+                            return activeKeys.map(cat => {
+                              const friendlyName = affiliateLabelMap[cat] || cat.split(/[_-]/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+                              return (
+                                <button
+                                  key={cat}
+                                  type="button"
+                                  onClick={() => setEditingItem({
+                                    ...editingItem,
+                                    data: { ...editingItem.data, category: cat }
+                                  })}
+                                  className={`px-2 py-1 rounded-lg border text-[9px] font-mono transition-all cursor-pointer ${
+                                    editingItem.data.category === cat
+                                      ? 'bg-amber-500/20 border-amber-500 text-amber-500 font-bold'
+                                      : currentTheme === 'light'
+                                        ? 'bg-white border-slate-200 text-slate-600 hover:border-slate-400'
+                                        : 'bg-white/5 border-white/5 text-slate-400 hover:text-white hover:bg-white/10'
+                                  }`}
+                                >
+                                  {friendlyName}
+                                </button>
+                              );
+                            });
+                          })()}
+                        </div>
+                      </div>
+
+                      {/* Redirect Link URL */}
+                      <div className="space-y-1 text-left">
+                        <label className={`text-[10px] uppercase font-mono font-bold tracking-wider ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
+                          Affiliate Link (Target Buy URL)
+                        </label>
+                        <input
+                          type="url"
+                          required
+                          value={editingItem.data.url || ''}
+                          onChange={(ev) => setEditingItem({
+                            ...editingItem,
+                            data: { ...editingItem.data, url: ev.target.value }
+                          })}
+                          className={`w-full p-2.5 rounded-xl border outline-none text-xs font-sans ${
+                            currentTheme === 'light' 
+                              ? 'bg-slate-50/50 border-slate-200 text-slate-900 focus:border-amber-500' 
+                              : 'bg-black/30 border-white/5 text-white focus:border-amber-500'
+                          }`}
+                          placeholder="e.g. https://amzn.to/3xyzabc"
+                        />
+                      </div>
+
+                      {/* Showcase Product Photo Upload + Direct Link */}
+                      <div className="space-y-2 text-left">
+                        <div className="flex justify-between items-center">
+                          <label className={`text-[10px] uppercase font-mono font-bold tracking-wider ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
+                            Product Photo Image
+                          </label>
+                          <span className="text-[9px] text-[#FF5500] font-mono font-bold uppercase animate-pulse">Link or Upload</span>
+                        </div>
+                        <ImageUploader
+                          label="Upload Showcase Affiliate Image"
+                          value={editingItem.data.imageUrl || ''}
+                          currentTheme={currentTheme}
+                          onChange={(val) => setEditingItem({
+                            ...editingItem,
+                            data: { ...editingItem.data, imageUrl: val }
+                          })}
+                        />
+                        <input
+                          type="text"
+                          required
+                          value={editingItem.data.imageUrl || ''}
+                          onChange={(ev) => setEditingItem({
+                            ...editingItem,
+                            data: { ...editingItem.data, imageUrl: ev.target.value }
+                          })}
+                          className={`w-full p-2 rounded-lg border outline-none text-[10px] ${
+                            currentTheme === 'light' 
+                              ? 'bg-slate-50/50 border-slate-200 text-slate-900 focus:border-amber-500' 
+                              : 'bg-black/30 border-white/5 text-white focus:border-amber-500'
+                          }`}
+                          placeholder="Or paste direct image URL (e.g. Unsplash, imgur...)"
+                        />
+                        {/* Live Image Preview frame */}
+                        {editingItem.data.imageUrl && (
+                          <div className="mt-1.5 p-1 rounded-xl border border-white/5 bg-black/20">
+                            <span className="text-[8.5px] font-mono text-zinc-400 block mb-1">Preview of Image Asset:</span>
+                            <div className="relative aspect-video w-full rounded-lg overflow-hidden bg-zinc-950 border border-white/5">
+                              <img
+                                src={editingItem.data.imageUrl}
+                                alt="Asset preview"
+                                referrerPolicy="no-referrer"
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Recommendation Description Copy */}
+                      <div className="space-y-1 text-left">
+                        <label className={`text-[10px] uppercase font-mono font-bold tracking-wider ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
+                          Recommendation Text / Testimony
+                        </label>
+                        <textarea
+                          required
+                          rows={3}
+                          value={editingItem.data.description || ''}
+                          onChange={(ev) => setEditingItem({
+                            ...editingItem,
+                            data: { ...editingItem.data, description: ev.target.value }
+                          })}
+                          className={`w-full p-2.5 rounded-xl border outline-none text-xs font-sans leading-relaxed ${
+                            currentTheme === 'light' 
+                              ? 'bg-slate-50/50 border-slate-200 text-slate-900 focus:border-amber-500' 
+                              : 'bg-black/30 border-white/5 text-white focus:border-amber-500'
+                          }`}
+                          placeholder="Explain why this gadget/software is highly recommended..."
+                        />
+                      </div>
+                    </div>
+                  )}
+
                   {/* Action Group */}
                   <div className="flex justify-end gap-3 pt-4 border-t border-slate-200/50 dark:border-white/5">
                     <button
@@ -4830,6 +5590,111 @@ export default function App() {
                     </button>
                   </div>
                 </form>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Premium Silky Smooth Toast Notification */}
+      <AnimatePresence>
+        {activeToast && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            transition={{ type: "spring", stiffness: 350, damping: 25 }}
+            className={`fixed bottom-6 right-6 z-[100] max-w-sm p-4 rounded-2xl border shadow-2xl flex items-start gap-3 backdrop-blur-md ${
+              currentTheme === 'light' 
+                ? 'bg-white/95 border-slate-200 text-slate-800 shadow-slate-200/40' 
+                : 'bg-zinc-900/95 border-white/5 text-slate-100 shadow-black/80'
+            }`}
+          >
+            <div className={`w-8 h-8 rounded-xl shrink-0 flex items-center justify-center font-bold text-xs ${
+              activeToast.type === 'success' 
+                ? 'bg-[#FF5500]/10 text-[#FF5500]' 
+                : activeToast.type === 'error'
+                  ? 'bg-rose-500/10 text-rose-500' 
+                  : 'bg-indigo-500/10 text-indigo-400'
+            }`}>
+              {activeToast.type === 'success' && '✓'}
+              {activeToast.type === 'error' && '✕'}
+              {activeToast.type === 'info' && '🛈'}
+            </div>
+            
+            <div className="flex-1 min-w-0 pr-2">
+              <span className={`text-[9px] uppercase font-bold tracking-widest block ${
+                activeToast.type === 'success' ? 'text-[#FF5500]' : activeToast.type === 'error' ? 'text-rose-500' : 'text-indigo-400'
+              }`}>
+                {activeToast.type === 'success' ? 'SUCCESS SECURED' : activeToast.type === 'error' ? 'ACTION NOTICE' : 'SYSTEM UPDATE'}
+              </span>
+              <p className="text-xs font-sans mt-0.5 leading-normal font-semibold">
+                {activeToast.message}
+              </p>
+            </div>
+
+            <button
+              onClick={() => setActiveToast(null)}
+              className="text-slate-400 hover:text-[#FF5500] mt-0.5 transition-colors cursor-pointer text-xs"
+            >
+              ✕
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Smooth Premium Confirmation Dialog Modal */}
+      <AnimatePresence>
+        {activeConfirm && (
+          <div className="fixed inset-0 z-[110] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              transition={{ type: "spring", stiffness: 300, damping: 25 }}
+              className={`w-full max-w-sm p-6 rounded-3xl border text-left shadow-2xl space-y-4 ${
+                currentTheme === 'light' ? 'bg-white border-slate-200' : 'bg-zinc-950 border-white/5'
+              }`}
+            >
+              <div className="flex items-center gap-2 border-b pb-3 border-slate-200/50 dark:border-white/5">
+                <div className="w-10 h-10 rounded-full bg-[#FF5500]/10 flex items-center justify-center text-[#FF5500]">
+                  ⚠️
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase font-bold tracking-widest text-[#FF5500]">Action Confirmation</span>
+                  <h4 className={`text-sm font-black ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>Please Verify Decision</h4>
+                </div>
+              </div>
+
+              <p className={`text-xs leading-relaxed font-sans ${currentTheme === 'light' ? 'text-slate-600' : 'text-slate-350'}`}>
+                {activeConfirm.message}
+              </p>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (activeConfirm.onCancel) activeConfirm.onCancel();
+                    setActiveConfirm(null);
+                  }}
+                  className={`px-4 py-2 rounded-lg font-bold uppercase tracking-wider text-[10px] border cursor-pointer transition-all ${
+                    currentTheme === 'light' 
+                      ? 'bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200' 
+                      : 'bg-white/5 border-white/5 text-slate-300 hover:bg-white/10'
+                  }`}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    activeConfirm.onConfirm();
+                    setActiveConfirm(null);
+                  }}
+                  className="px-5 py-2 rounded-lg bg-[#FF5500] hover:bg-[#FF4400] text-white font-extrabold uppercase tracking-wider text-[10px] shadow-lg cursor-pointer transition-all hover:scale-[1.02]"
+                >
+                  Proceed Action
+                </button>
               </div>
             </motion.div>
           </div>

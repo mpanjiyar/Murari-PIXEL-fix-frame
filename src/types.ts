@@ -50,3 +50,14 @@ export interface NotificationLog {
   subject: string;
   body: string;
 }
+
+export interface AffiliateLink {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  url: string;
+  imageUrl: string;
+  discountCode?: string;
+  clicks: number;
+}
