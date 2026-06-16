@@ -5,7 +5,9 @@ import firebaseConfig from '../firebase-applet-config.json';
 
 // Initialize Firebase App gracefully (ensure no double-init error)
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-export const db = getFirestore(app);
+export const db = firebaseConfig.firestoreDatabaseId 
+  ? getFirestore(app, firebaseConfig.firestoreDatabaseId) 
+  : getFirestore(app);
 export const auth = getAuth(app);
 
 export enum OperationType {

@@ -28,7 +28,7 @@ service cloud.firestore {
         && data.url is string && data.url.size() <= 2000
         && data.imageUrl is string && data.imageUrl.size() <= 2000
         && (!data.keys().hasAll(['discountCode']) || (data.discountCode is string && data.discountCode.size() <= 100))
-        && (data.clicks is int || data.clicks is float);
+        && (!data.keys().hasAll(['clicks']) || (data.clicks is int || data.clicks is float));
     }
 
     function isValidCategoryMap(data) {

@@ -484,6 +484,8 @@ export default function App() {
     id?: string;
     data: any;
   } | null>(null);
+
+  const [isSaving, setIsSaving] = useState(false);
   
   // Pixel Fix Quote Choices
   const [itDeviceCount, setItDeviceCount] = useState<number>(1);
@@ -3683,8 +3685,15 @@ export default function App() {
                         hidden: { opacity: 0, y: 12 },
                         show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: 'easeOut' } }
                       }}
-                      whileHover={{ y: -6 }}
-                      className={`rounded-3xl border overflow-hidden flex flex-col justify-between group transition-all duration-300 relative h-full outline outline-1 outline-transparent hover:outline-amber-500/35 shadow-sm hover:shadow-2xl ${
+                      whileHover={{
+                        y: -8,
+                        scale: 1.022,
+                        boxShadow: currentTheme === 'light'
+                          ? '0 25px 35px -12px rgba(245, 158, 11, 0.15), 0 12px 16px -4px rgba(0, 0, 0, 0.04)'
+                          : '0 25px 35px -12px rgba(245, 158, 11, 0.3), 0 12px 16px -4px rgba(0, 0, 0, 0.5)'
+                      }}
+                      transition={{ type: 'spring', stiffness: 350, damping: 25 }}
+                      className={`rounded-3xl border overflow-hidden flex flex-col justify-between group transition-[background-color,border-color,outline-color] duration-300 relative h-full outline outline-1 outline-transparent hover:outline-amber-500/35 shadow-sm ${
                         currentTheme === 'light'
                           ? 'bg-white border-slate-200'
                           : 'bg-zinc-950 border-white/5 backdrop-blur-md'
@@ -4958,64 +4967,84 @@ export default function App() {
                 <form
                   onSubmit={async (e) => {
                     e.preventDefault();
+                    if (isSaving) return;
+                    setIsSaving(true);
                     
-                    if (editingItem.type === 'it_service') {
-                      const updated = [...itServices];
-                      updated[editingItem.index!] = editingItem.data;
-                      setItServices(updated);
-                    } else if (editingItem.type === 'photo_service') {
-                      const updated = [...photoServices];
-                      updated[editingItem.index!] = editingItem.data;
-                      setPhotoServices(updated);
-                    } else if (editingItem.type === 'instagram') {
-                      const itemData = { ...editingItem.data, imageUrl: toDirectDriveUrl(editingItem.data.imageUrl) };
-                      const exists = instagramPosts.some(p => p.id === itemData.id);
-                      if (exists) {
-                        setInstagramPosts(instagramPosts.map(p => p.id === itemData.id ? itemData : p));
-                      } else {
-                        setInstagramPosts([itemData, ...instagramPosts]);
-                      }
-                    } else if (editingItem.type === 'hero') {
-                      setHeroHeadline(editingItem.data.headline);
-                      setHeroSubheadline(editingItem.data.subheadline);
-                      setProfilePhotoUrl(toDirectDriveUrl(editingItem.data.photoUrl));
-                    } else if (editingItem.type === 'about') {
-                      setBioHeadline(editingItem.data.bioHeadline);
-                      setBioText(editingItem.data.bioText);
-                    } else if (editingItem.type === 'gallery_item') {
-                      const itemData = { ...editingItem.data, imageUrl: toDirectDriveUrl(editingItem.data.imageUrl) };
-                      const exists = galleryItems.some(item => item.id === itemData.id);
-                      if (exists) {
-                        setGalleryItems(galleryItems.map(item => item.id === itemData.id ? itemData : item));
-                      } else {
-                        setGalleryItems([itemData, ...galleryItems]);
-                      }
-                    } else if (editingItem.type === 'testimonial') {
-                      const exists = testimonials.some(t => t.id === editingItem.data.id);
-                      if (exists) {
-                        setTestimonials(testimonials.map(t => t.id === editingItem.data.id ? editingItem.data : t));
-                      } else {
-                        setTestimonials([...testimonials, editingItem.data]);
-                      }
-                    } else if (editingItem.type === 'pixelfix_review') {
-                      const exists = pixelFixReviews.some(t => t.id === editingItem.data.id);
-                      if (exists) {
-                        setPixelFixReviews(pixelFixReviews.map(t => t.id === editingItem.data.id ? editingItem.data : t));
-                      } else {
-                        setPixelFixReviews([...pixelFixReviews, editingItem.data]);
-                      }
-                    } else if (editingItem.type === 'affiliate_link') {
-                      const itemData = { ...editingItem.data, imageUrl: toDirectDriveUrl(editingItem.data.imageUrl) };
-                      try {
-                        await setDoc(doc(db, 'affiliate_links', itemData.id), itemData);
-                      } catch (err) {
-                        console.error("Error writing affiliate link to Firestore: ", err);
-                        handleFirestoreError(err, OperationType.WRITE, 'affiliate_links/' + itemData.id);
-                      }
-                    }
+                    try {
+                      if (editingItem.type === 'it_service') {
+                        const updated = [...itServices];
+                        updated[editingItem.index!] = editingItem.data;
+                        setItServices(updated);
+                      } else if (editingItem.type === 'photo_service') {
+                        const updated = [...photoServices];
+                        updated[editingItem.index!] = editingItem.data;
+                        setPhotoServices(updated);
+                      } else if (editingItem.type === 'instagram') {
+                        const itemData = { ...editingItem.data, imageUrl: toDirectDriveUrl(editingItem.data.imageUrl) };
+                        const exists = instagramPosts.some(p => p.id === itemData.id);
+                        if (exists) {
+                          setInstagramPosts(instagramPosts.map(p => p.id === itemData.id ? itemData : p));
+                        } else {
+                          setInstagramPosts([itemData, ...instagramPosts]);
+                        }
+                      } else if (editingItem.type === 'hero') {
+                        setHeroHeadline(editingItem.data.headline);
+                        setHeroSubheadline(editingItem.data.subheadline);
+                        setProfilePhotoUrl(toDirectDriveUrl(editingItem.data.photoUrl));
+                      } else if (editingItem.type === 'about') {
+                        setBioHeadline(editingItem.data.bioHeadline);
+                        setBioText(editingItem.data.bioText);
+                      } else if (editingItem.type === 'gallery_item') {
+                        const itemData = { ...editingItem.data, imageUrl: toDirectDriveUrl(editingItem.data.imageUrl) };
+                        const exists = galleryItems.some(item => item.id === itemData.id);
+                        if (exists) {
+                          setGalleryItems(galleryItems.map(item => item.id === itemData.id ? itemData : item));
+                        } else {
+                          setGalleryItems([itemData, ...galleryItems]);
+                        }
+                      } else if (editingItem.type === 'testimonial') {
+                        const exists = testimonials.some(t => t.id === editingItem.data.id);
+                        if (exists) {
+                          setTestimonials(testimonials.map(t => t.id === editingItem.data.id ? editingItem.data : t));
+                        } else {
+                          setTestimonials([...testimonials, editingItem.data]);
+                        }
+                      } else if (editingItem.type === 'pixelfix_review') {
+                        const exists = pixelFixReviews.some(t => t.id === editingItem.data.id);
+                        if (exists) {
+                          setPixelFixReviews(pixelFixReviews.map(t => t.id === editingItem.data.id ? editingItem.data : t));
+                        } else {
+                          setPixelFixReviews([...pixelFixReviews, editingItem.data]);
+                        }
+                      } else if (editingItem.type === 'affiliate_link') {
+                        const itemData = { ...editingItem.data, imageUrl: toDirectDriveUrl(editingItem.data.imageUrl) };
+                        
+                        // Ensure local state is updated immediately before the Firestore network request to provide better UI feedback 
+                        setAffiliateLinks((prev) => {
+                          const exists = prev.some(a => a.id === itemData.id);
+                          if (exists) {
+                            return prev.map(a => a.id === itemData.id ? itemData : a);
+                          } else {
+                            return [itemData, ...prev];
+                          }
+                        });
 
-                    triggerToast('Portfolio settings modified and saved successfully!', 'success');
-                    setEditingItem(null);
+                        try {
+                          await setDoc(doc(db, 'affiliate_links', itemData.id), itemData);
+                        } catch (err) {
+                          console.error("Error writing affiliate link to Firestore: ", err);
+                          handleFirestoreError(err, OperationType.WRITE, 'affiliate_links/' + itemData.id);
+                        }
+                      }
+
+                      triggerToast('Portfolio settings modified and saved successfully!', 'success');
+                      setEditingItem(null);
+                    } catch (err) {
+                      console.error("Error applying updates: ", err);
+                      triggerToast('An error occurred while updating the portfolio item.', 'error');
+                    } finally {
+                      setIsSaving(false);
+                    }
                   }}
                   className="space-y-4 text-xs font-mono"
                 >
@@ -5648,6 +5677,27 @@ export default function App() {
                           </div>
                         )}
                       </div>
+                      
+                      {/* Optional Promo / Discount Code */}
+                      <div className="space-y-1 text-left">
+                        <label className={`text-[10px] uppercase font-mono font-bold tracking-wider ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
+                          Promo / Discount Code (Optional)
+                        </label>
+                        <input
+                          type="text"
+                          value={editingItem.data.discountCode || ''}
+                          onChange={(ev) => setEditingItem({
+                            ...editingItem,
+                            data: { ...editingItem.data, discountCode: ev.target.value }
+                          })}
+                          className={`w-full p-2.5 rounded-xl border outline-none text-xs font-mono ${
+                            currentTheme === 'light' 
+                              ? 'bg-slate-50/50 border-slate-200 text-slate-950 focus:border-amber-500' 
+                              : 'bg-black/30 border-white/5 text-slate-100 focus:border-amber-500'
+                          }`}
+                          placeholder="e.g. PIXELSSD990, FRAMEANCHOR8"
+                        />
+                      </div>
 
                       {/* Recommendation Description Copy */}
                       <div className="space-y-1 text-left">
@@ -5686,9 +5736,19 @@ export default function App() {
                     </button>
                     <button
                       type="submit"
-                      className="px-5 py-2 rounded-lg bg-[#FF5500] hover:bg-[#FF4400] text-white font-extrabold uppercase tracking-wider text-[10px] shadow-lg cursor-pointer"
+                      disabled={isSaving}
+                      className={`px-5 py-2 rounded-lg bg-[#FF5500] hover:bg-[#FF4400] text-white font-extrabold uppercase tracking-wider text-[10px] shadow-lg cursor-pointer flex items-center justify-center gap-1.5 transition-all ${
+                        isSaving ? 'opacity-70 cursor-not-allowed' : ''
+                      }`}
                     >
-                      Apply Updates
+                      {isSaving ? (
+                        <>
+                          <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin inline-block"></span>
+                          <span>Applying...</span>
+                        </>
+                      ) : (
+                        'Apply Updates'
+                      )}
                     </button>
                   </div>
                 </form>
