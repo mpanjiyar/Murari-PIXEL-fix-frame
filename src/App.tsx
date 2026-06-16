@@ -415,27 +415,35 @@ export default function App() {
   useEffect(() => {
     let isInitialLinks = true;
     const unsubLinks = onSnapshot(collection(db, 'affiliate_links'), (snapshot) => {
-      if (!snapshot.empty) {
-        const links: AffiliateLink[] = [];
-        snapshot.forEach((doc) => {
-          links.push(doc.data() as AffiliateLink);
-        });
-        // Sort chronologically or by ID so list remains stable
-        links.sort((a, b) => a.id.localeCompare(b.id));
+      const links: AffiliateLink[] = [];
+      snapshot.forEach((doc) => {
+        links.push(doc.data() as AffiliateLink);
+      });
+      // Sort chronologically or by ID so list remains stable
+      links.sort((a, b) => a.id.localeCompare(b.id));
+
+      if (links.length > 0) {
         setAffiliateLinks(links);
-      } else if (isInitialLinks) {
-        isInitialLinks = false;
-        // If empty, seed Firestore with INITIAL_AFFILIATE_LINKS so we don't start with an empty screen!
-        INITIAL_AFFILIATE_LINKS.forEach(async (link) => {
-          try {
-            await setDoc(doc(db, 'affiliate_links', link.id), link);
-          } catch (e) {
-            console.error("Error seeding initial affiliate link: ", e);
-          }
-        });
+      } else {
+        if (isInitialLinks) {
+          isInitialLinks = false;
+          // If empty, seed Firestore with INITIAL_AFFILIATE_LINKS so we don't start with an empty screen!
+          INITIAL_AFFILIATE_LINKS.forEach(async (link) => {
+            try {
+              await setDoc(doc(db, 'affiliate_links', link.id), link);
+            } catch (e) {
+              console.error("Error seeding initial affiliate link: ", e);
+            }
+          });
+        } else {
+          // If it genuinely became empty, sync this deletion across all devices
+          setAffiliateLinks([]);
+        }
       }
+      isInitialLinks = false;
     }, (error) => {
       console.error("Firestore onSnapshot error for affiliate_links: ", error);
+      handleFirestoreError(error, OperationType.GET, 'affiliate_links');
     });
 
     let isInitialConfig = true;
@@ -458,8 +466,10 @@ export default function App() {
           console.error("Error seeding category labels to config: ", err);
         });
       }
+      isInitialConfig = false;
     }, (error) => {
       console.error("Firestore onSnapshot error for affiliate_config: ", error);
+      handleFirestoreError(error, OperationType.GET, 'affiliate_config/labels');
     });
 
     return () => {
@@ -3609,7 +3619,21 @@ export default function App() {
             )}
 
             {/* Curated Affiliate Recommendations Grid (3 columns on lg+, smaller card layout) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <motion.div
+              key={activeAffiliateFilter}
+              variants={{
+                hidden: { opacity: 0 },
+                show: {
+                  opacity: 1,
+                  transition: {
+                    staggerChildren: 0.05,
+                  }
+                }
+              }}
+              initial="hidden"
+              animate="show"
+              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
+            >
               {affiliateLinks
                 .filter(item => activeAffiliateFilter === 'all' || item.category === activeAffiliateFilter)
                 .map((item, index) => {
@@ -3655,10 +3679,10 @@ export default function App() {
                   return (
                     <motion.div
                       key={item.id}
-                      initial={{ opacity: 0, y: 15 }}
-                      whileInView={{ opacity: 1, y: 0 }}
-                      viewport={{ once: true }}
-                      transition={{ duration: 0.4 }}
+                      variants={{
+                        hidden: { opacity: 0, y: 12 },
+                        show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: 'easeOut' } }
+                      }}
                       whileHover={{ y: -6 }}
                       className={`rounded-3xl border overflow-hidden flex flex-col justify-between group transition-all duration-300 relative h-full outline outline-1 outline-transparent hover:outline-amber-500/35 shadow-sm hover:shadow-2xl ${
                         currentTheme === 'light'
@@ -3791,7 +3815,7 @@ export default function App() {
                     </motion.div>
                   );
                 })}
-            </div>
+            </motion.div>
 
             {/* Zero State empty placeholder */}
             {affiliateLinks.filter(item => activeAffiliateFilter === 'all' || item.category === activeAffiliateFilter).length === 0 && (
