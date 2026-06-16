@@ -1,0 +1,55 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Global Safety Net (Rule 1)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helpers
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidAffiliateLink(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.title is string && data.title.size() <= 150
+        && data.description is string && data.description.size() <= 2000
+        && data.category is string && data.category.size() <= 100
+        && data.url is string && data.url.size() <= 2000
+        && data.imageUrl is string && data.imageUrl.size() <= 2000
+        && (!data.keys().hasAll(['discountCode']) || (data.discountCode is string && data.discountCode.size() <= 100))
+        && (data.clicks is int || data.clicks is float);
+    }
+
+    function isValidCategoryMap(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.labels is map;
+    }
+
+    // Collection: Affiliate Links
+    match /affiliate_links/{linkId} {
+      allow read: if true;
+      allow create: if isValidId(linkId) && isValidAffiliateLink(incoming());
+      allow update: if isValidId(linkId) && isValidAffiliateLink(incoming());
+      allow delete: if isValidId(linkId);
+    }
+
+    // Collection: Affiliate Config
+    match /affiliate_config/{configId} {
+      allow read: if true;
+      allow create: if isValidId(configId) && isValidCategoryMap(incoming());
+      allow update: if isValidId(configId) && isValidCategoryMap(incoming());
+      allow delete: if isValidId(configId);
+    }
+  }
+}

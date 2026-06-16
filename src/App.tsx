@@ -75,6 +75,8 @@ import { initAuth, googleSignIn, googleSignOut } from './lib/driveAuth';
 import { uploadBackupToDrive, listBackupsOnDrive, downloadBackupFromDrive, deleteBackupFromDrive, upsertLiveSyncBackup, getOrCreateFolder, uploadPhotoFileToDrive } from './lib/driveService';
 import type { DriveBackupFile } from './lib/driveService';
 import type { User as FirebaseUser } from 'firebase/auth';
+import { db, OperationType, handleFirestoreError } from './firebase';
+import { collection, doc, setDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
 import { HardDrive, Cloud, LogOut, AlertCircle, FolderOpen, Download, UploadCloud } from 'lucide-react';
 
 // Structuring our Theme Styles
@@ -408,6 +410,63 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('mp_affiliate_label_map_v2', JSON.stringify(affiliateLabelMap));
   }, [affiliateLabelMap]);
+
+  // Load and sync Affiliate Links and Category Map dynamically via Firestore real-time listeners
+  useEffect(() => {
+    let isInitialLinks = true;
+    const unsubLinks = onSnapshot(collection(db, 'affiliate_links'), (snapshot) => {
+      if (!snapshot.empty) {
+        const links: AffiliateLink[] = [];
+        snapshot.forEach((doc) => {
+          links.push(doc.data() as AffiliateLink);
+        });
+        // Sort chronologically or by ID so list remains stable
+        links.sort((a, b) => a.id.localeCompare(b.id));
+        setAffiliateLinks(links);
+      } else if (isInitialLinks) {
+        isInitialLinks = false;
+        // If empty, seed Firestore with INITIAL_AFFILIATE_LINKS so we don't start with an empty screen!
+        INITIAL_AFFILIATE_LINKS.forEach(async (link) => {
+          try {
+            await setDoc(doc(db, 'affiliate_links', link.id), link);
+          } catch (e) {
+            console.error("Error seeding initial affiliate link: ", e);
+          }
+        });
+      }
+    }, (error) => {
+      console.error("Firestore onSnapshot error for affiliate_links: ", error);
+    });
+
+    let isInitialConfig = true;
+    const unsubConfig = onSnapshot(doc(db, 'affiliate_config', 'labels'), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data && data.labels) {
+          setAffiliateLabelMap(data.labels as Record<string, string>);
+        }
+      } else if (isInitialConfig) {
+        isInitialConfig = false;
+        const defaultLabels = {
+          all: 'All collections',
+          photography: 'Photography Gear',
+          it_tech: 'IT & Support',
+          software: 'Licensed Software',
+          accessories: 'Accessories'
+        };
+        setDoc(doc(db, 'affiliate_config', 'labels'), { id: 'labels', labels: defaultLabels }).catch(err => {
+          console.error("Error seeding category labels to config: ", err);
+        });
+      }
+    }, (error) => {
+      console.error("Firestore onSnapshot error for affiliate_config: ", error);
+    });
+
+    return () => {
+      unsubLinks();
+      unsubConfig();
+    };
+  }, []);
 
   const [editingItem, setEditingItem] = useState<{
     type: 'it_service' | 'photo_service' | 'instagram' | 'hero' | 'about' | 'gallery_item' | 'testimonial' | 'pixelfix_review' | 'affiliate_link';
@@ -3531,9 +3590,15 @@ export default function App() {
                 <div className="flex justify-end pt-1">
                   <button
                     type="button"
-                    onClick={() => {
-                      setIsEditingCategories(false);
-                      triggerToast('Collection labels successfully updated!', 'success');
+                    onClick={async () => {
+                      try {
+                        await setDoc(doc(db, 'affiliate_config', 'labels'), { id: 'labels', labels: affiliateLabelMap });
+                        setIsEditingCategories(false);
+                        triggerToast('Collection labels successfully updated and synchronized!', 'success');
+                      } catch (err) {
+                        console.error("Error writing affiliate labels config to Firestore: ", err);
+                        handleFirestoreError(err, OperationType.WRITE, 'affiliate_config/labels');
+                      }
                     }}
                     className="px-3.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-mono text-[9px] uppercase tracking-wider font-extrabold cursor-pointer"
                   >
@@ -3575,8 +3640,16 @@ export default function App() {
                     return cat.split(/[_-]/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
                   };
 
-                  const handleTrackClick = (id: string) => {
-                    setAffiliateLinks(prev => prev.map(a => a.id === id ? { ...a, clicks: (a.clicks || 0) + 1 } : a));
+                  const handleTrackClick = async (id: string) => {
+                    const found = affiliateLinks.find(a => a.id === id);
+                    if (found) {
+                      const updatedLink = { ...found, clicks: (found.clicks || 0) + 1 };
+                      try {
+                        await setDoc(doc(db, 'affiliate_links', id), updatedLink);
+                      } catch (err) {
+                        console.error("Error tracking affiliate click on Firestore: ", err);
+                      }
+                    }
                   };
 
                   return (
@@ -3631,9 +3704,14 @@ export default function App() {
                               onClick={() => {
                                 triggerConfirm(
                                   `Confirm deletion: Are you absolutely sure you want to remove the affiliate card "${item.title}"? This cannot be undone.`,
-                                  () => {
-                                    setAffiliateLinks(prev => prev.filter(a => a.id !== item.id));
-                                    triggerToast('Curated recommendation deleted.', 'info');
+                                  async () => {
+                                    try {
+                                      await deleteDoc(doc(db, 'affiliate_links', item.id));
+                                      triggerToast('Curated recommendation deleted.', 'info');
+                                    } catch (err) {
+                                      console.error("Error deleting affiliate link from Firestore: ", err);
+                                      handleFirestoreError(err, OperationType.DELETE, 'affiliate_links/' + item.id);
+                                    }
                                   }
                                 );
                               }}
@@ -4854,7 +4932,7 @@ export default function App() {
                 </div>
 
                 <form
-                  onSubmit={(e) => {
+                  onSubmit={async (e) => {
                     e.preventDefault();
                     
                     if (editingItem.type === 'it_service') {
@@ -4904,11 +4982,11 @@ export default function App() {
                       }
                     } else if (editingItem.type === 'affiliate_link') {
                       const itemData = { ...editingItem.data, imageUrl: toDirectDriveUrl(editingItem.data.imageUrl) };
-                      const exists = affiliateLinks.some(a => a.id === itemData.id);
-                      if (exists) {
-                        setAffiliateLinks(affiliateLinks.map(a => a.id === itemData.id ? itemData : a));
-                      } else {
-                        setAffiliateLinks([itemData, ...affiliateLinks]);
+                      try {
+                        await setDoc(doc(db, 'affiliate_links', itemData.id), itemData);
+                      } catch (err) {
+                        console.error("Error writing affiliate link to Firestore: ", err);
+                        handleFirestoreError(err, OperationType.WRITE, 'affiliate_links/' + itemData.id);
                       }
                     }
 

@@ -1,0 +1,40 @@
+{
+  "entities": {
+    "AffiliateLink": {
+      "title": "AffiliateLink",
+      "description": "An affiliate card containing product info and links.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "category": { "type": "string" },
+        "url": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "discountCode": { "type": "string" },
+        "clicks": { "type": "integer" }
+      },
+      "required": ["id", "title", "description", "category", "url", "imageUrl"]
+    },
+    "CategoryMap": {
+      "title": "CategoryMap",
+      "description": "Category key-to-label mappings.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "labels": { "type": "object" }
+      },
+      "required": ["id", "labels"]
+    }
+  },
+  "firestore": {
+    "/affiliate_links/{linkId}": {
+      "schema": "AffiliateLink",
+      "description": "Collection of all affiliate links synced across all devices"
+    },
+    "/affiliate_config/{configId}": {
+      "schema": "CategoryMap",
+      "description": "Global category mappings and other configuration"
+    }
+  }
+}
