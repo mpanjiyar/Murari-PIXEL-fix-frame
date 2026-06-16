@@ -527,6 +527,7 @@ export default function App() {
   const [previewImage, setPreviewImage] = useState<GalleryItem | null>(null);
   const [activeGalleryFilter, setActiveGalleryFilter] = useState<'all' | 'wedding' | 'party' | 'corporate' | 'custom'>('all');
   const [activeAffiliateFilter, setActiveAffiliateFilter] = useState<string>('all');
+  const [affiliateSearchQuery, setAffiliateSearchQuery] = useState('');
 
   // Custom Smooth Toast & Confirm states for UI interactions
   const [activeToast, setActiveToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -3576,46 +3577,79 @@ export default function App() {
                 })()}
               </div>
 
-              {/* Administrative Buttons */}
-              {isAuthorized && (
-                <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    onClick={() => setIsEditingCategories(!isEditingCategories)}
-                    className={`px-3 py-1.5 rounded-xl font-mono text-[9px] font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all shadow-sm cursor-pointer border ${
-                      isEditingCategories
-                        ? 'bg-amber-600 border-amber-600 text-white'
-                        : currentTheme === 'light'
-                          ? 'bg-white border-slate-200 text-slate-700 hover:border-amber-550'
-                          : 'bg-white/5 border-white/5 text-slate-200 hover:text-amber-500 hover:bg-white/10'
+              {/* Compact Search & Administrative Group */}
+              <div className="flex flex-row items-center gap-2 w-full md:w-auto justify-between md:justify-end shrink-0">
+                {/* Mini Search Option */}
+                <div className="relative flex items-center w-full md:w-auto">
+                  <div className={`absolute left-3 pointer-events-none transition-colors duration-200 flex items-center ${
+                    affiliateSearchQuery ? 'text-amber-500' : 'text-slate-400'
+                  }`}>
+                    <Search size={12} className="stroke-[2.5]" />
+                  </div>
+                  <input
+                    type="text"
+                    value={affiliateSearchQuery}
+                    onChange={(e) => setAffiliateSearchQuery(e.target.value)}
+                    placeholder="Search gear..."
+                    className={`pl-8 pr-8 py-2 rounded-xl font-mono text-[9px] uppercase tracking-wider w-full md:w-32 md:focus:w-52 transition-all duration-300 outline-none border focus:ring-0 ${
+                      currentTheme === 'light'
+                        ? 'bg-white border-slate-200 text-slate-800 placeholder-slate-400 focus:border-amber-500'
+                        : currentTheme === 'mono'
+                          ? 'bg-black border-zinc-800 text-zinc-100 placeholder-zinc-605 focus:border-zinc-300'
+                          : 'bg-zinc-900/40 border-white/5 text-slate-100 placeholder-zinc-500 focus:border-amber-500/50'
                     }`}
-                  >
-                    <Settings size={12} className={isEditingCategories ? "animate-spin" : ""} />
-                    <span>{isEditingCategories ? 'Close Editor' : 'Edit Categories'}</span>
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setEditingItem({
-                        type: 'affiliate_link',
-                        data: {
-                          id: 'aff_' + Date.now().toString(),
-                          title: '',
-                          description: '',
-                          category: 'photography',
-                          url: '',
-                          imageUrl: '',
-                          discountCode: '',
-                          clicks: 0
-                        }
-                      });
-                    }}
-                    className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-mono text-[9px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg shadow-amber-500/10 cursor-pointer"
-                  >
-                    <Plus size={12} className="stroke-[3px]" />
-                    <span>Add Deal</span>
-                  </button>
+                  />
+                  {affiliateSearchQuery && (
+                    <button
+                      onClick={() => setAffiliateSearchQuery('')}
+                      className="absolute right-2.5 p-1 text-slate-400 hover:text-white transition-colors cursor-pointer flex items-center"
+                    >
+                      <X size={10} className="stroke-[2.5]" />
+                    </button>
+                  )}
                 </div>
-              )}
+
+                {/* Administrative Buttons */}
+                {isAuthorized && (
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      onClick={() => setIsEditingCategories(!isEditingCategories)}
+                      className={`px-3 py-1.5 rounded-xl font-mono text-[9px] font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all shadow-sm cursor-pointer border ${
+                        isEditingCategories
+                          ? 'bg-amber-600 border-amber-600 text-white'
+                          : currentTheme === 'light'
+                            ? 'bg-white border-slate-200 text-slate-700 hover:border-amber-550'
+                            : 'bg-white/5 border-white/5 text-slate-200 hover:text-amber-500 hover:bg-white/10'
+                      }`}
+                    >
+                      <Settings size={12} className={isEditingCategories ? "animate-spin" : ""} />
+                      <span>{isEditingCategories ? 'Close' : 'Labels'}</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setEditingItem({
+                          type: 'affiliate_link',
+                          data: {
+                            id: 'aff_' + Date.now().toString(),
+                            title: '',
+                            description: '',
+                            category: 'photography',
+                            url: '',
+                            imageUrl: '',
+                            discountCode: '',
+                            clicks: 0
+                          }
+                        });
+                      }}
+                      className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-mono text-[9px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg shadow-amber-500/10 cursor-pointer"
+                    >
+                      <Plus size={12} className="stroke-[3px]" />
+                      <span>Add Deal</span>
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Inline Dynamic Category Label Editor */}
@@ -3702,7 +3736,7 @@ export default function App() {
 
             {/* Curated Affiliate Recommendations Grid (3 columns on lg+, smaller card layout) */}
             <motion.div
-              key={activeAffiliateFilter}
+              key={`${activeAffiliateFilter}_${affiliateSearchQuery}`}
               variants={{
                 hidden: { opacity: 0 },
                 show: {
@@ -3717,7 +3751,18 @@ export default function App() {
               className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
             >
               {affiliateLinks
-                .filter(item => activeAffiliateFilter === 'all' || (item.category || '').split(',').map(c => c.trim()).includes(activeAffiliateFilter))
+                .filter(item => {
+                  const matchesFilter = activeAffiliateFilter === 'all' || (item.category || '').split(',').map(c => c.trim()).includes(activeAffiliateFilter);
+                  if (!matchesFilter) return false;
+                  if (!affiliateSearchQuery.trim()) return true;
+                  const q = affiliateSearchQuery.toLowerCase();
+                  return (
+                    (item.title || '').toLowerCase().includes(q) ||
+                    (item.description || '').toLowerCase().includes(q) ||
+                    (item.category || '').toLowerCase().includes(q) ||
+                    (item.discountCode || '').toLowerCase().includes(q)
+                  );
+                })
                 .map((item, index) => {
                   const categoryBadgeColor = (cat: string) => {
                     switch (cat) {
@@ -3927,16 +3972,31 @@ export default function App() {
             </motion.div>
 
             {/* Zero State empty placeholder */}
-            {affiliateLinks.filter(item => activeAffiliateFilter === 'all' || (item.category || '').split(',').map(c => c.trim()).includes(activeAffiliateFilter)).length === 0 && (
+            {affiliateLinks.filter(item => {
+              const matchesFilter = activeAffiliateFilter === 'all' || (item.category || '').split(',').map(c => c.trim()).includes(activeAffiliateFilter);
+              if (!matchesFilter) return false;
+              if (!affiliateSearchQuery.trim()) return true;
+              const q = affiliateSearchQuery.toLowerCase();
+              return (
+                (item.title || '').toLowerCase().includes(q) ||
+                (item.description || '').toLowerCase().includes(q) ||
+                (item.category || '').toLowerCase().includes(q) ||
+                (item.discountCode || '').toLowerCase().includes(q)
+              );
+            }).length === 0 && (
               <div className={`p-12 rounded-3xl border text-center space-y-3 ${
                 currentTheme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-white/5 border-white/5'
               }`}>
                 <ShoppingBag className="mx-auto text-slate-400 stroke-[1.5px]" size={45} />
                 <h3 className={`text-sm font-black tracking-wider uppercase font-mono ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
-                  No listings registered under database catalog filter
+                  {affiliateSearchQuery.trim() 
+                    ? `No products match "${affiliateSearchQuery}"` 
+                    : "No listings registered under database catalog filter"}
                 </h3>
                 <p className="text-slate-400 text-[11px] max-w-sm mx-auto font-sans leading-relaxed">
-                  Murari hasn't indexed active gear recommendation cards in this category folder yet. Please query other categories or create records.
+                  {affiliateSearchQuery.trim()
+                    ? "Try checking your spelling or search for common terms like SSD, Nikon, or Gear."
+                    : "Murari hasn't indexed active gear recommendation cards in this category folder yet. Please query other categories or create records."}
                 </p>
                 {isAuthorized && (
                   <button
