@@ -50,7 +50,8 @@ import {
   SlidersHorizontal,
   ChevronDown,
   User,
-  Settings
+  Settings,
+  Star
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -3459,40 +3460,119 @@ export default function App() {
             <div className="flex flex-col md:flex-row items-center justify-between gap-4 border-b border-slate-200/50 dark:border-white/5 pb-4">
               <div className="flex flex-wrap items-center gap-1.5 justify-center md:justify-start">
                 {(() => {
-                  const rawCategories = Array.from(new Set(affiliateLinks.map(a => a.category).filter(Boolean))) as string[];
-                  const dynamicCats = ['all', ...rawCategories];
+                  const rawCategories = Array.from(new Set(affiliateLinks.flatMap(a => (a.category || '').split(',').map(c => c.trim()).filter(Boolean)))) as string[];
+                  const filteredRawCategories = rawCategories.filter(c => c !== 'my_gears');
 
                   const getCategoryLabel = (cat: string) => {
                     if (affiliateLabelMap[cat]) return affiliateLabelMap[cat];
+                    cat = cat.replace('my_gears', 'My Gears');
                     return cat.split(/[_-]/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
                   };
 
                   const getCount = (cat: string) => {
                     if (cat === 'all') return affiliateLinks.length;
-                    return affiliateLinks.filter(a => a.category === cat).length;
+                    return affiliateLinks.filter(a => (a.category || '').split(',').map(c => c.trim()).includes(cat)).length;
                   };
 
-                  return dynamicCats.map((cat, idx) => {
-                    const isActive = activeAffiliateFilter === cat;
-                    const itemsCount = getCount(cat);
-                    
-                    return (
+                  return (
+                    <>
+                      {/* All Category Filter */}
                       <button
-                        key={cat}
-                        onClick={() => setActiveAffiliateFilter(cat)}
+                        onClick={() => setActiveAffiliateFilter('all')}
                         className={`px-4 py-2 rounded-xl font-mono text-[9px] uppercase tracking-widest font-extrabold transition-all duration-200 flex items-center gap-2 cursor-pointer border ${
-                          isActive
+                          activeAffiliateFilter === 'all'
                             ? 'bg-amber-500 border-amber-500 text-white shadow-lg shadow-amber-500/15 scale-[1.02]'
                             : currentTheme === 'light'
                               ? 'bg-white border-slate-200 text-slate-600 hover:border-slate-400 hover:bg-slate-50'
                               : 'bg-zinc-900/40 border-white/5 text-slate-300 hover:border-white/20 hover:bg-white/5'
                         }`}
                       >
-                        {isActive && <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />}
-                        <span>{getCategoryLabel(cat)}</span>
+                        {activeAffiliateFilter === 'all' && <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />}
+                        <span>All</span>
                       </button>
-                    );
-                  });
+
+                      {/* My Gears Special Premium Filter Button with custom star visual hover effect */}
+                      <button
+                        onClick={() => setActiveAffiliateFilter('my_gears')}
+                        className={`px-4.5 py-2 rounded-xl font-mono text-[9px] uppercase tracking-widest font-black transition-all duration-300 flex items-center gap-2 cursor-pointer border relative overflow-hidden group/star ${
+                          activeAffiliateFilter === 'my_gears'
+                            ? 'bg-gradient-to-r from-amber-500 to-yellow-500 border-amber-500 text-white shadow-lg shadow-amber-500/25 scale-[1.02]'
+                            : currentTheme === 'light'
+                              ? 'bg-amber-50/70 border-amber-250 text-amber-700 hover:border-amber-400 hover:bg-amber-50'
+                              : 'bg-amber-950/20 border-amber-500/20 text-amber-400 hover:border-amber-500/40 hover:bg-amber-500/10'
+                        }`}
+                      >
+                        <span className="relative flex items-center justify-center">
+                          <Star 
+                            size={10} 
+                            fill={activeAffiliateFilter === 'my_gears' ? 'currentColor' : 'none'} 
+                            className={`transition-transform duration-500 group-hover/star:rotate-[72deg] text-amber-500 ${
+                              activeAffiliateFilter === 'my_gears' ? 'text-white' : 'animate-pulse'
+                            }`} 
+                          />
+                        </span>
+                        <span className="relative z-10 flex items-center gap-1.5">
+                          My Gears
+                          <span className={`text-[8px] px-1 rounded transition-all ${
+                            activeAffiliateFilter === 'my_gears'
+                              ? 'bg-white/20 text-white'
+                              : 'bg-amber-500/10 text-amber-500'
+                          }`}>
+                            {getCount('my_gears')}
+                          </span>
+                        </span>
+                        
+                        {/* Tweaking Star Sparkle Particles floating up on Hover */}
+                        <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-0 group-hover/star:opacity-100 transition-opacity duration-350">
+                          <motion.span 
+                            animate={{ y: [-5, -25], x: [5, 0], scale: [0, 1, 0], opacity: [0, 1, 0] }}
+                            transition={{ repeat: Infinity, duration: 1.0, ease: "easeOut" }}
+                            className="absolute text-[6px] left-[10%] bottom-[5%]"
+                          >
+                            ⭐
+                          </motion.span>
+                          <motion.span 
+                            animate={{ y: [-5, -20], x: [-5, -10], scale: [0, 1.2, 0], opacity: [0, 1, 0] }}
+                            transition={{ repeat: Infinity, duration: 1.2, delay: 0.2, ease: "easeOut" }}
+                            className="absolute text-[8px] right-[15%] bottom-[5%]"
+                          >
+                            ✨
+                          </motion.span>
+                          <motion.span 
+                            animate={{ y: [-5, -22], x: [0, 5], scale: [0, 0.8, 0], opacity: [0, 1, 0] }}
+                            transition={{ repeat: Infinity, duration: 1.4, delay: 0.4, ease: "easeOut" }}
+                            className="absolute text-[6px] left-[45%] bottom-[3%]"
+                          >
+                            ⭐
+                          </motion.span>
+                        </div>
+                        
+                        {/* Glow sweep sheen */}
+                        <div className="absolute inset-x-0 top-0 h-full w-[250%] -translate-x-full bg-gradient-to-r from-transparent via-white/12 to-transparent skew-x-12 transition-transform duration-[1200ms] group-hover/star:translate-x-[150%] pointer-events-none" />
+                      </button>
+
+                      {/* Other Categories dynamically render */}
+                      {filteredRawCategories.map((cat, idx) => {
+                        const isActive = activeAffiliateFilter === cat;
+                        return (
+                          <button
+                            key={cat}
+                            onClick={() => setActiveAffiliateFilter(cat)}
+                            className={`px-4 py-2 rounded-xl font-mono text-[9px] uppercase tracking-widest font-extrabold transition-all duration-200 flex items-center gap-2 cursor-pointer border ${
+                              isActive
+                                ? 'bg-amber-500 border-amber-500 text-white shadow-lg shadow-amber-500/15 scale-[1.02]'
+                                : currentTheme === 'light'
+                                  ? 'bg-white border-slate-200 text-slate-600 hover:border-slate-400 hover:bg-slate-50'
+                                  : 'bg-zinc-900/40 border-white/5 text-slate-300 hover:border-white/20 hover:bg-white/5'
+                            }`}
+                          >
+                            {isActive && <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />}
+                            <span>{getCategoryLabel(cat)}</span>
+                          </button>
+                        );
+                      })}
+                    </>
+                  );
                 })()}
               </div>
 
@@ -3567,7 +3647,7 @@ export default function App() {
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {(() => {
-                    const rawCategories = Array.from(new Set(affiliateLinks.map(a => a.category).filter(Boolean))) as string[];
+                    const rawCategories = Array.from(new Set(affiliateLinks.flatMap(a => (a.category || '').split(',').map(c => c.trim()).filter(Boolean)))) as string[];
                     const allKeys = ['all', ...rawCategories];
                     return allKeys.map(key => {
                       const currentVal = affiliateLabelMap[key];
@@ -3637,7 +3717,7 @@ export default function App() {
               className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
             >
               {affiliateLinks
-                .filter(item => activeAffiliateFilter === 'all' || item.category === activeAffiliateFilter)
+                .filter(item => activeAffiliateFilter === 'all' || (item.category || '').split(',').map(c => c.trim()).includes(activeAffiliateFilter))
                 .map((item, index) => {
                   const categoryBadgeColor = (cat: string) => {
                     switch (cat) {
@@ -3678,6 +3758,8 @@ export default function App() {
                     }
                   };
 
+                  const isGif = item.imageUrl?.toLowerCase().includes('.gif');
+
                   return (
                     <motion.div
                       key={item.id}
@@ -3693,7 +3775,7 @@ export default function App() {
                           : '0 25px 35px -12px rgba(245, 158, 11, 0.3), 0 12px 16px -4px rgba(0, 0, 0, 0.5)'
                       }}
                       transition={{ type: 'spring', stiffness: 350, damping: 25 }}
-                      className={`rounded-3xl border overflow-hidden flex flex-col justify-between group transition-[background-color,border-color,outline-color] duration-300 relative h-full outline outline-1 outline-transparent hover:outline-amber-500/35 shadow-sm ${
+                      className={`rounded-3xl border overflow-hidden flex flex-col justify-between group transition-[background-color,border-color,outline-color] duration-300 relative h-full outline outline-1 outline-transparent hover:outline-amber-500/40 shadow-sm ${
                         currentTheme === 'light'
                           ? 'bg-white border-slate-200'
                           : 'bg-zinc-950 border-white/5 backdrop-blur-md'
@@ -3703,10 +3785,15 @@ export default function App() {
                       <div className={`px-4 py-3 border-b flex items-center justify-between gap-2 ${
                         currentTheme === 'light' ? 'bg-slate-50/50 border-slate-200/50' : 'bg-black/15 border-white/5'
                       }`}>
-                        <div className="flex flex-wrap items-center gap-1.5 min-w-0">
-                          <span className={`px-2.5 py-0.5 rounded-full text-[8px] uppercase tracking-widest font-mono font-bold border truncate max-w-[130px] ${categoryBadgeColor(item.category)}`}>
-                            {categoryLabel(item.category)}
-                          </span>
+                        <div className="flex flex-wrap items-center gap-1 min-w-0">
+                          {(item.category || '').split(',').map(c => c.trim()).filter(Boolean).map((catId) => (
+                            <span 
+                              key={catId} 
+                              className={`px-2 py-0.5 rounded-full text-[7.5px] uppercase tracking-widest font-mono font-black border ${categoryBadgeColor(catId)}`}
+                            >
+                              {categoryLabel(catId)}
+                            </span>
+                          ))}
                           
                           {item.clicks ? (
                             <span className={`px-1.5 py-0.5 rounded-full text-[8px] font-mono font-bold tracking-wide ${
@@ -3762,11 +3849,24 @@ export default function App() {
                         <div>
                           {/* Visual Frame Image: Post Mode Zoom, Desaturation Cycle, and Glare Sheen Sweep */}
                           <div className="relative aspect-[16/10] w-full overflow-hidden bg-slate-900 border-b border-slate-200/50 dark:border-white/5 group-hover:bg-slate-950 transition-colors">
+                            {/* Verified Equipment Badge Overlay */}
+                            <div className="absolute top-2.5 left-3 px-1.5 py-0.5 rounded bg-amber-500/90 backdrop-blur-md border border-amber-400/20 text-white font-mono text-[7px] font-black tracking-widest uppercase flex items-center gap-0.5 shadow-md z-15">
+                              🛡️ VERIFIED
+                            </div>
+
+                            {/* GIF Tag overlay */}
+                            {isGif && (
+                              <div className="absolute top-2.5 right-3 px-1.5 py-0.5 rounded bg-black/75 backdrop-blur-md border border-emerald-500/30 text-emerald-400 font-mono text-[7px] font-black tracking-widest uppercase flex items-center gap-0.5 shadow-md z-15 select-none animate-pulse">
+                                <span className="w-1 h-1 rounded-full bg-emerald-400 inline-block"></span>
+                                <span>GIF</span>
+                              </div>
+                            )}
+
                             <img
                               src={item.imageUrl || 'https://images.unsplash.com/photo-1542751371-adc38448a05e'}
                               alt={item.title}
                               referrerPolicy="no-referrer"
-                              className="w-full h-full object-cover transition-transform duration-700 ease-in-out scale-100 group-hover:scale-105 filter grayscale-[30%] group-hover:grayscale-0 contrast-[1.02] group-hover:contrast-100"
+                              className="w-full h-full object-cover transition-transform duration-700 ease-in-out scale-100 group-hover:scale-105 filter grayscale-[25%] group-hover:grayscale-0 contrast-[1.02] group-hover:contrast-100"
                             />
                             
                             {/* Glass reflection glider */}
@@ -3827,7 +3927,7 @@ export default function App() {
             </motion.div>
 
             {/* Zero State empty placeholder */}
-            {affiliateLinks.filter(item => activeAffiliateFilter === 'all' || item.category === activeAffiliateFilter).length === 0 && (
+            {affiliateLinks.filter(item => activeAffiliateFilter === 'all' || (item.category || '').split(',').map(c => c.trim()).includes(activeAffiliateFilter)).length === 0 && (
               <div className={`p-12 rounded-3xl border text-center space-y-3 ${
                 currentTheme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-white/5 border-white/5'
               }`}>
@@ -4949,7 +5049,6 @@ export default function App() {
                 <div className="flex items-center gap-2 border-b pb-3 border-slate-200/50 dark:border-white/5">
                   <Sliders className="text-[#FF5500]" size={20} />
                   <div>
-                    <span className="text-[10px] uppercase font-bold tracking-widest text-[#FF5500]">Secure Admin Editor</span>
                     <h3 className="text-base font-black">
                       {editingItem.type === 'it_service' && 'Configure Doorstep IT Offering'}
                       {editingItem.type === 'photo_service' && 'Configure Photo Package Offering'}
@@ -5550,9 +5649,9 @@ export default function App() {
                       </div>
 
                       {/* Category Selector & Preset Pills */}
-                      <div className="space-y-1 text-left">
+                      <div className="space-y-1.5 text-left">
                         <label className={`text-[10px] uppercase font-mono font-bold tracking-wider ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
-                          Category Select / Create New
+                          Categories (Select Multiple / Create New)
                         </label>
                         <input
                           type="text"
@@ -5562,45 +5661,60 @@ export default function App() {
                             ...editingItem,
                             data: { ...editingItem.data, category: ev.target.value.toLowerCase().replace(/\s+/g, '_') }
                           })}
-                          className={`w-full p-2.5 rounded-xl border outline-none text-xs font-mono ${
+                          className={`w-full p-2.5 rounded-xl border outline-none text-xs font-mono mb-1 ${
                             currentTheme === 'light' 
-                              ? 'bg-slate-50/50 border-slate-200 text-slate-800 focus:border-amber-500' 
+                              ? 'bg-slate-50/50 border-slate-205 text-slate-800 focus:border-amber-500' 
                               : 'bg-black/30 border-white/5 text-slate-200 focus:border-amber-500'
                           }`}
-                          placeholder="e.g. photography, it_tech, software, accessories, custom_category"
+                          placeholder="e.g. photography, it_tech, software, accessories"
                         />
-                        <p className="text-[9px] text-slate-400 font-sans leading-normal">
-                          Type any lowercased alphanumeric string (spaces auto-convert to underscores) to start a new collection.
+                        <p className="text-[8px] text-slate-400 font-sans leading-normal">
+                          Comma-separated values are fully supported. Clicking pills below will toggle them on/off!
                         </p>
                         
-                        {/* Dynamic Quick Select Pills */}
-                        <div className="flex flex-wrap gap-1 mt-2">
+                        {/* Dynamic Quick Select Pills (Multi-selection toggling supported) */}
+                        <div className="flex flex-wrap gap-1 mt-1.5">
                           {(() => {
-                            const coreKeys = ['photography', 'it_tech', 'software', 'accessories'];
+                            const coreKeys = ['photography', 'it_tech', 'software', 'accessories', 'my_gears'];
                             const activeKeys = Array.from(new Set([
                               ...coreKeys,
-                              ...affiliateLinks.map(a => a.category).filter(Boolean)
+                              ...affiliateLinks.flatMap(a => (a.category || '').split(',').map(c => c.trim()).filter(Boolean))
                             ])) as string[];
                             
                             return activeKeys.map(cat => {
                               const friendlyName = affiliateLabelMap[cat] || cat.split(/[_-]/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+                              const currentCats = (editingItem.data.category || '').split(',').map(c => c.trim()).filter(Boolean);
+                              const isSelected = currentCats.includes(cat);
+                              
                               return (
                                 <button
                                   key={cat}
                                   type="button"
-                                  onClick={() => setEditingItem({
-                                    ...editingItem,
-                                    data: { ...editingItem.data, category: cat }
-                                  })}
-                                  className={`px-2 py-1 rounded-lg border text-[9px] font-mono transition-all cursor-pointer ${
-                                    editingItem.data.category === cat
+                                  onClick={() => {
+                                    let updatedCats;
+                                    if (isSelected) {
+                                      updatedCats = currentCats.filter(c => c !== cat);
+                                    } else {
+                                      updatedCats = [...currentCats, cat];
+                                    }
+                                    setEditingItem({
+                                      ...editingItem,
+                                      data: { 
+                                        ...editingItem.data, 
+                                        category: updatedCats.join(',')
+                                      }
+                                    });
+                                  }}
+                                  className={`px-2 py-1 rounded-lg border text-[9px] font-mono transition-all cursor-pointer flex items-center gap-1 ${
+                                    isSelected
                                       ? 'bg-amber-500/20 border-amber-500 text-amber-500 font-bold'
                                       : currentTheme === 'light'
                                         ? 'bg-white border-slate-200 text-slate-600 hover:border-slate-400'
                                         : 'bg-white/5 border-white/5 text-slate-400 hover:text-white hover:bg-white/10'
                                   }`}
                                 >
-                                  {friendlyName}
+                                  <span>{isSelected ? '✓' : '+'}</span>
+                                  <span>{friendlyName}</span>
                                 </button>
                               );
                             });
@@ -5662,6 +5776,58 @@ export default function App() {
                           }`}
                           placeholder="Or paste direct image URL (e.g. Unsplash, imgur...)"
                         />
+                        
+                        {/* Preset technology / gear GIFs collection */}
+                        <div className="space-y-1 mt-1.5">
+                          <span className="text-slate-400 text-[8.5px] block uppercase font-mono font-bold tracking-wider">
+                            ⚡ QUICK SELECT DYNAMIC HARDWARE GIF PRESET:
+                          </span>
+                          <div className="flex flex-wrap gap-1 p-1.5 rounded-xl border border-slate-200 dark:border-white/5 bg-slate-50/50 dark:bg-black/20">
+                            {[
+                              {
+                                name: '💻 Server Rack Flow',
+                                url: 'https://media.giphy.com/media/3oKIPnAiaUCo7X179K/giphy.gif'
+                              },
+                              {
+                                name: '📸 Camera Focus',
+                                url: 'https://media.giphy.com/media/l0O9z39H1U8P29C00/giphy.gif'
+                              },
+                              {
+                                name: '🔌 Hardware Motherboard',
+                                url: 'https://media.giphy.com/media/26tn33fIxFtSgXWne/giphy.gif'
+                              },
+                              {
+                                name: '💾 Falling Code Matrix',
+                                url: 'https://media.giphy.com/media/13GKP7xOfvukV2/giphy.gif'
+                              },
+                              {
+                                name: '🎹 Retrowave Grid',
+                                url: 'https://media.giphy.com/media/YmZOBDYWOcmS4/giphy.gif'
+                              }
+                            ].map(gif => {
+                              const isSelected = editingItem.data.imageUrl === gif.url;
+                              return (
+                                <button
+                                  key={gif.name}
+                                  type="button"
+                                  onClick={() => setEditingItem({
+                                    ...editingItem,
+                                    data: { ...editingItem.data, imageUrl: gif.url }
+                                  })}
+                                  className={`px-1.5 py-0.5 rounded border text-[8px] font-mono transition-all cursor-pointer ${
+                                    isSelected
+                                      ? 'bg-amber-500 text-white border-amber-500 font-bold'
+                                      : currentTheme === 'light'
+                                        ? 'bg-white border-slate-200 text-slate-700 hover:border-slate-350'
+                                        : 'bg-white/5 border-white/5 text-slate-300 hover:bg-white/10 hover:text-white'
+                                  }`}
+                                >
+                                  {gif.name}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
                         {/* Live Image Preview frame */}
                         {editingItem.data.imageUrl && (
                           <div className="mt-1.5 p-1 rounded-xl border border-white/5 bg-black/20">
