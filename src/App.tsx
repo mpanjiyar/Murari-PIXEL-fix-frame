@@ -528,6 +528,7 @@ export default function App() {
   const [activeGalleryFilter, setActiveGalleryFilter] = useState<'all' | 'wedding' | 'party' | 'corporate' | 'custom'>('all');
   const [activeAffiliateFilter, setActiveAffiliateFilter] = useState<string>('all');
   const [affiliateSearchQuery, setAffiliateSearchQuery] = useState('');
+  const [isCollectionsBtnHovered, setIsCollectionsBtnHovered] = useState(false);
 
   // Custom Smooth Toast & Confirm states for UI interactions
   const [activeToast, setActiveToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -572,6 +573,31 @@ export default function App() {
       document.body.className = 'bg-[#121212] text-white transition-colors duration-300';
     }
   }, [currentTheme]);
+
+  // Deep-link routing based on URL Hash
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace('#', '') as any;
+      const validTabs = ['home', 'about', 'pixelfix', 'pixelframe', 'gallery', 'contact', 'dashboard', 'affiliate'];
+      if (hash && validTabs.includes(hash)) {
+        setActiveTab(hash);
+      }
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    // On mount check
+    handleHashChange();
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  // Update hash when active tab changes
+  useEffect(() => {
+    if (activeTab) {
+      const currentHash = window.location.hash.replace('#', '');
+      if (activeTab !== currentHash) {
+        window.history.replaceState(null, '', `#${activeTab}`);
+      }
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     localStorage.setItem('mp_gallery_items', JSON.stringify(galleryItems));
@@ -1833,20 +1859,136 @@ export default function App() {
                   </div>
                   
                   <div className="shrink-0 w-full lg:w-auto">
-                    <button
-                      onClick={() => {
+                    <a
+                      href="#affiliate"
+                      onClick={(e) => {
+                        e.preventDefault();
                         setActiveTab('affiliate');
                         window.scrollTo({ top: 0, behavior: 'smooth' });
                       }}
-                      className={`w-full lg:w-auto px-5 py-3 rounded-xl font-bold text-xs uppercase tracking-wider transition-all duration-250 flex items-center justify-center gap-2 cursor-pointer border ${
+                      onMouseEnter={() => setIsCollectionsBtnHovered(true)}
+                      onMouseLeave={() => setIsCollectionsBtnHovered(false)}
+                      className={`w-full lg:w-auto px-5 py-3 rounded-xl font-bold text-xs uppercase tracking-wider relative overflow-visible transition-all duration-250 flex items-center justify-center gap-2 cursor-pointer border ${
                         currentTheme === 'light'
                           ? 'border-slate-800 text-slate-800 bg-transparent hover:bg-slate-800 hover:text-white shadow-sm'
                           : 'border-white/20 text-white bg-white/5 hover:bg-white hover:text-black hover:border-white shadow-lg'
                       }`}
                     >
-                      <span>Explore Collections</span>
-                      <ArrowUpRight size={14} className="stroke-[2.5px]" />
-                    </button>
+                      <AnimatePresence>
+                        {isCollectionsBtnHovered && (
+                          <>
+                            {/* Twinkling star particle 1 - top left */}
+                            <motion.span
+                              key="star-1"
+                              initial={{ opacity: 0, scale: 0, x: 0, y: 0 }}
+                              animate={{ 
+                                opacity: [0, 1, 1, 0], 
+                                scale: [0.5, 1.2, 0.8, 0], 
+                                x: [-15, -40, -55], 
+                                y: [-5, -25, -45],
+                                rotate: [0, 45, 90, 180]
+                              }}
+                              exit={{ opacity: 0 }}
+                              transition={{ duration: 1.2, ease: "easeOut", repeat: Infinity, repeatDelay: 0.1 }}
+                              className="absolute text-amber-400 pointer-events-none"
+                              style={{ left: "15%", top: "10%" }}
+                            >
+                              <Star size={10} fill="currentColor" className="drop-shadow-[0_0_4px_rgba(251,191,36,0.6)]" />
+                            </motion.span>
+                            
+                            {/* Twinkling star particle 2 - top right */}
+                            <motion.span
+                              key="star-2"
+                              initial={{ opacity: 0, scale: 0, x: 0, y: 0 }}
+                              animate={{ 
+                                opacity: [0, 1, 1, 0], 
+                                scale: [0.4, 1.4, 0.7, 0], 
+                                x: [15, 45, 60], 
+                                y: [-10, -35, -55],
+                                rotate: [0, -60, -120, -180]
+                              }}
+                              exit={{ opacity: 0 }}
+                              transition={{ duration: 1.4, ease: "easeOut", repeat: Infinity, repeatDelay: 0.2 }}
+                              className="absolute text-amber-500 pointer-events-none"
+                              style={{ right: "15%", top: "10%" }}
+                            >
+                              <Sparkles size={11} fill="currentColor" className="drop-shadow-[0_0_5px_rgba(245,158,11,0.6)]" />
+                            </motion.span>
+                            
+                            {/* Twinkling star particle 3 - center top floating higher */}
+                            <motion.span
+                              key="star-3"
+                              initial={{ opacity: 0, scale: 0, x: 0, y: 0 }}
+                              animate={{ 
+                                opacity: [0, 1, 1, 0], 
+                                scale: [0.6, 1.3, 0.5, 0], 
+                                x: [-5, 10, 20], 
+                                y: [-15, -45, -75],
+                                rotate: [0, 90, 180, 270]
+                              }}
+                              exit={{ opacity: 0 }}
+                              transition={{ duration: 1.1, ease: "easeOut", repeat: Infinity }}
+                              className="absolute text-amber-300 pointer-events-none"
+                              style={{ left: "55%", top: "5%" }}
+                            >
+                              <Star size={12} fill="currentColor" className="drop-shadow-[0_0_3px_rgba(252,211,77,0.7)]" />
+                            </motion.span>
+                            
+                            {/* Twinkling star particle 4 - bottom left */}
+                            <motion.span
+                              key="star-4"
+                              initial={{ opacity: 0, scale: 0, x: 0, y: 0 }}
+                              animate={{ 
+                                opacity: [0, 1, 1, 0], 
+                                scale: [0.4, 1.1, 0.6, 0], 
+                                x: [-20, -35, -45], 
+                                y: [10, -5, -20],
+                                rotate: [0, 120, 240, 360]
+                              }}
+                              exit={{ opacity: 0 }}
+                              transition={{ duration: 1.3, ease: "easeOut", repeat: Infinity, repeatDelay: 0.3 }}
+                              className="absolute text-amber-400 pointer-events-none"
+                              style={{ left: "10%", bottom: "15%" }}
+                            >
+                              <Star size={8} fill="currentColor" className="drop-shadow-[0_0_4px_rgba(251,191,36,0.5)]" />
+                            </motion.span>
+                            
+                            {/* Twinkling star particle 5 - bottom right sparkles */}
+                            <motion.span
+                              key="star-5"
+                              initial={{ opacity: 0, scale: 0, x: 0, y: 0 }}
+                              animate={{ 
+                                opacity: [0, 1, 1, 0], 
+                                scale: [0.5, 1.5, 0.8, 0], 
+                                x: [20, 35, 45], 
+                                y: [5, -15, -35],
+                                rotate: [0, -45, -90, -135]
+                              }}
+                              exit={{ opacity: 0 }}
+                              transition={{ duration: 1.25, ease: "easeOut", repeat: Infinity, repeatDelay: 0.15 }}
+                              className="absolute text-amber-500 pointer-events-none"
+                              style={{ right: "10%", bottom: "15%" }}
+                            >
+                              <Sparkles size={10} fill="currentColor" className="drop-shadow-[0_0_5px_rgba(245,158,11,0.7)]" />
+                            </motion.span>
+                          </>
+                        )}
+                      </AnimatePresence>
+
+                      <motion.span 
+                        className="flex items-center gap-2 z-10"
+                        animate={isCollectionsBtnHovered ? { scale: 1.02 } : { scale: 1 }}
+                        transition={{ duration: 0.2 }}
+                      >
+                        <span>Explore Collections</span>
+                        <motion.div
+                          animate={isCollectionsBtnHovered ? { x: 3, y: -3, scale: 1.1 } : { x: 0, y: 0, scale: 1 }}
+                          transition={{ type: "spring", stiffness: 350, damping: 15 }}
+                        >
+                          <ArrowUpRight size={14} className="stroke-[2.5px]" />
+                        </motion.div>
+                      </motion.span>
+                    </a>
                   </div>
                 </div>
               </div>
