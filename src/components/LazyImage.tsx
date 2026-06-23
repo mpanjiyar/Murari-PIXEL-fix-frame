@@ -114,11 +114,38 @@ export const LazyImage: React.FC<LazyImageProps> = ({
       id={id}
       className={`relative overflow-hidden w-full h-full ${placeholderClassName}`}
     >
+      <style>{`
+        @keyframes lazyImageShimmer {
+          0% { background-position: -200% 0; }
+          100% { background-position: 200% 0; }
+        }
+        .lazy-image-shimmer {
+          background: linear-gradient(
+            90deg,
+            rgba(226, 232, 240, 0.7) 25%,
+            rgba(241, 245, 249, 0.9) 50%,
+            rgba(226, 232, 240, 0.7) 75%
+          );
+          background-size: 200% 100%;
+          animation: lazyImageShimmer 1.6s infinite linear;
+        }
+        .dark .lazy-image-shimmer {
+          background: linear-gradient(
+            90deg,
+            rgba(31, 41, 55, 0.7) 25%,
+            rgba(55, 65, 81, 0.9) 50%,
+            rgba(31, 41, 55, 0.7) 75%
+          );
+          background-size: 200% 100%;
+          animation: lazyImageShimmer 1.6s infinite linear;
+        }
+      `}</style>
+
       {/* Loading states / blur placeholder */}
       {!isLoaded && (
-        <div className="absolute inset-0 bg-slate-200 dark:bg-zinc-800 animate-pulse flex items-center justify-center z-10">
+        <div className="absolute inset-0 lazy-image-shimmer flex items-center justify-center z-10">
           <svg
-            className="w-8 h-8 text-slate-400 dark:text-zinc-600 animate-spin"
+            className="w-8 h-8 text-slate-400 dark:text-zinc-600 animate-spin opacity-50"
             xmlns="http://www.w3.org/2000/svg"
             fill="none"
             viewBox="0 0 24 24"
@@ -144,8 +171,10 @@ export const LazyImage: React.FC<LazyImageProps> = ({
         <img
           src={currentSrc}
           alt={alt}
-          className={`${className} transition-opacity duration-700 ease-out ${
-            isLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
+          className={`${className} transition-all duration-700 ease-out will-change-[filter,opacity,transform] ${
+            isLoaded 
+              ? 'opacity-100 blur-none scale-100' 
+              : 'opacity-0 blur-md scale-105'
           }`}
           referrerPolicy={referrerPolicy}
           onLoad={() => setIsLoaded(true)}

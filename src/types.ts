@@ -27,6 +27,8 @@ export interface ServiceDetail {
   price?: string;
   description: string;
   features: string[];
+  inclusions?: string[];
+  technicalSpecs?: string[];
 }
 
 export interface ContactMessage {
@@ -60,4 +62,16 @@ export interface AffiliateLink {
   imageUrl: string;
   discountCode?: string;
   clicks: number;
+}
+
+export interface SocialLink {
+  id: string;
+  name: string;
+  handle: string;
+  url: string;
+  platform: string;
+  badge?: string;
+  order: number;
+  disabled?: boolean;
+  customIcon?: string;
 }

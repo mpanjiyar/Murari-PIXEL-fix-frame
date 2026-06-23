@@ -36,6 +36,40 @@ service cloud.firestore {
         && 'labels' in data && data.labels is map;
     }
 
+    function isValidSocialLink(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.name is string && data.name.size() <= 200
+        && data.handle is string && data.handle.size() <= 200
+        && data.url is string && data.url.size() <= 3000
+        && data.platform is string && data.platform.size() <= 100
+        && (!('badge' in data) || (data.badge is string && data.badge.size() <= 100))
+        && (!('disabled' in data) || data.disabled is bool)
+        && (!('customIcon' in data) || (data.customIcon is string && data.customIcon.size() <= 100))
+        && (data.order is int || data.order is float);
+    }
+
+    function isValidHomepageConfig(data) {
+      return data.id is string && data.id.size() <= 128
+        && (!('heroHeadline' in data) || (data.heroHeadline is string && data.heroHeadline.size() <= 1000))
+        && (!('heroSubheadline' in data) || (data.heroSubheadline is string && data.heroSubheadline.size() <= 5000))
+        && (!('profilePhotoUrl' in data) || (data.profilePhotoUrl is string && data.profilePhotoUrl.size() <= 10000000))
+        && (!('bioHeadline' in data) || (data.bioHeadline is string && data.bioHeadline.size() <= 1000))
+        && (!('bioText' in data) || (data.bioText is string && data.bioText.size() <= 5000))
+        && (!('contactPhoneIt' in data) || (data.contactPhoneIt is string && data.contactPhoneIt.size() <= 100))
+        && (!('contactPhonePhotos' in data) || (data.contactPhonePhotos is string && data.contactPhonePhotos.size() <= 100))
+        && (!('logoText' in data) || (data.logoText is string && data.logoText.size() <= 200))
+        && (!('logoSubtext' in data) || (data.logoSubtext is string && data.logoSubtext.size() <= 500))
+        && (!('bannerText' in data) || (data.bannerText is string && data.bannerText.size() <= 1000))
+        && (!('exploreButtonText' in data) || (data.exploreButtonText is string && data.exploreButtonText.size() <= 100))
+        && (!('exploreButtonLink' in data) || (data.exploreButtonLink is string && data.exploreButtonLink.size() <= 500))
+        && (!('contactEmail' in data) || (data.contactEmail is string && data.contactEmail.size() <= 500))
+        && (!('contactAddress' in data) || (data.contactAddress is string && data.contactAddress.size() <= 1000))
+        && (!('itServices' in data) || data.itServices is list)
+        && (!('photoServices' in data) || data.photoServices is list)
+        && (!('testimonials' in data) || data.testimonials is list)
+        && (!('pixelFixReviews' in data) || data.pixelFixReviews is list);
+    }
+
     // Collection: Affiliate Links
     match /affiliate_links/{linkId} {
       allow read: if true;
@@ -49,6 +83,22 @@ service cloud.firestore {
       allow read: if true;
       allow create: if isValidId(configId) && isValidCategoryMap(incoming());
       allow update: if isValidId(configId) && isValidCategoryMap(incoming());
+      allow delete: if isValidId(configId);
+    }
+
+    // Collection: Social Links
+    match /social_links/{linkId} {
+      allow read: if true;
+      allow create: if isValidId(linkId) && isValidSocialLink(incoming());
+      allow update: if isValidId(linkId) && isValidSocialLink(incoming());
+      allow delete: if isValidId(linkId);
+    }
+
+    // Collection: Site Config
+    match /site_config/{configId} {
+      allow read: if true;
+      allow create: if isValidId(configId) && isValidHomepageConfig(incoming());
+      allow update: if isValidId(configId) && isValidHomepageConfig(incoming());
       allow delete: if isValidId(configId);
     }
   }

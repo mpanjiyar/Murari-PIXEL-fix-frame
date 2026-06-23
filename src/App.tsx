@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Phone,
   Mail,
@@ -37,6 +37,7 @@ import {
   ExternalLink,
   ChevronRight,
   Eye,
+  EyeOff,
   Bell,
   Smartphone,
   ShieldCheck,
@@ -49,11 +50,24 @@ import {
   FileCode,
   SlidersHorizontal,
   ChevronDown,
+  ChevronUp,
   User,
   Settings,
-  Star
+  Star,
+  Globe,
+  Twitter,
+  Linkedin,
+  Github,
+  Slack,
+  Twitch,
+  Dribbble,
+  Briefcase,
+  Link,
+  Play,
+  TrendingUp,
+  Video
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, Reorder } from 'motion/react';
 import {
   INITIAL_GALLERY_ITEMS,
   INITIAL_IT_SERVICES,
@@ -61,9 +75,10 @@ import {
   INITIAL_TESTIMONIALS,
   INITIAL_PIXELFIX_REVIEWS,
   INSTAGRAM_POSTS,
-  INITIAL_AFFILIATE_LINKS
+  INITIAL_AFFILIATE_LINKS,
+  getExtraInclusionsAndSpecs
 } from './data';
-import { GalleryItem, ContactMessage, NotificationLog, AffiliateLink } from './types';
+import { GalleryItem, ContactMessage, NotificationLog, AffiliateLink, SocialLink } from './types';
 import PFLogo from './components/PFLogo';
 import CursorEffect from './components/CursorEffect';
 import WhatsAppIcon from './components/WhatsAppIcon';
@@ -72,15 +87,193 @@ import { ScrollReveal, ScrollRevealText } from './components/ScrollReveal';
 import { LazyImage } from './components/LazyImage';
 import { PixelFrameBackground } from './components/PixelFrameBackground';
 import { PixelFixBackground } from './components/PixelFixBackground';
+import SmpsCalculator from './components/SmpsCalculator';
+import CoverageMap from './components/CoverageMap';
 import { initAuth, googleSignIn, googleSignOut } from './lib/driveAuth';
 import { uploadBackupToDrive, listBackupsOnDrive, downloadBackupFromDrive, deleteBackupFromDrive, upsertLiveSyncBackup, getOrCreateFolder, uploadPhotoFileToDrive } from './lib/driveService';
 import type { DriveBackupFile } from './lib/driveService';
 import type { User as FirebaseUser } from 'firebase/auth';
 import { db, OperationType, handleFirestoreError } from './firebase';
 import { collection, doc, setDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
-import { HardDrive, Cloud, LogOut, AlertCircle, FolderOpen, Download, UploadCloud } from 'lucide-react';
+import { HardDrive, Cloud, LogOut, AlertCircle, FolderOpen, Download, UploadCloud, GripVertical } from 'lucide-react';
 
 // Structuring our Theme Styles
+interface LagFreeInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onChange'> {
+  value: string;
+  onChange: (val: string) => void;
+  debounceMs?: number;
+}
+
+const LagFreeInput: React.FC<LagFreeInputProps> = ({ value, onChange, debounceMs = 150, ...props }) => {
+  const [localValue, setLocalValue] = useState(value);
+
+  useEffect(() => {
+    setLocalValue(value);
+  }, [value]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (localValue !== value) {
+        onChange(localValue);
+      }
+    }, debounceMs);
+    return () => clearTimeout(timer);
+  }, [localValue, onChange, debounceMs, value]);
+
+  return (
+    <input
+      {...props}
+      value={localValue}
+      onChange={(e) => setLocalValue(e.target.value)}
+    />
+  );
+};
+
+interface LagFreeTextAreaProps extends Omit<React.TextareaHTMLAttributes<HTMLTextAreaElement>, 'onChange'> {
+  value: string;
+  onChange: (val: string) => void;
+  debounceMs?: number;
+}
+
+const LagFreeTextArea: React.FC<LagFreeTextAreaProps> = ({ value, onChange, debounceMs = 150, ...props }) => {
+  const [localValue, setLocalValue] = useState(value);
+
+  useEffect(() => {
+    setLocalValue(value);
+  }, [value]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (localValue !== value) {
+        onChange(localValue);
+      }
+    }, debounceMs);
+    return () => clearTimeout(timer);
+  }, [localValue, onChange, debounceMs, value]);
+
+  return (
+    <textarea
+      {...props}
+      value={localValue}
+      onChange={(e) => setLocalValue(e.target.value)}
+    />
+  );
+};
+
+export function getGalleryItemTags(item: GalleryItem, allItems: GalleryItem[]): ('Recent' | 'Featured' | 'Client Favorites')[] {
+  const tags: ('Recent' | 'Featured' | 'Client Favorites')[] = [];
+  
+  const sortedByDate = [...allItems].sort((a, b) => b.date.localeCompare(a.date));
+  const recentThresholdIndex = Math.max(5, Math.floor(allItems.length * 0.35));
+  const isRecentInList = sortedByDate.slice(0, recentThresholdIndex).some(r => r.id === item.id);
+  
+  if (isRecentInList || item.id.startsWith('g_')) {
+    tags.push('Recent');
+  }
+  
+  const cameraLower = (item.cameraInfo || '').toLowerCase();
+  const isHighEndGear = cameraLower.includes('z9') || cameraLower.includes('plena') || cameraLower.includes('d850') || cameraLower.includes('z7 ii');
+  if (isHighEndGear || item.id === 'g1' || item.id === 'g4' || item.id === 'g6' || item.id === 'g10' || item.id === 'g13' || item.id === 'g15' || item.id.startsWith('g_')) {
+    tags.push('Featured');
+  }
+  
+  const titleLower = item.title.toLowerCase();
+  const hasFavoriteKeywords = titleLower.includes('elegant') || titleLower.includes('joyful') || titleLower.includes('royal') || titleLower.includes('captivating') || titleLower.includes('warm') || titleLower.includes('sindoor') || titleLower.includes('baraat');
+  if (hasFavoriteKeywords || item.id === 'g2' || item.id === 'g3' || item.id === 'g7' || item.id === 'g11' || item.id === 'g12' || item.id === 'g16') {
+    tags.push('Client Favorites');
+  }
+  
+  if (tags.length === 0) {
+    const numId = parseInt(item.id.replace(/\D/g, '')) || 0;
+    if (numId % 3 === 0) {
+      tags.push('Recent');
+    } else if (numId % 3 === 1) {
+      tags.push('Featured');
+    } else {
+      tags.push('Client Favorites');
+    }
+  }
+  
+  return tags;
+}
+
+const INITIAL_SOCIAL_LINKS: SocialLink[] = [
+  {
+    id: 'soc_instagram_murari',
+    name: 'Instagram (Murari)',
+    handle: '@mpanjiyar1',
+    url: 'https://instagram.com/mpanjiyar1',
+    platform: 'instagram',
+    order: 0
+  },
+  {
+    id: 'soc_instagram_studio',
+    name: 'Instagram (Studio)',
+    handle: '@pixel_frames1',
+    url: 'https://www.instagram.com/pixel_frames1/',
+    platform: 'instagram',
+    order: 1
+  },
+  {
+    id: 'soc_whatsapp_it',
+    name: 'WhatsApp (IT Fix)',
+    handle: '+91 8638875231',
+    url: 'https://wa.me/918638875231',
+    platform: 'whatsapp',
+    badge: 'Tech',
+    order: 2
+  },
+  {
+    id: 'soc_whatsapp_photos',
+    name: 'WhatsApp (Photos)',
+    handle: '+91 9864361940',
+    url: 'https://wa.me/919864361940',
+    platform: 'whatsapp',
+    badge: 'Studio',
+    order: 3
+  },
+  {
+    id: 'soc_facebook',
+    name: 'Facebook',
+    handle: 'Murari Panjiyar',
+    url: 'https://www.facebook.com/mpanjiyar100/',
+    platform: 'facebook',
+    order: 4
+  },
+  {
+    id: 'soc_youtube',
+    name: 'YouTube',
+    handle: 'Murari Panjiyar Media',
+    url: 'https://www.youtube.com/channel/UCoZOM_gfrukJgZlBra0l-6w',
+    platform: 'youtube',
+    order: 5
+  },
+  {
+    id: 'soc_500px',
+    name: '500px Gallery',
+    handle: 'mpanjiyar100',
+    url: 'https://500px.com/p/mpanjiyar100?utm_source=ig&utm_medium=social&utm_content=link_in_bio&fbclid=PAZXh0bgNhZW0CMTEAc3J0YwZhcHBfaWQPOTM2NjE5NzQzMzkyNDU5AAGnsKsfdZEWJR4k577cF6K4J8TCsvpyahiSQji0CVp3ZOuP9xn5XDXqA1HFmFU_aem_Tc8o9AsvjyWr3kP0-ZekUw&view=photos',
+    platform: 'camera',
+    order: 6
+  },
+  {
+    id: 'soc_pulsepx',
+    name: 'PulsePX Profile',
+    handle: 'mpanjiyar100',
+    url: 'https://pulsepx.com/profile/mpanjiyar100?view=entries',
+    platform: 'camera',
+    order: 7
+  },
+  {
+    id: 'soc_etejo',
+    name: 'Etejo Gallery',
+    handle: '@muraripanjiyar',
+    url: 'https://etejo.com/muraripanjiyar',
+    platform: 'etejo',
+    order: 8
+  }
+];
+
 const getInstagramShortcode = (url: string): string | null => {
   if (!url) return null;
   const match = url.match(/(?:\/p\/|\/reel\/|\/tv\/)([A-Za-z0-9_-]+)/);
@@ -190,6 +383,16 @@ const toDirectDriveUrl = (url: string): string => {
     }
   }
   return url;
+};
+
+const getCategoryLabel = (category: string): string => {
+  const map: Record<string, string> = {
+    wedding: 'Wedding',
+    corporate: 'Corporate',
+    party: 'Events',
+    custom: 'Outdoor'
+  };
+  return map[category] || category;
 };
 
 export default function App() {
@@ -331,6 +534,8 @@ export default function App() {
     return INITIAL_PIXELFIX_REVIEWS;
   });
 
+  const [activeDetailService, setActiveDetailService] = useState<any | null>(null);
+
   const [heroHeadline, setHeroHeadline] = useState<string>(() => {
     return localStorage.getItem('mp_hero_headline') || 'Empowering Your Tech. Framing Your Memories.';
   });
@@ -367,6 +572,37 @@ export default function App() {
     return localStorage.getItem('mp_bio_text') || '"Through my dual business structures, I aim to offer seamless tech support that keeps your home-office or corporate workstation running smoothly on-demand via Pixel Fix, alongside stunning cinematography from Pixel Frame that helps you cherish life\'s biggest milestones forever."';
   });
 
+  // Dynamic Site Customization States (Firebase & Live Admin Sync)
+  const [logoText, setLogoText] = useState<string>('MURARI PANJIYAR');
+  const [logoSubtext, setLogoSubtext] = useState<string>('Pixel Fix & Pixel Frame');
+  const [bannerText, setBannerText] = useState<string>('🚨 Guwahati local area doorstep dispatcher • Booking & Live Quote Estimator Engine Active 📱');
+  const [exploreButtonText, setExploreButtonText] = useState<string>('Explore Collections');
+  const [exploreButtonLink, setExploreButtonLink] = useState<string>('#affiliate');
+  const [contactPhoneIt, setContactPhoneIt] = useState<string>('8638875231');
+  const [contactPhonePhotos, setContactPhonePhotos] = useState<string>('9864361940');
+  const [contactEmail, setContactEmail] = useState<string>('Mpanjiyar100@gmail.com');
+  const [contactAddress, setContactAddress] = useState<string>('Guwahati, Assam, India');
+
+  // Helper to format any custom phone to clean WhatsApp numeric format
+  const getCleanWhatsAppNumber = (phone: string) => {
+    const digits = phone.replace(/[^0-9]/g, '');
+    if (digits.length === 10) {
+      return '91' + digits;
+    }
+    return digits;
+  };
+
+  // Helper to update site_config/homepage doc in Firestore dynamically
+  const updateSiteConfig = async (fields: Record<string, any>) => {
+    try {
+      const configRef = doc(db, 'site_config', 'homepage');
+      await setDoc(configRef, fields, { merge: true });
+    } catch (err) {
+      console.error("Error updating site config in Firestore: ", err);
+      handleFirestoreError(err, OperationType.WRITE, 'site_config/homepage');
+    }
+  };
+
   const [affiliateLinks, setAffiliateLinks] = useState<AffiliateLink[]>(() => {
     const saved = localStorage.getItem('mp_affiliate_links');
     if (saved) {
@@ -401,6 +637,167 @@ export default function App() {
       accessories: 'Accessories'
     };
   });
+
+  const [socialLinks, setSocialLinks] = useState<SocialLink[]>(() => {
+    const saved = localStorage.getItem('mp_social_links');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.length > 0) {
+          return parsed;
+        }
+        return INITIAL_SOCIAL_LINKS;
+      } catch (e) {
+        return INITIAL_SOCIAL_LINKS;
+      }
+    }
+    return INITIAL_SOCIAL_LINKS;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('mp_social_links', JSON.stringify(socialLinks));
+  }, [socialLinks]);
+
+  // Load and sync Social Links dynamically via Firestore real-time listeners
+  useEffect(() => {
+    let isInitialSocial = true;
+    const unsubSocial = onSnapshot(collection(db, 'social_links'), (snapshot) => {
+      const links: SocialLink[] = [];
+      snapshot.forEach((doc) => {
+        links.push(doc.data() as SocialLink);
+      });
+      // Sort by order
+      links.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+      if (links.length > 0) {
+        setSocialLinks(links);
+      } else {
+        if (isInitialSocial) {
+          isInitialSocial = false;
+          // If empty in Firestore, seed with INITIAL_SOCIAL_LINKS
+          INITIAL_SOCIAL_LINKS.forEach(async (link) => {
+            try {
+              await setDoc(doc(db, 'social_links', link.id), link);
+            } catch (e) {
+              console.error("Error seeding initial social link: ", e);
+            }
+          });
+        } else {
+          setSocialLinks([]);
+        }
+      }
+      isInitialSocial = false;
+    }, (error) => {
+      console.error("Firestore onSnapshot error for social_links: ", error);
+      handleFirestoreError(error, OperationType.GET, 'social_links');
+    });
+
+    return () => unsubSocial();
+  }, []);
+
+  // Drag and drop helper handlers for social media links
+  const handleSocialDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedSocialIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', index.toString());
+  };
+
+  const handleSocialDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    if (draggedSocialIndex === null || draggedSocialIndex === index) return;
+
+    const updated = [...socialLinks];
+    const draggedItem = updated[draggedSocialIndex];
+    updated.splice(draggedSocialIndex, 1);
+    updated.splice(index, 0, draggedItem);
+    
+    setDraggedSocialIndex(index);
+    setSocialLinks(updated);
+  };
+
+  const handleSocialDragEnd = async () => {
+    setDraggedSocialIndex(null);
+    try {
+      const promises = socialLinks.map((link, idx) => {
+        const updatedLink = { ...link, order: idx };
+        return setDoc(doc(db, 'social_links', link.id), updatedLink);
+      });
+      await Promise.all(promises);
+      triggerToast('Social links order saved to cloud!', 'success');
+    } catch (err) {
+      console.error('Error saving reordered social links: ', err);
+      triggerToast('Failed to save social link order!', 'error');
+    }
+  };
+
+  const moveSocialChannel = async (index: number, direction: 'up' | 'down') => {
+    const nextIndex = direction === 'up' ? index - 1 : index + 1;
+    if (nextIndex < 0 || nextIndex >= socialLinks.length) return;
+
+    const updated = [...socialLinks];
+    const temp = updated[index];
+    updated[index] = updated[nextIndex];
+    updated[nextIndex] = temp;
+
+    setSocialLinks(updated);
+
+    try {
+      const promises = updated.map((link, idx) => {
+        const updatedLink = { ...link, order: idx };
+        return setDoc(doc(db, 'social_links', link.id), updatedLink);
+      });
+      await Promise.all(promises);
+      triggerToast('Social links order updated!', 'success');
+    } catch (err) {
+      console.error('Error updating social links order: ', err);
+      triggerToast('Failed to save updated order!', 'error');
+    }
+  };
+
+  const handleBulkDeleteSocials = async () => {
+    if (selectedSocialIds.length === 0) return;
+    if (window.confirm(`Are you sure you want to permanently delete ${selectedSocialIds.length} selected social channel(s)?`)) {
+      const idsToDelete = [...selectedSocialIds];
+      setSocialLinks(prev => prev.filter(s => !idsToDelete.includes(s.id)));
+      setSelectedSocialIds([]);
+      try {
+        await Promise.all(idsToDelete.map(id => deleteDoc(doc(db, 'social_links', id))));
+        triggerToast(`${idsToDelete.length} channel(s) deleted successfully!`, 'success');
+      } catch (err) {
+        console.error('Error in bulk social delete:', err);
+        triggerToast('Failed to delete some channels from cloud database', 'error');
+      }
+    }
+  };
+
+  const handleBulkDisableSocials = async (disable: boolean) => {
+    if (selectedSocialIds.length === 0) return;
+    const idsToUpdate = [...selectedSocialIds];
+    
+    setSocialLinks(prev => prev.map(s => {
+      if (idsToUpdate.includes(s.id)) {
+        return { ...s, disabled: disable };
+      }
+      return s;
+    }));
+    setSelectedSocialIds([]);
+
+    try {
+      await Promise.all(
+        idsToUpdate.map(async (id) => {
+          const match = socialLinks.find(s => s.id === id);
+          if (match) {
+            const updated = { ...match, disabled: disable };
+            return setDoc(doc(db, 'social_links', id), updated);
+          }
+        })
+      );
+      triggerToast(`${idsToUpdate.length} channel(s) ${disable ? 'disabled/muted' : 'enabled/activated'} successfully!`, 'success');
+    } catch (err) {
+      console.error('Error in bulk status update:', err);
+      triggerToast('Failed to apply bulk status changes to database', 'error');
+    }
+  };
 
   const [isEditingCategories, setIsEditingCategories] = useState(false);
 
@@ -479,14 +876,189 @@ export default function App() {
     };
   }, []);
 
+  // Sync site configuration and all backend components in real-time
+  useEffect(() => {
+    let isInitialSite = true;
+    const unsubSite = onSnapshot(doc(db, 'site_config', 'homepage'), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data.heroHeadline) setHeroHeadline(data.heroHeadline);
+        if (data.heroSubheadline) setHeroSubheadline(data.heroSubheadline);
+        if (data.profilePhotoUrl) setProfilePhotoUrl(data.profilePhotoUrl);
+        if (data.bioHeadline) setBioHeadline(data.bioHeadline);
+        if (data.bioText) setBioText(data.bioText);
+        if (data.logoText) setLogoText(data.logoText);
+        if (data.logoSubtext) setLogoSubtext(data.logoSubtext);
+        if (data.bannerText !== undefined) setBannerText(data.bannerText);
+        if (data.exploreButtonText) setExploreButtonText(data.exploreButtonText);
+        if (data.exploreButtonLink) setExploreButtonLink(data.exploreButtonLink);
+        if (data.contactPhoneIt) setContactPhoneIt(data.contactPhoneIt);
+        if (data.contactPhonePhotos) setContactPhonePhotos(data.contactPhonePhotos);
+        if (data.contactEmail) setContactEmail(data.contactEmail);
+        if (data.contactAddress) setContactAddress(data.contactAddress);
+
+        // Nested lists
+        if (data.itServices && Array.isArray(data.itServices)) setItServices(data.itServices);
+        if (data.photoServices && Array.isArray(data.photoServices)) setPhotoServices(data.photoServices);
+        if (data.testimonials && Array.isArray(data.testimonials)) setTestimonials(data.testimonials);
+        if (data.pixelFixReviews && Array.isArray(data.pixelFixReviews)) setPixelFixReviews(data.pixelFixReviews);
+      } else if (isInitialSite) {
+        // Seed database instantly if config does not exist
+        const initialConfig = {
+          id: 'homepage',
+          heroHeadline,
+          heroSubheadline,
+          profilePhotoUrl,
+          bioHeadline,
+          bioText,
+          logoText,
+          logoSubtext,
+          bannerText,
+          exploreButtonText,
+          exploreButtonLink,
+          contactPhoneIt,
+          contactPhonePhotos,
+          contactEmail,
+          contactAddress,
+          itServices,
+          photoServices,
+          testimonials,
+          pixelFixReviews
+        };
+        setDoc(doc(db, 'site_config', 'homepage'), initialConfig).catch((err) => {
+          console.error("Seeding initial homepage config error: ", err);
+        });
+      }
+      isInitialSite = false;
+    }, (error) => {
+      console.error("Firestore onSnapshot error for site_config/homepage: ", error);
+      handleFirestoreError(error, OperationType.GET, 'site_config/homepage');
+    });
+
+    return () => unsubSite();
+  }, []);
+
   const [editingItem, setEditingItem] = useState<{
-    type: 'it_service' | 'photo_service' | 'instagram' | 'hero' | 'about' | 'gallery_item' | 'testimonial' | 'pixelfix_review' | 'affiliate_link';
+    type: 'it_service' | 'photo_service' | 'instagram' | 'hero' | 'about' | 'gallery_item' | 'testimonial' | 'pixelfix_review' | 'affiliate_link' | 'social_link';
     index?: number;
     id?: string;
     data: any;
   } | null>(null);
 
+  const affiliateLinksToRender = useMemo(() => {
+    let list = affiliateLinks;
+    if (editingItem && editingItem.type === 'affiliate_link' && editingItem.data) {
+      const editData = editingItem.data;
+      const itemId = editData.id || 'temp-new-item';
+      
+      const exists = list.some(a => a.id === editData.id);
+      if (exists) {
+        list = list.map(a => a.id === editData.id ? { ...a, ...editData } : a);
+      } else {
+        list = [{ 
+          id: itemId, 
+          title: editData.title || 'New Product Preview',
+          description: editData.description || 'Fill in the fields to see your changes in real-time.',
+          category: editData.category || 'accessories',
+          url: editData.url || '',
+          imageUrl: editData.imageUrl || '',
+          discountCode: editData.discountCode || '',
+          clicks: 0,
+          isPreviewOnly: true
+        } as any, ...list];
+      }
+    }
+    return list;
+  }, [affiliateLinks, editingItem]);
+
+  const [isFetchingAmazon, setIsFetchingAmazon] = useState(false);
+  const [amazonFetchError, setAmazonFetchError] = useState<string | null>(null);
+  const lastFetchedUrlRef = useRef<string>('');
+
+  const fetchAmazonDetails = async (urlToFetch: string) => {
+    if (!urlToFetch || !urlToFetch.trim()) return;
+    
+    // Simple verification that it's an Amazon-like URL
+    const isAmazon = /amazon\.|amzn\./i.test(urlToFetch);
+    if (!isAmazon) return;
+
+    setIsFetchingAmazon(true);
+    setAmazonFetchError(null);
+
+    try {
+      const response = await fetch("/api/fetch-amazon-product", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ url: urlToFetch }),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      const resData = await response.json();
+      if (resData.success && resData.product) {
+        const { title, description, imageUrl, price, category } = resData.product;
+        
+        // Format description nicely to include the price if present
+        let finalDescription = description;
+        if (price && description && !description.includes(price)) {
+          finalDescription = `Deal: ${price} | ${description}`;
+        } else if (price && !description) {
+          finalDescription = `Deal: ${price}`;
+        }
+
+        setEditingItem(prev => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            data: {
+              ...prev.data,
+              title: title || prev.data.title,
+              description: finalDescription || prev.data.description,
+              imageUrl: imageUrl || prev.data.imageUrl,
+              category: category || prev.data.category || 'accessories',
+            }
+          };
+        });
+        triggerToast("Amazon product details fetched successfully!", "success");
+      } else {
+        throw new Error("Invalid response format from product extraction API.");
+      }
+    } catch (err: any) {
+      console.error("Error auto-fetching Amazon product details:", err);
+      setAmazonFetchError(err.message || "Failed to auto-fetch product details.");
+      triggerToast(`Auto-fetch failed: ${err.message || "Check link & retry"}`, "error");
+    } finally {
+      setIsFetchingAmazon(false);
+    }
+  };
+
+  useEffect(() => {
+    if (editingItem?.type !== 'affiliate_link') return;
+    const url = editingItem.data.url;
+    if (!url || typeof url !== 'string' || !url.trim()) return;
+
+    const isAmazon = /amazon\.|amzn\./i.test(url);
+    if (!isAmazon) return;
+
+    if (url === lastFetchedUrlRef.current) return;
+
+    const timer = setTimeout(() => {
+      lastFetchedUrlRef.current = url;
+      fetchAmazonDetails(url);
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [editingItem?.data?.url, editingItem?.type]);
+
   const [isSaving, setIsSaving] = useState(false);
+  const [isSavingIdentity, setIsSavingIdentity] = useState(false);
+  const [draggedSocialIndex, setDraggedSocialIndex] = useState<number | null>(null);
+  const [selectedSocialIds, setSelectedSocialIds] = useState<string[]>([]);
   
   // Pixel Fix Quote Choices
   const [itDeviceCount, setItDeviceCount] = useState<number>(1);
@@ -525,10 +1097,89 @@ export default function App() {
 
   // Active picture preview modal
   const [previewImage, setPreviewImage] = useState<GalleryItem | null>(null);
+  const [isSmpsCalculatorOpen, setIsSmpsCalculatorOpen] = useState(false);
   const [activeGalleryFilter, setActiveGalleryFilter] = useState<'all' | 'wedding' | 'party' | 'corporate' | 'custom'>('all');
+  const [activeGalleryTagFilter, setActiveGalleryTagFilter] = useState<'all' | 'Recent' | 'Featured' | 'Client Favorites'>('all');
   const [activeAffiliateFilter, setActiveAffiliateFilter] = useState<string>('all');
   const [affiliateSearchQuery, setAffiliateSearchQuery] = useState('');
   const [isCollectionsBtnHovered, setIsCollectionsBtnHovered] = useState(false);
+
+  // YouTube Live Rankings Feed states
+  const [youtubeVideos, setYoutubeVideos] = useState<any[]>([]);
+  const [isFetchingYoutube, setIsFetchingYoutube] = useState(false);
+  const [youtubeFetchError, setYoutubeFetchError] = useState<string | null>(null);
+  const [playingVideoId, setPlayingVideoId] = useState<string | null>(null);
+
+  const fetchYoutubeVideos = async (forceRefresh = false) => {
+    setIsFetchingYoutube(true);
+    setYoutubeFetchError(null);
+    
+    // Check cache first to avoid load delays
+    if (!forceRefresh) {
+      const cached = sessionStorage.getItem('pixel_frames_youtube_cache_v1');
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setYoutubeVideos(parsed);
+            setIsFetchingYoutube(false);
+            return;
+          }
+        } catch (e) {
+          // ignore cache error and fetch fresh
+        }
+      }
+    }
+    
+    try {
+      const response = await fetch(`/api/youtube-videos${forceRefresh ? '?refresh=true' : ''}`);
+      const data = await response.json().catch(() => ({}));
+      
+      if (data && data.success && Array.isArray(data.videos)) {
+        setYoutubeVideos(data.videos);
+        sessionStorage.setItem('pixel_frames_youtube_cache_v1', JSON.stringify(data.videos));
+      } else {
+        throw new Error(data?.error || 'Failed to retrieve YouTube video ranks.');
+      }
+    } catch (err: any) {
+      console.error('Error loading YouTube top videos:', err);
+      setYoutubeFetchError(err?.message || 'Failed to connect to video stream sync.');
+      
+      // Load fallback immediately if fetch fails
+      const fallback = [
+        {
+          id: "U7Yy0bY4zXQ",
+          title: "Cinematic Wedding Portfolio Guwahati | Sony A7IV & Nikon Z9 Calibrated Frame",
+          views: 12500,
+          viewsFormatted: "12.5K views",
+          published: "2024-03-12T10:00:00Z"
+        },
+        {
+          id: "gS5YF9vB3cs",
+          title: "High-End PC Builder & SSD Hardware Optimization | Guwahati On-Site IT Vlog",
+          views: 8900,
+          viewsFormatted: "8.9K views",
+          published: "2024-04-18T14:30:00Z"
+        },
+        {
+          id: "tH9qE8wY5aY",
+          title: "Nikon Plena 135mm Calibration and Portrait Shootout | Pixel Frame Guwahati",
+          views: 6400,
+          viewsFormatted: "6.4K views",
+          published: "2024-05-22T08:15:00Z"
+        }
+      ];
+      setYoutubeVideos(fallback);
+    } finally {
+      setIsFetchingYoutube(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'about') {
+      fetchYoutubeVideos();
+    }
+  }, [activeTab]);
 
   // Custom Smooth Toast & Confirm states for UI interactions
   const [activeToast, setActiveToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -1352,9 +2003,24 @@ export default function App() {
   // Style helper mapping state
   const s = themeStyles[currentTheme];
 
-  const filteredItems = activeGalleryFilter === 'all'
-    ? galleryItems
-    : galleryItems.filter(p => p.category === activeGalleryFilter);
+  const filteredItems = useMemo(() => {
+    let items = galleryItems;
+    
+    // Filter by type if not 'all'
+    if (activeGalleryFilter !== 'all') {
+      items = items.filter(p => p.category === activeGalleryFilter);
+    }
+    
+    // Filter by tag if not 'all'
+    if (activeGalleryTagFilter !== 'all') {
+      items = items.filter(p => {
+        const tags = getGalleryItemTags(p, galleryItems);
+        return tags.includes(activeGalleryTagFilter);
+      });
+    }
+    
+    return items;
+  }, [galleryItems, activeGalleryFilter, activeGalleryTagFilter]);
 
   return (
     <div className={`min-h-screen w-full overflow-x-hidden ${s.bg} transition-colors duration-300 relative selection:bg-[#FF5500] selection:text-white pb-12`}>
@@ -1415,7 +2081,7 @@ export default function App() {
       <div className={`text-center py-2 text-[11px] uppercase tracking-[0.2em] px-4 font-bold border-b ${s.divider} ${
         currentTheme === 'mono' ? 'bg-zinc-950 text-zinc-400' : 'bg-[#FF5500]/10 text-[#FF5500] animate-pulse'
       }`}>
-        <span>🚨 Guwahati local area doorstep dispatcher • Booking & Live Quote Estimator Engine Active 📱</span>
+        <span>{bannerText}</span>
       </div>
 
       {/* HEADER SECTION WITH ADVANCED THEME CONTROLLERS */}
@@ -1431,12 +2097,12 @@ export default function App() {
                 <span className={`font-black text-xs sm:text-base md:text-xl tracking-tight block uppercase leading-none whitespace-nowrap ${
                   currentTheme === 'light' ? 'text-slate-900' : 'text-white'
                 }`}>
-                  MURARI PANJIYAR <span className="text-[#FF5500] font-mono select-none">.</span>
+                  {logoText} <span className="text-[#FF5500] font-mono select-none">.</span>
                 </span>
                 <span className={`text-[8px] sm:text-[9px] uppercase tracking-[0.1em] sm:tracking-[0.3em] font-extrabold block leading-none mt-1 whitespace-nowrap ${
                   currentTheme === 'mono' ? 'text-zinc-500' : 'text-[#FF5500]'
                 }`}>
-                  Pixel Fix &amp; Pixel Frame
+                  {logoSubtext}
                 </span>
               </div>
             </div>
@@ -1719,20 +2385,20 @@ export default function App() {
                       currentTheme === 'light' ? 'bg-white border-slate-200 text-slate-800 shadow-sm' : 'bg-white/5 border-white/5'
                     }`}>
                       <span className="text-[10px] text-zinc-500 uppercase block">Pixel Fix support:</span>
-                      <a href="tel:8638875231" className={`hover:text-[#FF5500] font-black text-sm block mt-1 ${
+                      <a href={`tel:${contactPhoneIt}`} className={`hover:text-[#FF5500] font-black text-sm block mt-1 ${
                         currentTheme === 'light' ? 'text-slate-900' : 'text-white'
                       }`}>
-                        📞 +91 8638875231
+                        📞 +91 {contactPhoneIt}
                       </a>
                     </div>
                     <div className={`p-3 rounded-xl border text-left ${
                       currentTheme === 'light' ? 'bg-white border-slate-200 text-slate-800 shadow-sm' : 'bg-white/5 border-white/5'
                     }`}>
                       <span className="text-[10px] text-zinc-500 uppercase block">Pixel Frame wedding:</span>
-                      <a href="tel:9864361940" className={`hover:text-[#FF5500] font-black text-sm block mt-1 ${
+                      <a href={`tel:${contactPhonePhotos}`} className={`hover:text-[#FF5500] font-black text-sm block mt-1 ${
                         currentTheme === 'light' ? 'text-slate-900' : 'text-white'
                       }`}>
-                        📸 +91 9864361940
+                        📸 +91 {contactPhonePhotos}
                       </a>
                     </div>
                     <div className={`p-3 rounded-xl border text-left col-span-2 md:col-span-1 ${
@@ -1859,12 +2525,23 @@ export default function App() {
                   </div>
                   
                   <div className="shrink-0 w-full lg:w-auto">
-                    <a
-                      href="#affiliate"
+                    <motion.a
+                      href={exploreButtonLink}
                       onClick={(e) => {
-                        e.preventDefault();
-                        setActiveTab('affiliate');
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                        if (exploreButtonLink.startsWith('#')) {
+                          e.preventDefault();
+                          const targetTab = exploreButtonLink.replace('#', '');
+                          const validTabs = ['home', 'pixelfix', 'pixelframe', 'gallery', 'about', 'affiliate', 'contact', 'dashboard'];
+                          if (validTabs.includes(targetTab)) {
+                            setActiveTab(targetTab as any);
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                          } else {
+                            const element = document.getElementById(targetTab);
+                            if (element) {
+                              element.scrollIntoView({ behavior: 'smooth' });
+                            }
+                          }
+                        }
                       }}
                       onMouseEnter={() => setIsCollectionsBtnHovered(true)}
                       onMouseLeave={() => setIsCollectionsBtnHovered(false)}
@@ -1873,6 +2550,22 @@ export default function App() {
                           ? 'border-slate-800 text-slate-800 bg-transparent hover:bg-slate-800 hover:text-white shadow-sm'
                           : 'border-white/20 text-white bg-white/5 hover:bg-white hover:text-black hover:border-white shadow-lg'
                       }`}
+                      animate={isCollectionsBtnHovered ? {
+                        scale: 1.05,
+                        borderColor: currentTheme === 'light' ? 'rgba(30, 41, 59, 1)' : 'rgba(255, 255, 255, 1)',
+                        boxShadow: currentTheme === 'light' ? '0px 4px 12px rgba(0,0,0,0.08)' : '0px 4px 20px rgba(255,255,255,0.15)'
+                      } : {
+                        scale: [1, 1.03, 1],
+                        borderColor: currentTheme === 'light' ? ['rgba(30, 41, 59, 1)', 'rgba(79, 70, 229, 0.8)', 'rgba(30, 41, 59, 1)'] : ['rgba(255, 255, 255, 0.2)', 'rgba(251, 146, 60, 0.8)', 'rgba(255, 255, 255, 0.2)'],
+                        boxShadow: currentTheme === 'light' 
+                          ? ['0px 1px 2px rgba(0,0,0,0.05)', '0px 0px 8px rgba(79, 70, 229, 0.2)', '0px 1px 2px rgba(0,0,0,0.05)']
+                          : ['0px 4px 6px -1px rgba(0,0,0,0.1)', '0px 0px 12px rgba(251, 146, 60, 0.3)', '0px 4px 6px -1px rgba(0,0,0,0.1)']
+                      }}
+                      transition={{
+                        scale: isCollectionsBtnHovered ? { duration: 0.2 } : { duration: 2, repeat: Infinity, ease: 'easeInOut' },
+                        borderColor: isCollectionsBtnHovered ? { duration: 0.2 } : { duration: 2, repeat: Infinity, ease: 'easeInOut' },
+                        boxShadow: isCollectionsBtnHovered ? { duration: 0.2 } : { duration: 2, repeat: Infinity, ease: 'easeInOut' }
+                      }}
                     >
                       <AnimatePresence>
                         {isCollectionsBtnHovered && (
@@ -1980,7 +2673,7 @@ export default function App() {
                         animate={isCollectionsBtnHovered ? { scale: 1.02 } : { scale: 1 }}
                         transition={{ duration: 0.2 }}
                       >
-                        <span>Explore Collections</span>
+                        <span>{exploreButtonText}</span>
                         <motion.div
                           animate={isCollectionsBtnHovered ? { x: 3, y: -3, scale: 1.1 } : { x: 0, y: 0, scale: 1 }}
                           transition={{ type: "spring", stiffness: 350, damping: 15 }}
@@ -1988,7 +2681,7 @@ export default function App() {
                           <ArrowUpRight size={14} className="stroke-[2.5px]" />
                         </motion.div>
                       </motion.span>
-                    </a>
+                    </motion.a>
                   </div>
                 </div>
               </div>
@@ -2178,10 +2871,10 @@ export default function App() {
                           </label>
                           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                             {[
-                              { id: 'wedding', label: '💍 Wedding Ceremony' },
-                              { id: 'party', label: '🎂 Celebrations & Party' },
-                              { id: 'corporate', label: '👔 Corporate Summit' },
-                              { id: 'custom', label: '📸 Custom Outdoors' }
+                              { id: 'wedding', label: '💍 Wedding' },
+                              { id: 'corporate', label: '👔 Corporate' },
+                              { id: 'party', label: '🎉 Events' },
+                              { id: 'custom', label: '🌲 Outdoor' }
                             ].map((p, i) => (
                               <button
                                 key={i}
@@ -2425,194 +3118,247 @@ export default function App() {
                 </div>
               </div>
             </section>
-                         {/* SOCIAL MEDIA HANDLES SECTION */}
+             {/* SOCIAL MEDIA HANDLES SECTION */}
             <section className="space-y-6">
-              <div className="text-left">
-                <span className={`text-[10px] uppercase tracking-[0.2em] font-bold block mb-1 ${s.tagline}`}>
-                  CONNECT WITH MURARI PANJIYAR
-                </span>
-                <h2 className={`text-2xl md:text-3xl font-black ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
-                  Social Media Channels &amp; Handles
-                </h2>
-                <p className="text-slate-400 text-xs mt-1">
-                  Connect instantly via digital streams or directly through dedicated WhatsApp communication nodes.
-                </p>
+              <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+                <div className="text-left">
+                  <span className={`text-[10px] uppercase tracking-[0.2em] font-bold block mb-1 ${s.tagline}`}>
+                    CONNECT WITH MURARI PANJIYAR
+                  </span>
+                  <h2 className={`text-2xl md:text-3xl font-black ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
+                    Social Media Channels &amp; Handles
+                  </h2>
+                  <p className="text-slate-400 text-xs mt-1">
+                    Connect instantly via digital streams or directly through dedicated WhatsApp communication nodes.
+                  </p>
+                </div>
+                {isAuthorized && (
+                  <button
+                    onClick={() => setEditingItem({
+                      type: 'social_link',
+                      data: {
+                        name: '',
+                        handle: '',
+                        url: '',
+                        platform: 'instagram',
+                        badge: '',
+                        order: socialLinks.length
+                      }
+                    })}
+                    className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold uppercase tracking-wider text-[10px] shadow-lg flex items-center gap-1.5 transition-colors self-start cursor-pointer border border-transparent"
+                  >
+                    <span>+ Add Channel</span>
+                  </button>
+                )}
               </div>
 
-              {/* Compact Inline Row of Social Handles */}
-              <div className="flex flex-wrap gap-3">
-                
-                {/* Instagram Handle */}
-                <a
-                  href="https://instagram.com/mpanjiyar1"
-                  target="_blank"
-                  rel="noreferrer"
-                  className={`group flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all duration-300 ${s.card} ${s.cardHover} min-w-[200px] flex-1 max-w-sm`}
-                >
-                  <div className="w-8 h-8 rounded-lg bg-pink-500/10 flex items-center justify-center text-pink-500 group-hover:scale-105 transition-transform flex-shrink-0">
-                    <Instagram size={15} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className={`text-[11px] font-bold ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'} leading-tight`}>Instagram (Murari)</p>
-                    <p className="text-[10px] text-pink-500 font-semibold tracking-tight">@mpanjiyar1</p>
-                  </div>
-                  <ArrowUpRight size={12} className="text-slate-400 group-hover:text-pink-500 transition-colors flex-shrink-0" />
-                </a>
+              {/* Compact Dynamic Grid of Social Handles */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+                {socialLinks.filter(link => !link.disabled || isAuthorized).map((link) => {
+                  // Icon platform resolver
+                  let iconElement = <Globe size={15} />;
+                  if (link.customIcon === 'twitter') iconElement = <Twitter size={15} />;
+                  else if (link.customIcon === 'linkedin') iconElement = <Linkedin size={15} />;
+                  else if (link.customIcon === 'github') iconElement = <Github size={15} />;
+                  else if (link.customIcon === 'slack') iconElement = <Slack size={15} />;
+                  else if (link.customIcon === 'twitch') iconElement = <Twitch size={15} />;
+                  else if (link.customIcon === 'dribbble') iconElement = <Dribbble size={15} />;
+                  else if (link.customIcon === 'briefcase') iconElement = <Briefcase size={15} />;
+                  else if (link.customIcon === 'globe') iconElement = <Globe size={15} />;
+                  else if (link.customIcon === 'mail') iconElement = <Mail size={15} />;
+                  else if (link.customIcon === 'phone') iconElement = <Phone size={15} />;
+                  else if (link.customIcon === 'link') iconElement = <Link size={15} />;
+                  else if (link.platform === 'instagram') iconElement = <Instagram size={15} />;
+                  else if (link.platform === 'whatsapp') iconElement = <WhatsAppIcon size={15} />;
+                  else if (link.platform === 'facebook') iconElement = <Facebook size={15} />;
+                  else if (link.platform === 'youtube') iconElement = <Youtube size={15} />;
+                  else if (link.platform === 'camera') iconElement = <Camera size={15} />;
+                  else if (link.platform === 'twitter') iconElement = <Twitter size={15} />;
+                  else if (link.platform === 'linkedin') iconElement = <Linkedin size={15} />;
+                  else if (link.platform === 'etejo') {
+                    iconElement = (
+                      <svg
+                        viewBox="0 0 100 100"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="w-4 h-4 text-inherit"
+                      >
+                        <rect x="12" y="12" width="76" height="76" rx="22" stroke="currentColor" strokeWidth="8" />
+                        <circle cx="50" cy="50" r="22" stroke="currentColor" strokeWidth="8" />
+                        <path d="M42 50 H58" stroke="currentColor" strokeWidth="8" strokeLinecap="round" />
+                        <path d="M50 38 A12 12 0 1 1 38 50" stroke="currentColor" strokeWidth="8" strokeLinecap="round" fill="none" />
+                        <circle cx="72" cy="28" r="5" fill="currentColor" />
+                      </svg>
+                    );
+                  }
 
-                {/* Instagram Studio Handle */}
-                <a
-                  href="https://www.instagram.com/pixel_frames1/"
-                  target="_blank"
-                  rel="noreferrer"
-                  className={`group flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all duration-300 ${s.card} ${s.cardHover} min-w-[200px] flex-1 max-w-sm`}
-                >
-                  <div className="w-8 h-8 rounded-lg bg-pink-500/10 flex items-center justify-center text-pink-500 group-hover:scale-105 transition-transform flex-shrink-0">
-                    <Instagram size={15} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className={`text-[11px] font-bold ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'} leading-tight`}>Instagram (Studio)</p>
-                    <p className="text-[10px] text-pink-500 font-semibold tracking-tight">@pixel_frames1</p>
-                  </div>
-                  <ArrowUpRight size={12} className="text-slate-400 group-hover:text-pink-500 transition-colors flex-shrink-0" />
-                </a>
+                  // Platform specific colors matching the user's specific aesthetics
+                  let primaryColorClass = 'text-[#FF5500]';
+                  let hoverColorClass = 'group-hover:text-[#FF5500]';
+                  let bgColorClass = 'bg-orange-500/10';
+                  
+                  if (link.platform === 'instagram') {
+                    primaryColorClass = 'text-pink-500';
+                    hoverColorClass = 'group-hover:text-pink-500';
+                    bgColorClass = 'bg-pink-500/10';
+                  } else if (link.platform === 'whatsapp') {
+                    primaryColorClass = 'text-emerald-500';
+                    hoverColorClass = 'group-hover:text-emerald-500';
+                    bgColorClass = 'bg-emerald-500/10';
+                  } else if (link.platform === 'facebook') {
+                    primaryColorClass = 'text-blue-500';
+                    hoverColorClass = 'group-hover:text-blue-500';
+                    bgColorClass = 'bg-blue-500/10';
+                  } else if (link.platform === 'youtube') {
+                    primaryColorClass = 'text-red-500';
+                    hoverColorClass = 'group-hover:text-red-500';
+                    bgColorClass = 'bg-red-500/10';
+                  } else if (link.platform === 'camera') {
+                    primaryColorClass = 'text-teal-500';
+                    hoverColorClass = 'group-hover:text-teal-500';
+                    bgColorClass = 'bg-teal-500/10';
+                  }
 
-                {/* WhatsApp - IT Support Number */}
-                <a
-                  href="https://wa.me/918638875231"
-                  target="_blank"
-                  rel="noreferrer"
-                  className={`group flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all duration-300 ${s.card} ${s.cardHover} min-w-[240px] flex-1 max-w-sm`}
-                >
-                  <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-500 group-hover:scale-105 transition-transform flex-shrink-0">
-                    <WhatsAppIcon size={15} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
-                      <p className={`text-[11px] font-bold ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'} leading-tight`}>WhatsApp (IT Fix)</p>
-                      <span className="text-[8px] bg-indigo-500/10 text-indigo-400 font-bold px-1 rounded border border-indigo-500/20 uppercase tracking-widest scale-90">Tech</span>
-                    </div>
-                    <p className="text-[10px] text-emerald-500 font-semibold tracking-tight">+91 8638875231</p>
-                  </div>
-                  <ArrowUpRight size={12} className="text-slate-400 group-hover:text-emerald-500 transition-colors flex-shrink-0" />
-                </a>
+                  // Apply customIcon custom colors
+                  const iconToUse = link.customIcon || (['twitter', 'linkedin'].includes(link.platform) ? link.platform : '');
+                  if (iconToUse === 'twitter') {
+                    primaryColorClass = 'text-sky-500';
+                    hoverColorClass = 'group-hover:text-sky-500';
+                    bgColorClass = 'bg-sky-500/10';
+                  } else if (iconToUse === 'linkedin') {
+                    primaryColorClass = 'text-[#0A66C2]';
+                    hoverColorClass = 'group-hover:text-[#0A66C2]';
+                    bgColorClass = 'bg-[#0A66C2]/10';
+                  } else if (iconToUse === 'github') {
+                    primaryColorClass = 'text-slate-400';
+                    hoverColorClass = 'group-hover:text-slate-400';
+                    bgColorClass = 'bg-slate-400/10';
+                  } else if (iconToUse === 'slack') {
+                    primaryColorClass = 'text-purple-500';
+                    hoverColorClass = 'group-hover:text-purple-500';
+                    bgColorClass = 'bg-purple-500/10';
+                  } else if (iconToUse === 'twitch') {
+                    primaryColorClass = 'text-violet-500';
+                    hoverColorClass = 'group-hover:text-violet-500';
+                    bgColorClass = 'bg-violet-500/10';
+                  } else if (iconToUse === 'dribbble') {
+                    primaryColorClass = 'text-[#EA4C89]';
+                    hoverColorClass = 'group-hover:text-[#EA4C89]';
+                    bgColorClass = 'bg-[#EA4C89]/10';
+                  } else if (iconToUse === 'briefcase') {
+                    primaryColorClass = 'text-indigo-400';
+                    hoverColorClass = 'group-hover:text-indigo-400';
+                    bgColorClass = 'bg-indigo-400/10';
+                  } else if (iconToUse === 'globe') {
+                    primaryColorClass = 'text-blue-400';
+                    hoverColorClass = 'group-hover:text-blue-400';
+                    bgColorClass = 'bg-blue-400/10';
+                  } else if (iconToUse === 'mail') {
+                    primaryColorClass = 'text-rose-400';
+                    hoverColorClass = 'group-hover:text-rose-400';
+                    bgColorClass = 'bg-rose-400/10';
+                  } else if (iconToUse === 'phone') {
+                    primaryColorClass = 'text-emerald-400';
+                    hoverColorClass = 'group-hover:text-emerald-400';
+                    bgColorClass = 'bg-emerald-400/10';
+                  } else if (iconToUse === 'link') {
+                    primaryColorClass = 'text-cyan-500';
+                    hoverColorClass = 'group-hover:text-cyan-500';
+                    bgColorClass = 'bg-cyan-500/10';
+                  }
 
-                {/* WhatsApp - Photo Bookings Number */}
-                <a
-                  href="https://wa.me/919864361940"
-                  target="_blank"
-                  rel="noreferrer"
-                  className={`group flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all duration-300 ${s.card} ${s.cardHover} min-w-[240px] flex-1 max-w-sm`}
-                >
-                  <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-500 group-hover:scale-105 transition-transform flex-shrink-0">
-                    <WhatsAppIcon size={15} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
-                      <p className={`text-[11px] font-bold ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'} leading-tight`}>WhatsApp (Photos)</p>
-                      <span className="text-[8px] bg-rose-500/10 text-rose-400 font-bold px-1 rounded border border-rose-500/20 uppercase tracking-widest scale-90">Studio</span>
-                    </div>
-                    <p className="text-[10px] text-emerald-500 font-semibold tracking-tight">+91 9864361940</p>
-                  </div>
-                  <ArrowUpRight size={12} className="text-slate-400 group-hover:text-emerald-500 transition-colors flex-shrink-0" />
-                </a>
+                  let badgeColorClass = 'bg-amber-500/10 text-amber-500 border-amber-500/20';
+                  if (link.badge && link.badge.toLowerCase() === 'tech') {
+                    badgeColorClass = 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20';
+                  } else if (link.badge && link.badge.toLowerCase() === 'studio') {
+                    badgeColorClass = 'bg-rose-500/10 text-rose-400 border-rose-500/20';
+                  }
 
-                {/* Facebook Handle */}
-                <a
-                  href="https://www.facebook.com/mpanjiyar100/"
-                  target="_blank"
-                  rel="noreferrer"
-                  className={`group flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all duration-300 ${s.card} ${s.cardHover} min-w-[200px] flex-1 max-w-sm`}
-                >
-                  <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-500 group-hover:scale-105 transition-transform flex-shrink-0">
-                    <Facebook size={15} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className={`text-[11px] font-bold ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'} leading-tight`}>Facebook</p>
-                    <p className="text-[10px] text-blue-500 font-semibold tracking-tight">Murari Panjiyar</p>
-                  </div>
-                  <ArrowUpRight size={12} className="text-slate-400 group-hover:text-blue-500 transition-colors flex-shrink-0" />
-                </a>
-
-                {/* YouTube Handle */}
-                <a
-                  href="https://www.youtube.com/channel/UCoZOM_gfrukJgZlBra0l-6w"
-                  target="_blank"
-                  rel="noreferrer"
-                  className={`group flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all duration-300 ${s.card} ${s.cardHover} min-w-[200px] flex-1 max-w-sm`}
-                >
-                  <div className="w-8 h-8 rounded-lg bg-red-500/10 flex items-center justify-center text-red-500 group-hover:scale-105 transition-transform flex-shrink-0">
-                    <Youtube size={15} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className={`text-[11px] font-bold ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'} leading-tight`}>YouTube</p>
-                    <p className="text-[10px] text-red-500 font-semibold tracking-tight">Murari Panjiyar Media</p>
-                  </div>
-                  <ArrowUpRight size={12} className="text-slate-400 group-hover:text-red-500 transition-colors flex-shrink-0" />
-                </a>
-
-                {/* 500px Handle */}
-                <a
-                  href="https://500px.com/p/mpanjiyar100?utm_source=ig&utm_medium=social&utm_content=link_in_bio&fbclid=PAZXh0bgNhZW0CMTEAc3J0YwZhcHBfaWQPOTM2NjE5NzQzMzkyNDU5AAGnsKsfdZEWJR4k577cF6K4J8TCsvpyahiSQji0CVp3ZOuP9xn5XDXqA1HFmFU_aem_Tc8o9AsvjyWr3kP0-ZekUw&view=photos"
-                  target="_blank"
-                  rel="noreferrer"
-                  className={`group flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all duration-300 ${s.card} ${s.cardHover} min-w-[200px] flex-1 max-w-sm`}
-                >
-                  <div className="w-8 h-8 rounded-lg bg-teal-500/10 flex items-center justify-center text-teal-500 group-hover:scale-105 transition-transform flex-shrink-0">
-                    <Camera size={15} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className={`text-[11px] font-bold ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'} leading-tight`}>500px Gallery</p>
-                    <p className="text-[10px] text-teal-500 font-semibold tracking-tight">mpanjiyar100</p>
-                  </div>
-                  <ArrowUpRight size={12} className="text-slate-400 group-hover:text-teal-500 transition-colors flex-shrink-0" />
-                </a>
-
-                {/* PulsePX Handle */}
-                <a
-                  href="https://pulsepx.com/profile/mpanjiyar100?view=entries"
-                  target="_blank"
-                  rel="noreferrer"
-                  className={`group flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all duration-300 ${s.card} ${s.cardHover} min-w-[200px] flex-1 max-w-sm`}
-                >
-                  <div className="w-8 h-8 rounded-lg bg-orange-500/10 flex items-center justify-center text-[#FF5500] group-hover:scale-105 transition-transform flex-shrink-0">
-                    <Camera size={15} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className={`text-[11px] font-bold ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'} leading-tight`}>PulsePX Profile</p>
-                    <p className="text-[10px] text-[#FF5500] font-semibold tracking-tight">mpanjiyar100</p>
-                  </div>
-                  <ArrowUpRight size={12} className="text-slate-400 group-hover:text-[#FF5500] transition-colors flex-shrink-0" />
-                </a>
-
-                {/* Etejo Gallery Handle */}
-                <a
-                  href="https://etejo.com/muraripanjiyar"
-                  target="_blank"
-                  rel="noreferrer"
-                  className={`group flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all duration-300 ${s.card} ${s.cardHover} min-w-[200px] flex-1 max-w-sm`}
-                >
-                  <div className="w-8 h-8 rounded-lg bg-orange-500/10 flex items-center justify-center text-[#FF5500] group-hover:scale-105 transition-transform flex-shrink-0">
-                    <svg
-                      viewBox="0 0 100 100"
-                      fill="none"
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="w-4 h-4 text-[#FF5500]"
+                  return (
+                    <div
+                      key={link.id}
+                      className={`group relative flex items-center gap-3 px-4 py-3 rounded-2xl border text-left transition-all duration-350 hover:scale-[1.02] hover:-translate-y-0.5 active:scale-[0.99] transform ${s.card} ${s.cardHover} w-full h-full shadow-sm ${
+                        link.disabled ? 'opacity-55 grayscale border-dashed border-amber-500/40 select-none cursor-default' : ''
+                      }`}
                     >
-                      {/* Stylized premium Etejo letter 'e' combined with finder & lens elements */}
-                      <rect x="12" y="12" width="76" height="76" rx="22" stroke="currentColor" strokeWidth="8" />
-                      <circle cx="50" cy="50" r="22" stroke="currentColor" strokeWidth="8" />
-                      <path d="M42 50 H58" stroke="currentColor" strokeWidth="8" strokeLinecap="round" />
-                      <path d="M50 38 A12 12 0 1 1 38 50" stroke="currentColor" strokeWidth="8" strokeLinecap="round" fill="none" />
-                      <circle cx="72" cy="28" r="5" fill="currentColor" />
-                    </svg>
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className={`text-[11px] font-bold ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'} leading-tight`}>Etejo Gallery</p>
-                    <p className="text-[10px] text-[#FF5500] font-semibold tracking-tight">@muraripanjiyar</p>
-                  </div>
-                  <ArrowUpRight size={12} className="text-slate-400 group-hover:text-[#FF5500] transition-colors flex-shrink-0" />
-                </a>
+                      {/* Invisible absolute link taking over the container click, unless admin clicks edit/delete */}
+                      {!link.disabled && (
+                        <a
+                          href={link.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="absolute inset-0 z-20 rounded-xl cursor-pointer"
+                        />
+                      )}
+                      
+                      <div className={`w-8 h-8 rounded-lg ${bgColorClass} flex items-center justify-center ${primaryColorClass} group-hover:scale-105 transition-transform flex-shrink-0 z-10`}>
+                        {iconElement}
+                      </div>
+                      
+                      <div className="min-w-0 flex-1 z-10">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className={`text-[11px] font-bold ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'} leading-tight truncate`}>
+                            {link.name}
+                          </p>
+                          {link.badge && (
+                            <span className={`text-[8px] font-bold px-1 rounded border uppercase tracking-widest scale-90 ${badgeColorClass}`}>
+                              {link.badge}
+                            </span>
+                          )}
+                          {link.disabled && (
+                            <span className="text-[7px] font-extrabold uppercase bg-yellow-500/10 text-yellow-500 px-1 py-0.2 rounded border border-yellow-500/20 tracking-wider">
+                              Muted
+                            </span>
+                          )}
+                        </div>
+                        <p className={`text-[10px] font-semibold tracking-tight truncate ${primaryColorClass}`}>
+                          {link.handle}
+                        </p>
+                      </div>
 
+                      <div className="flex items-center gap-2 relative z-30">
+                        {isAuthorized && (
+                          <div className="flex items-center gap-1 relative z-30" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              onClick={() => setEditingItem({
+                                type: 'social_link',
+                                id: link.id,
+                                data: { ...link }
+                              })}
+                              className={`p-1.5 rounded-lg border hover:bg-indigo-600 hover:text-white transition-colors cursor-pointer ${
+                                currentTheme === 'light' ? 'bg-slate-50 border-slate-200 text-slate-500' : 'bg-black/30 border-white/5 text-slate-400'
+                              }`}
+                              title="Edit Social Channel"
+                            >
+                              <Edit size={11} />
+                            </button>
+                            <button
+                              onClick={async () => {
+                                if (window.confirm(`Are you sure you want to remove the social channel "${link.name}"?`)) {
+                                  setSocialLinks(prev => prev.filter(s => s.id !== link.id));
+                                  try {
+                                    await deleteDoc(doc(db, 'social_links', link.id));
+                                    triggerToast('Social channel deleted successfully!', 'success');
+                                  } catch (err) {
+                                    console.error('Error deleting social link from Firestore: ', err);
+                                    handleFirestoreError(err, OperationType.DELETE, 'social_links/' + link.id);
+                                  }
+                                }
+                              }}
+                              className={`p-1.5 rounded-lg border hover:bg-rose-600 hover:text-white transition-colors cursor-pointer ${
+                                currentTheme === 'light' ? 'bg-slate-50 border-slate-200 text-slate-500' : 'bg-black/30 border-white/5 text-slate-400'
+                              }`}
+                              title="Delete Social Channel"
+                            >
+                              <Trash2 size={11} />
+                            </button>
+                          </div>
+                        )}
+                        <ArrowUpRight size={12} className={`text-slate-400 ${hoverColorClass} transition-colors flex-shrink-0`} />
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </section>
 
@@ -2689,7 +3435,7 @@ export default function App() {
                   <WhatsAppIcon size={14} /> Send WhatsApp Support Ticket
                 </button>
                 <a
-                  href="tel:8638875231"
+                  href={`tel:${contactPhoneIt}`}
                   className="bg-white hover:bg-zinc-200 text-black text-xs uppercase font-extrabold px-5 py-2.5 rounded-lg flex items-center gap-1.5"
                 >
                   <Phone size={14} /> Call Support Now
@@ -2704,7 +3450,8 @@ export default function App() {
                   key={index}
                   variant="slide-in-up"
                   delay={index * 0.1}
-                  className={`p-6 rounded-3xl border ${s.card} flex flex-col justify-between hover:border-[#FF5500]/40 transition-all duration-300`}
+                  className={`p-6 rounded-3xl border ${s.card} flex flex-col justify-between hover:border-[#FF5500]/70 cursor-pointer group transition-all duration-300 hover:scale-[1.01]`}
+                  onClick={() => setActiveDetailService({ ...srv, type: 'it' })}
                 >
                   <div>
                     <div className="w-12 h-12 bg-orange-500/10 rounded-xl flex items-center justify-center text-[#FF5500] mb-4">
@@ -2715,11 +3462,14 @@ export default function App() {
                       {isAuthorized && (
                         <button
                           type="button"
-                          onClick={() => setEditingItem({
-                            type: 'it_service',
-                            index,
-                            data: { ...srv }
-                          })}
+                          onClick={(ev) => {
+                            ev.stopPropagation();
+                            setEditingItem({
+                              type: 'it_service',
+                              index,
+                              data: { ...srv }
+                            });
+                          }}
                           className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold uppercase text-[9px] tracking-wider px-2 py-1 rounded flex items-center gap-1 shadow cursor-pointer transition-colors"
                         >
                           <Sliders size={8} /> Edit
@@ -2729,6 +3479,12 @@ export default function App() {
                     <h3 className={`text-xl font-black mt-1 ${currentTheme === 'light' ? 'text-slate-950 font-black' : 'text-white font-black'}`}>{srv.title}</h3>
                     <p className={`text-xs mt-2 leading-relaxed ${currentTheme === 'light' ? 'text-slate-600' : 'text-slate-400'}`}>{srv.description}</p>
                     
+                    <div className="mt-3">
+                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#FF5500] inline-flex items-center gap-1 group-hover:underline">
+                        View Details & Specs <ArrowUpRight size={10} className="transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                      </span>
+                    </div>
+
                     <ul className="space-y-2 mt-4">
                       {srv.features.map((f, fIdx) => (
                         <li key={fIdx} className={`flex gap-2 text-xs ${currentTheme === 'light' ? 'text-slate-700' : 'text-slate-300'}`}>
@@ -2746,7 +3502,8 @@ export default function App() {
                     </div>
 
                     <button
-                      onClick={() => {
+                      onClick={(ev) => {
+                        ev.stopPropagation();
                         setBookingName('');
                         setBookingNotes(`Interested in standard package: ${srv.title}. please call.`);
                         setQuoteType('pixelfix');
@@ -2780,6 +3537,32 @@ export default function App() {
                 </div>
               </div>
             </div>
+
+            {/* Interactive Hardware SMPS/Power Calculator */}
+            <ScrollReveal variant="slide-in-up" delay={0.1}>
+              <div className={`p-6 md:p-8 rounded-3xl border ${s.card} flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden`}>
+                <div className="absolute top-0 right-0 w-32 h-32 bg-[#FF5500]/5 rounded-full blur-2xl pointer-events-none" />
+                <div className="text-left space-y-2 max-w-xl">
+                  <div className="flex items-center gap-1.5 font-mono text-[9px] tracking-widest uppercase font-extrabold text-[#FF5500]">
+                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#FF5500] animate-pulse" />
+                    <span>PC Wattage Diagnostician</span>
+                  </div>
+                  <h3 className={`text-xl md:text-2xl font-black uppercase tracking-tight ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
+                    Precision SMPS PSU Calculator
+                  </h3>
+                  <p className={`text-xs leading-relaxed ${currentTheme === 'light' ? 'text-slate-600' : 'text-slate-400'}`}>
+                    Select your CPU, GPU, memory, and accessories to dynamically estimate peak continuous wattage draw. Optimize system safety margins and verify precise power requirements for secure doorstep diagnostic operating setups in Guwahati.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsSmpsCalculatorOpen(true)}
+                  className="bg-[#FF5500] hover:bg-[#FF4400] text-zinc-100 font-extrabold uppercase text-xs tracking-wider px-6 py-3.5 rounded-xl shadow-lg hover:shadow-orange-500/20 active:scale-95 transition-all duration-200 cursor-pointer flex items-center gap-2 shrink-0 self-center md:self-auto"
+                >
+                  <Cpu size={14} /> Open PSU Calculator
+                </button>
+              </div>
+            </ScrollReveal>
 
             {/* Assam-Based Client Reviews */}
             <div className="space-y-6 pt-4">
@@ -2905,7 +3688,7 @@ export default function App() {
                 <p className={`text-sm md:text-base ${
                   currentTheme === 'light' ? 'text-slate-650 font-medium' : 'text-slate-300'
                 }`}>
-                  Discover candidacy portraiture, high-contrast wedding frames, post-production cinematic retouching, and aerial drone recording. Check custom budget estimates and secure your booking date instantly on WhatsApp at +919864361940.
+                  Discover candidacy portraiture, high-contrast wedding frames, post-production cinematic retouching, and aerial drone recording. Check custom budget estimates and secure your booking date instantly on WhatsApp at +91{contactPhonePhotos}.
                 </p>
               </ScrollReveal>
 
@@ -2917,7 +3700,7 @@ export default function App() {
                   <WhatsAppIcon size={14} /> Send WhatsApp Photo Ticket
                 </button>
                 <a
-                  href="tel:9864361940"
+                  href={`tel:${contactPhonePhotos}`}
                   className={`bg-white hover:bg-zinc-200 text-black text-xs uppercase font-extrabold px-5 py-2.5 rounded-lg flex items-center gap-1.5 ${
                     currentTheme === 'light' ? 'border border-slate-200 shadow-sm' : ''
                   }`}
@@ -2934,7 +3717,8 @@ export default function App() {
                   key={index}
                   variant="slide-in-up"
                   delay={index * 0.08}
-                  className={`p-5 rounded-2xl border ${s.card} flex flex-col justify-between hover:border-[#FF5500]/30 transition-all duration-300`}
+                  className={`p-5 rounded-2xl border ${s.card} flex flex-col justify-between hover:border-[#FF5500]/60 cursor-pointer group transition-all duration-300 hover:scale-[1.01]`}
+                  onClick={() => setActiveDetailService({ ...srv, type: 'photography' })}
                 >
                   <div>
                     <div className="flex items-center justify-between gap-2">
@@ -2944,11 +3728,14 @@ export default function App() {
                       {isAuthorized && (
                         <button
                           type="button"
-                          onClick={() => setEditingItem({
-                            type: 'photo_service',
-                            index,
-                            data: { ...srv }
-                          })}
+                          onClick={(ev) => {
+                            ev.stopPropagation();
+                            setEditingItem({
+                              type: 'photo_service',
+                              index,
+                              data: { ...srv }
+                            });
+                          }}
                           className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold uppercase text-[9px] tracking-wider px-2 py-0.5 rounded flex items-center gap-1 shadow cursor-pointer transition-colors"
                         >
                           <Sliders size={8} /> Edit
@@ -2962,6 +3749,12 @@ export default function App() {
                       currentTheme === 'light' ? 'text-slate-600' : 'text-slate-400'
                     }`}>{srv.description}</p>
                     
+                    <div className="mt-3">
+                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#FF5500] inline-flex items-center gap-1 group-hover:underline">
+                        View Details & Specs <ArrowUpRight size={10} className="transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                      </span>
+                    </div>
+
                     <ul className={`space-y-1.5 mt-4 text-[11px] ${
                       currentTheme === 'light' ? 'text-slate-700' : 'text-slate-300'
                     }`}>
@@ -2975,7 +3768,8 @@ export default function App() {
                   </div>
 
                   <button
-                    onClick={() => {
+                    onClick={(ev) => {
+                      ev.stopPropagation();
                       setBookingName('');
                       setBookingNotes(`Inquiring about photography category: ${srv.title}. please coordinate dates.`);
                       setQuoteType('pixelframe');
@@ -3117,10 +3911,10 @@ export default function App() {
             <div className={`flex flex-wrap items-center gap-2 pb-4 border-b ${s.divider}`}>
               {[
                 { id: 'all', label: 'All Projects' },
-                { id: 'wedding', label: '💍 Weddings' },
-                { id: 'party', label: '🎂 Celebrations & Events' },
-                { id: 'corporate', label: '👔 Corporate Summit' },
-                { id: 'custom', label: '📸 Custom Outdoors' }
+                { id: 'wedding', label: '💍 Wedding' },
+                { id: 'corporate', label: '👔 Corporate' },
+                { id: 'party', label: '🎉 Events' },
+                { id: 'custom', label: '🌲 Outdoor' }
               ].map((filter) => (
                 <button
                   key={filter.id}
@@ -3134,6 +3928,41 @@ export default function App() {
                   }`}
                 >
                   {filter.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Collection/Tag Filters */}
+            <div className="flex flex-wrap items-center gap-2 pt-2 pb-4">
+              <span className={`text-[10px] uppercase tracking-wider font-bold mr-1 ${
+                currentTheme === 'light' ? 'text-slate-500' : 'text-zinc-400'
+              }`}>
+                Filter by Collection:
+              </span>
+              {[
+                { id: 'all', label: 'All Collections' },
+                { id: 'Recent', label: '🆕 Recent' },
+                { id: 'Featured', label: '⭐ Featured' },
+                { id: 'Client Favorites', label: '❤️ Favorites' }
+              ].map((tagFilter) => (
+                <button
+                  key={tagFilter.id}
+                  onClick={() => setActiveGalleryTagFilter(tagFilter.id as any)}
+                  className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all border ${
+                    activeGalleryTagFilter === tagFilter.id
+                      ? tagFilter.id === 'all'
+                        ? 'bg-[#FF5500] text-white border-[#FF5500] shadow-sm'
+                        : tagFilter.id === 'Recent'
+                          ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                          : tagFilter.id === 'Featured'
+                            ? 'bg-amber-600 text-white border-amber-600 shadow-sm'
+                            : 'bg-pink-600 text-white border-pink-600 shadow-sm'
+                      : currentTheme === 'light'
+                        ? 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                        : 'bg-zinc-900/40 text-slate-400 border-white/5 hover:border-white/10'
+                  }`}
+                >
+                  {tagFilter.label}
                 </button>
               ))}
             </div>
@@ -3202,6 +4031,28 @@ export default function App() {
                         </button>
                       </div>
                     )}
+                    
+                    {/* Automatic Collection Tags Badge */}
+                    <div className="absolute top-3 left-3 z-10 flex flex-wrap gap-1 pointer-events-none">
+                      {getGalleryItemTags(item, galleryItems).map((tag) => (
+                        <span
+                          key={tag}
+                          className={`text-[8px] sm:text-[9px] uppercase font-mono font-extrabold tracking-wider px-2 py-0.5 rounded backdrop-blur-md shadow-md border flex items-center gap-1 ${
+                            tag === 'Recent'
+                              ? 'bg-emerald-950/80 text-emerald-300 border-emerald-500/30'
+                              : tag === 'Featured'
+                                ? 'bg-amber-950/80 text-amber-300 border-amber-500/30'
+                                : 'bg-pink-950/80 text-pink-300 border-pink-500/30'
+                          }`}
+                        >
+                          {tag === 'Recent' && <span>🆕</span>}
+                          {tag === 'Featured' && <span>⭐</span>}
+                          {tag === 'Client Favorites' && <span>❤️</span>}
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+
                     <LazyImage
                       src={item.imageUrl}
                       alt={item.altText}
@@ -3210,7 +4061,7 @@ export default function App() {
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent p-4 flex flex-col justify-end">
                       <span className="text-[10px] uppercase font-mono font-bold text-[#FF5500]">
-                        {item.category.toUpperCase()}
+                        {getCategoryLabel(item.category).toUpperCase()}
                       </span>
                       <h3 className="text-sm font-black text-white mt-1 leading-tight line-clamp-1">
                         {item.title}
@@ -3544,6 +4395,251 @@ export default function App() {
                     <Plus size={20} className="text-[#FF5500]" />
                     <span className="text-[9px] font-black uppercase text-center block">Add Live Post</span>
                   </div>
+                )}
+              </div>
+            </div>
+
+            {/* TOP-PERFORMING YOUTUBE VIDEO SECTION */}
+            <div className={`p-6 md:p-8 rounded-3xl border ${
+              currentTheme === 'light' 
+                ? 'border-slate-250 bg-white/70 shadow-sm' 
+                : 'border-[#FF0000]/15 bg-gradient-to-b from-[#FF0000]/5 via-black/20 to-black/45 shadow-xl'
+            } backdrop-blur-md relative overflow-hidden space-y-8`}>
+              
+              {/* Premium Background Ambience Spot for Dark Theme */}
+              {currentTheme !== 'light' && (
+                <div className="absolute top-0 right-1/4 w-96 h-96 bg-red-600/10 rounded-full blur-[120px] pointer-events-none -translate-y-1/2" />
+              )}
+
+              {/* Hidden SVG High-Definition Sharpen Filter */}
+              <svg className="absolute w-0 h-0" aria-hidden="true" style={{ position: 'absolute', width: 0, height: 0 }}>
+                <defs>
+                  <filter id="hd-sharpen">
+                    <feConvolveMatrix 
+                      order="3" 
+                      preserveAlpha="true"
+                      kernelMatrix="0 -0.4 0 -0.4 2.6 -0.4 0 -0.4 0" 
+                    />
+                  </filter>
+                </defs>
+              </svg>
+
+              {/* Section Header */}
+              <div className={`flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 pb-6 border-b ${s.divider}`}>
+                <div className="flex items-start sm:items-center space-x-4">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#FF0000] to-red-500 p-[3px] flex items-center justify-center shadow-lg shadow-red-500/20 shrink-0">
+                    <div className="w-full h-full rounded-[13px] bg-black/40 backdrop-blur-md flex items-center justify-center">
+                      <Youtube size={22} className="text-[#FF0000] drop-shadow-[0_2px_8px_rgba(255,0,0,0.5)]" />
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h3 className={`font-black text-base flex items-center flex-wrap gap-2.5 tracking-tight ${
+                      currentTheme === 'light' ? 'text-slate-900' : 'text-white'
+                    }`}>
+                      <span className="bg-gradient-to-r from-red-500 to-amber-500 bg-clip-text text-transparent">Top Performing Broadcasts</span>
+                      <span className="flex items-center gap-1.5 text-[8px] uppercase tracking-widest font-black px-2 py-0.5 bg-red-500/10 text-red-500 rounded-md border border-red-500/25 font-mono animate-pulse">
+                        <span className="w-1.5 h-1.5 rounded-full bg-red-500 block" /> Live Ranking Feed
+                      </span>
+                    </h3>
+                    <p className={`text-[10px] ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'} mt-1.5 leading-relaxed max-w-xl`}>
+                      Analyzing real-time stream performance and high-definition audience engagement from Murari's broadcast channel. Play instantly in fully calibrated frame presets.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                  {/* Channel Micro stats panel for premium UI detail */}
+                  <div className={`hidden sm:flex items-center gap-3 px-4 py-2 rounded-2xl border font-mono text-[9px] ${
+                    currentTheme === 'light'
+                      ? 'bg-slate-50 border-slate-200 text-slate-500'
+                      : 'bg-zinc-900/60 border-white/5 text-slate-400'
+                  }`}>
+                    <div className="flex flex-col">
+                      <span className="opacity-60 text-[7px] uppercase tracking-wider font-extrabold leading-none">Broadcaster</span>
+                      <span className={`font-black mt-0.5 ${currentTheme === 'light' ? 'text-slate-800' : 'text-slate-200'}`}>M. Panjiyar</span>
+                    </div>
+                    <div className={`w-px h-6 ${currentTheme === 'light' ? 'bg-slate-200' : 'bg-white/10'}`} />
+                    <div className="flex flex-col">
+                      <span className="opacity-60 text-[7px] uppercase tracking-wider font-extrabold leading-none">Format</span>
+                      <span className="text-emerald-500 font-bold mt-0.5 flex items-center gap-1">HD 1080P</span>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => fetchYoutubeVideos(true)}
+                    disabled={isFetchingYoutube}
+                    className={`text-[10px] font-black uppercase tracking-wider px-4 py-2.5 rounded-xl transition-all duration-300 flex items-center gap-2 border ${
+                      currentTheme === 'light'
+                        ? 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-700 disabled:opacity-50 hover:shadow-sm'
+                        : 'bg-zinc-900 border-white/5 hover:bg-zinc-800 text-slate-300 disabled:opacity-50 hover:border-white/10'
+                    }`}
+                  >
+                    <RefreshCw size={12} className={`text-[#FF5500] ${isFetchingYoutube ? 'animate-spin' : ''}`} />
+                    <span>{isFetchingYoutube ? 'Updating Feed...' : 'Sync Live'}</span>
+                  </button>
+                  
+                  <a
+                    href="https://www.youtube.com/channel/UCoZOM_gfrukJgZlBra0l-6w"
+                    target="_blank"
+                    rel="noreferrer"
+                    className={`text-[10px] font-black uppercase tracking-wider px-4.5 py-2.5 rounded-xl transition-all duration-300 shadow-lg ${
+                      currentTheme === 'light' 
+                        ? 'bg-slate-900 hover:bg-slate-800 text-white hover:shadow-slate-900/15' 
+                        : 'bg-white hover:bg-zinc-200 text-black hover:shadow-white/5'
+                    }`}
+                  >
+                    Visit Channel
+                  </a>
+                </div>
+              </div>
+
+              {/* Error Alert inside widget (non-blocking) */}
+              {youtubeFetchError && (
+                <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-start gap-3 text-xs text-amber-500 shadow-sm max-w-2xl">
+                  <Video size={16} className="shrink-0 mt-0.5 animate-bounce" />
+                  <div>
+                    <strong className="font-extrabold block mb-0.5 text-[11px] uppercase tracking-wider">Metrics Synchronizer Alert</strong>
+                    <p className="opacity-85 text-[10px] leading-relaxed">
+                      Channel analytics feed is currently busy. Displaying cached top-performing master records with fully calibrated responsive playback.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Videos Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {isFetchingYoutube && youtubeVideos.length === 0 ? (
+                  // Skeleton State for perfect loading speeds & zero layout shift
+                  Array.from({ length: 3 }).map((_, idx) => (
+                    <div key={idx} className="space-y-4 animate-pulse">
+                      <div className={`aspect-video rounded-2xl w-full ${
+                        currentTheme === 'light' ? 'bg-slate-100' : 'bg-zinc-900'
+                      }`} />
+                      <div className="space-y-3">
+                        <div className={`h-4 rounded-md w-3/4 ${
+                          currentTheme === 'light' ? 'bg-slate-100' : 'bg-zinc-900'
+                        }`} />
+                        <div className={`h-3 rounded-md w-1/2 ${
+                          currentTheme === 'light' ? 'bg-slate-100' : 'bg-zinc-900'
+                        }`} />
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  youtubeVideos.slice(0, 3).map((video, index) => {
+                    const isPlaying = playingVideoId === video.id;
+                    const rankLabels = ["🏆 Champion Rank", "🥈 Showcase Rank", "🥉 Creator Rank"];
+                    const rankMedals = ["🥇 Rank #1", "🥈 Rank #2", "🥉 Rank #3"];
+                    const rankColors = [
+                      "from-amber-500/25 to-yellow-500/10 text-yellow-400 border-yellow-500/30 shadow-yellow-500/5",
+                      "from-slate-400/20 to-slate-300/10 text-slate-300 border-slate-400/25 shadow-slate-400/5",
+                      "from-orange-700/25 to-amber-700/10 text-orange-400 border-orange-700/30 shadow-orange-700/5"
+                    ];
+                    
+                    return (
+                      <motion.div
+                        key={video.id}
+                        initial={{ opacity: 0, y: 20 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: true }}
+                        transition={{ duration: 0.5, delay: index * 0.1, type: 'spring', stiffness: 120, damping: 18 }}
+                        className={`group flex flex-col justify-between p-3.5 rounded-[22px] border transition-all duration-300 ease-out will-change-transform ${
+                          isPlaying 
+                            ? currentTheme === 'light'
+                              ? 'bg-slate-50 border-red-500/30 shadow-md shadow-red-500/5'
+                              : 'bg-black/40 border-[#FF0000]/30 shadow-xl shadow-[#FF0000]/5' 
+                            : currentTheme === 'light'
+                              ? 'bg-slate-50/50 hover:bg-white border-slate-200 hover:border-red-500/30 hover:shadow-lg'
+                              : 'bg-zinc-950/65 hover:bg-zinc-900/40 border-white/5 hover:border-red-500/35 hover:shadow-2xl hover:shadow-[#FF0000]/5'
+                        }`}
+                      >
+                        {/* Video Aspect Screen with Smart Lazy-Embedding and full audio/HD options */}
+                        <div className="aspect-video relative rounded-xl overflow-hidden bg-black border border-white/5 shadow-inner group/thumb">
+                          {isPlaying ? (
+                            <iframe
+                              className="w-full h-full absolute inset-0 z-10"
+                              src={`https://www.youtube.com/embed/${video.id}?autoplay=1&mute=0&rel=0&showinfo=0`}
+                              title={video.title}
+                              allowFullScreen
+                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                            />
+                          ) : (
+                            <div className="absolute inset-0 w-full h-full cursor-pointer" onClick={() => setPlayingVideoId(video.id)}>
+                              {/* Beautiful ranking medal badge */}
+                              <span className={`absolute top-3 left-3 z-20 text-[8px] uppercase tracking-wider font-extrabold px-2.5 py-1 rounded-lg border backdrop-blur-md bg-gradient-to-r shadow ${rankColors[index]}`}>
+                                {rankMedals[index]}
+                              </span>
+                              
+                              {/* Video length placeholder/accent */}
+                              <span className="absolute bottom-3 right-3 z-20 text-[8px] font-mono tracking-widest font-black px-2 py-0.5 bg-black/80 text-white rounded-md backdrop-blur-md border border-white/10 uppercase">
+                                1080P HD
+                              </span>
+
+                              {/* Lazy Image loading with real-time High-Definition Sharpen Filter & crisp image rendering */}
+                              <LazyImage
+                                src={`https://img.youtube.com/vi/${video.id}/maxresdefault.jpg`}
+                                alt={video.title}
+                                className="w-full h-full object-cover group-hover/thumb:scale-[1.04] transition-transform duration-700 ease-out rounded-xl"
+                                style={{ 
+                                  filter: 'contrast(1.08) saturate(1.04) brightness(1.02) url(#hd-sharpen)',
+                                  imageRendering: 'crisp-edges' 
+                                }}
+                                placeholderClassName="absolute inset-0"
+                                onError={(e: any) => {
+                                  // Fallback to hqdefault if maxresdefault doesn't exist
+                                  if (e.target) {
+                                    e.target.src = `https://img.youtube.com/vi/${video.id}/hqdefault.jpg`;
+                                  }
+                                }}
+                              />
+                              
+                              {/* Glowing Red-Amber Overlay Gradient */}
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-black/30 group-hover/thumb:opacity-85 transition-opacity duration-300" />
+                              
+                              {/* Glassmorphic Play Overlay */}
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <motion.div 
+                                  whileHover={{ scale: 1.12 }}
+                                  whileTap={{ scale: 0.94 }}
+                                  transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+                                  className="w-13 h-13 rounded-full bg-red-600 hover:bg-red-500 text-white flex items-center justify-center shadow-2xl shadow-red-600/50 transition-colors duration-200"
+                                >
+                                  <Play size={20} fill="currentColor" className="ml-1 text-white" />
+                                </motion.div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Video Information Metadata block */}
+                        <div className="pt-4 pb-1 px-1 flex-1 flex flex-col justify-between">
+                          <div>
+                            <span className="text-[7px] uppercase tracking-widest font-black font-mono text-red-500/80 block mb-1">
+                              {rankLabels[index]}
+                            </span>
+                            <h4 className={`text-xs font-extrabold uppercase leading-snug line-clamp-2 tracking-wide break-words group-hover:text-red-500 transition-colors duration-200 ${
+                              currentTheme === 'light' ? 'text-slate-800' : 'text-slate-100'
+                            }`}>
+                              {video.title}
+                            </h4>
+                          </div>
+                          
+                          <div className={`flex items-center justify-between text-[9px] font-mono mt-4 pt-3 border-t ${
+                            currentTheme === 'light' ? 'border-slate-200/60 text-slate-500' : 'border-white/5 text-slate-400'
+                          }`}>
+                            <span className="flex items-center gap-1.5 font-bold text-red-500">
+                              <TrendingUp size={12} className="text-red-500" /> {video.viewsFormatted}
+                            </span>
+                            <span className="flex items-center gap-1 opacity-75">
+                              <Calendar size={11} /> {new Date(video.published).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                            </span>
+                          </div>
+                        </div>
+                      </motion.div>
+                    );
+                  })
                 )}
               </div>
             </div>
@@ -3892,7 +4988,7 @@ export default function App() {
               animate="show"
               className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
             >
-              {affiliateLinks
+              {affiliateLinksToRender
                 .filter(item => {
                   const matchesFilter = activeAffiliateFilter === 'all' || (item.category || '').split(',').map(c => c.trim()).includes(activeAffiliateFilter);
                   if (!matchesFilter) return false;
@@ -4049,11 +5145,11 @@ export default function App() {
                               </div>
                             )}
 
-                            <img
+                            <LazyImage
                               src={item.imageUrl || 'https://images.unsplash.com/photo-1542751371-adc38448a05e'}
                               alt={item.title}
-                              referrerPolicy="no-referrer"
                               className="w-full h-full object-cover transition-transform duration-700 ease-in-out scale-100 group-hover:scale-105 filter grayscale-[25%] group-hover:grayscale-0 contrast-[1.02] group-hover:contrast-100"
+                              placeholderClassName="absolute inset-0 z-0"
                             />
                             
                             {/* Glass reflection glider */}
@@ -4114,7 +5210,7 @@ export default function App() {
             </motion.div>
 
             {/* Zero State empty placeholder */}
-            {affiliateLinks.filter(item => {
+            {affiliateLinksToRender.filter(item => {
               const matchesFilter = activeAffiliateFilter === 'all' || (item.category || '').split(',').map(c => c.trim()).includes(activeAffiliateFilter);
               if (!matchesFilter) return false;
               if (!affiliateSearchQuery.trim()) return true;
@@ -4218,7 +5314,7 @@ export default function App() {
                     currentTheme === 'light' ? 'bg-slate-55 border-slate-200 text-slate-700' : 'bg-black/40 border-white/5 text-slate-300'
                   }`}>
                     <div>📌 Guwahati office: Guwahati area doorstep dispatch</div>
-                    <div>📞 Mobile support: +91 8638875231</div>
+                    <div>📞 Mobile support: +91 {contactPhoneIt}</div>
                   </div>
                 </div>
 
@@ -4230,14 +5326,14 @@ export default function App() {
                     <WhatsAppIcon size={14} /> Send WhatsApp Support Ticket
                   </button>
                   <a
-                    href="tel:8638875231"
+                    href={`tel:${contactPhoneIt}`}
                     className={`w-full font-extrabold text-xs uppercase py-3.5 tracking-wider rounded-lg flex items-center justify-center gap-2 border ${
                       currentTheme === 'light' 
                         ? 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-800' 
                         : 'bg-white/5 hover:bg-white/10 border-white/10 text-white'
                     }`}
                   >
-                    <Phone size={14} /> Dial +91 8638875231
+                    <Phone size={14} /> Dial +91 {contactPhoneIt}
                   </a>
                 </div>
               </div>
@@ -4261,7 +5357,7 @@ export default function App() {
                     currentTheme === 'light' ? 'bg-slate-55 border-slate-200 text-slate-700' : 'bg-black/40 border-white/5 text-slate-300'
                   }`}>
                     <div>📌 Primary hub: Northeast destination shoot available</div>
-                    <div>📞 Mobile hotline: +91 9864361940</div>
+                    <div>📞 Mobile hotline: +91 {contactPhonePhotos}</div>
                   </div>
                 </div>
 
@@ -4273,19 +5369,37 @@ export default function App() {
                     <WhatsAppIcon size={14} /> WhatsApp Photographer
                   </button>
                   <a
-                    href="tel:9864361940"
+                    href={`tel:${contactPhonePhotos}`}
                     className={`w-full font-extrabold text-xs uppercase py-3.5 tracking-wider rounded-lg flex items-center justify-center gap-2 border ${
                       currentTheme === 'light' 
                         ? 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-800' 
                         : 'bg-white/5 hover:bg-white/10 border-white/10 text-white'
                     }`}
                   >
-                    <Phone size={14} /> Dial +91 9864361940
+                    <Phone size={14} /> Dial +91 {contactPhonePhotos}
                   </a>
                 </div>
               </div>
 
             </div>
+
+            {/* INTERACTIVE GEOGRAPHIC DISPATCH SERVICE AREA MAP */}
+            <ScrollReveal variant="fade-up" delay={0.25}>
+              <div className={`p-6 md:p-8 rounded-[32px] border ${s.card} space-y-6 text-left relative overflow-hidden`}>
+                <div className="space-y-2">
+                  <span className="text-[10px] uppercase font-mono tracking-widest text-[#FF5500] font-bold">GEOGRAPHIC COVERAGE & DISPATCH NODES</span>
+                  <h3 className={`text-xl md:text-2xl font-black ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
+                    Guwahati Core Dispatch Zone Map
+                  </h3>
+                  <p className={`text-xs md:text-sm leading-relaxed ${currentTheme === 'light' ? 'text-slate-600' : 'text-slate-400'}`}>
+                    Instantly check if your home, workspace, or event venue resides inside our standard 12KM free dispatch perimeter for rapid doorstep IT checkups and premium photography deployment.
+                  </p>
+                </div>
+
+                <CoverageMap currentTheme={currentTheme} />
+              </div>
+            </ScrollReveal>
+
           </motion.div>
         )}
 
@@ -4386,9 +5500,9 @@ export default function App() {
                               className={`w-full px-4 py-2.5 rounded-xl text-xs outline-none transition-all ${s.input}`}
                             >
                               <option value="wedding">💍 Wedding</option>
-                              <option value="party">🎂 Celebration Party</option>
                               <option value="corporate">👔 Corporate</option>
-                              <option value="custom">📸 Custom Solo</option>
+                              <option value="party">🎉 Events</option>
+                              <option value="custom">🌲 Outdoor</option>
                             </select>
                           </div>
                           
@@ -4544,17 +5658,32 @@ export default function App() {
                             }`}
                           >
                             <div className="flex items-center space-x-3 text-left">
-                              <img
-                                src={item.imageUrl}
-                                alt={item.title}
-                                className="w-10 h-10 object-cover rounded-lg"
-                                referrerPolicy="no-referrer"
-                              />
+                              <div className="w-10 h-10 overflow-hidden rounded-lg relative flex-shrink-0">
+                                <LazyImage
+                                  src={item.imageUrl}
+                                  alt={item.title}
+                                  className="w-full h-full object-cover"
+                                  placeholderClassName="absolute inset-0 z-0"
+                                />
+                              </div>
                               <div className="max-w-[200px]">
                                 <span className={`font-extrabold block truncate ${currentTheme === 'light' ? 'text-slate-800' : 'text-white'}`}>
                                   {item.title}
                                 </span>
-                                <span className="text-[10px] text-[#FF5500] uppercase font-bold">{item.category}</span>
+                                <div className="flex flex-wrap gap-1 items-center mt-1">
+                                  <span className="text-[10px] text-[#FF5500] uppercase font-bold mr-1">{getCategoryLabel(item.category)}</span>
+                                  {getGalleryItemTags(item, galleryItems).map(t => (
+                                    <span key={t} className={`text-[8px] px-1 py-0.5 rounded border ${
+                                      t === 'Recent'
+                                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25'
+                                        : t === 'Featured'
+                                          ? 'bg-amber-500/10 text-amber-400 border-amber-500/25'
+                                          : 'bg-pink-500/10 text-pink-400 border-pink-500/25'
+                                    }`}>
+                                      {t}
+                                    </span>
+                                  ))}
+                                </div>
                               </div>
                             </div>
 
@@ -4700,7 +5829,6 @@ export default function App() {
                             </button>
                           )}
                         </div>
-
                         {/* Automated Sync Timing Status tracker */}
                         {localStorage.getItem('mp_instagram_last_sync') && (
                           <div className={`text-[10px] font-mono text-left p-2.5 rounded-xl flex items-center justify-between ${
@@ -4721,7 +5849,7 @@ export default function App() {
                         }`}>
                           <span className="text-[10.5px] font-bold uppercase tracking-wider text-[#FF5500] block">🔑 How to Generate Your Token (Takes 2 Minutes)</span>
                           <ol className={`list-decimal list-inside text-[10px] space-y-1.5 leading-relaxed pl-1 ${
-                            currentTheme === 'light' ? 'text-slate-600' : 'text-slate-500'
+                            currentTheme === 'light' ? 'text-slate-650' : 'text-slate-500'
                           }`}>
                             <li>Go to <a href="https://developers.facebook.com" target="_blank" rel="noreferrer" className={`hover:underline decoration-[#FF5500] ${currentTheme === 'light' ? 'text-slate-900 font-bold' : 'text-white'}`}>Meta Developers Portal</a> and create an App.</li>
                             <li>Add the <strong>Instagram Basic Display API</strong> and scroll to test accounts.</li>
@@ -4733,6 +5861,482 @@ export default function App() {
                       </div>
                     </div>
 
+                    {/* Drag and Drop Social Links Reordering Dashboard Card */}
+                    <div id="social-reorder-card" className={`p-6 rounded-3xl border ${s.card} space-y-4`}>
+                      <div className="flex items-center justify-between gap-2">
+                        <h3 className={`text-lg font-black flex items-center gap-2 ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
+                          <GripVertical size={18} className="text-[#FF5500]" />
+                          <span>Arrange Social Channels Order</span>
+                        </h3>
+                        <span className="text-[9px] font-mono uppercase bg-indigo-500/10 text-indigo-400 font-bold px-2 py-0.5 rounded border border-indigo-500/20">
+                          Live Ordered
+                        </span>
+                      </div>
+
+                      <p className={`text-xs ${currentTheme === 'light' ? 'text-slate-655' : 'text-slate-400'}`}>
+                        Drag and drop items using the grab handles, or use the individual controls to live-arrange and modify social channels on the homepage.
+                      </p>
+
+                      {/* Bulk Selection and Action Header */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-1.5 text-[11px] font-mono text-slate-400 border-b border-dashed border-slate-200/50 dark:border-white/5 pb-2.5">
+                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={socialLinks.length > 0 && selectedSocialIds.length === socialLinks.length}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedSocialIds(socialLinks.map(s => s.id));
+                              } else {
+                                setSelectedSocialIds([]);
+                              }
+                            }}
+                            className="w-3.5 h-3.5 rounded border-slate-350 accent-[#FF5500] cursor-pointer"
+                          />
+                          <span>Select All ({socialLinks.length} Links)</span>
+                        </label>
+                        
+                        <button
+                          type="button"
+                          onClick={() => setEditingItem({
+                            type: 'social_link',
+                            data: {
+                              name: '',
+                              handle: '',
+                              url: '',
+                              platform: 'instagram',
+                              badge: '',
+                              order: socialLinks.length
+                            }
+                          })}
+                          className="text-[#FF5500] hover:text-[#FF4400] hover:underline font-bold uppercase tracking-wider text-[10px] flex items-center gap-1 cursor-pointer"
+                        >
+                          <Plus size={12} /> Add Channel
+                        </button>
+                      </div>
+
+                      {/* Bulk Action Toolbar */}
+                      {selectedSocialIds.length > 0 && (
+                        <div className="p-3 bg-indigo-600/15 border border-indigo-500/25 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 animate-fadeIn text-xs">
+                          <div className="flex items-center gap-2">
+                            <CheckCircle2 size={14} className="text-indigo-400" />
+                            <span className={`font-black uppercase tracking-wider ${currentTheme === 'light' ? 'text-slate-800' : 'text-slate-200'}`}>
+                              {selectedSocialIds.length} Channel{selectedSocialIds.length > 1 ? 's' : ''} Selected
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleBulkDisableSocials(true)}
+                              className="px-2.5 py-1.5 bg-yellow-600/10 hover:bg-yellow-600/20 text-yellow-500 border border-yellow-500/15 font-bold uppercase rounded-lg transition-colors cursor-pointer text-[10px]"
+                            >
+                              Disable/Mute
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleBulkDisableSocials(false)}
+                              className="px-2.5 py-1.5 bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-500 border border-emerald-500/15 font-bold uppercase rounded-lg transition-colors cursor-pointer text-[10px]"
+                            >
+                              Activate
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleBulkDeleteSocials}
+                              className="px-2.5 py-1.5 bg-rose-600/10 hover:bg-rose-600/20 text-rose-500 border border-rose-550/15 font-bold uppercase rounded-lg transition-colors cursor-pointer text-[10px]"
+                            >
+                              Delete
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedSocialIds([])}
+                              className={`px-2 py-1.5 hover:underline font-bold uppercase ${currentTheme === 'light' ? 'text-slate-500' : 'text-zinc-400'} text-[9px] cursor-pointer`}
+                            >
+                              Deselect
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      <Reorder.Group
+                        axis="y"
+                        values={socialLinks}
+                        onReorder={setSocialLinks}
+                        className="space-y-2 max-h-[350px] overflow-y-auto pr-1"
+                        as="div"
+                      >
+                        {socialLinks.length === 0 ? (
+                          <div className={`py-8 text-center font-mono text-xs ${currentTheme === 'light' ? 'text-slate-400' : 'text-zinc-650'}`}>
+                            -- No channels found --
+                          </div>
+                        ) : (
+                          socialLinks.map((link, idx) => {
+                            // Icon platform resolver
+                            let iconElement = <Globe size={13} />;
+                            if (link.customIcon === 'twitter') iconElement = <Twitter size={13} />;
+                            else if (link.customIcon === 'linkedin') iconElement = <Linkedin size={13} />;
+                            else if (link.customIcon === 'github') iconElement = <Github size={13} />;
+                            else if (link.customIcon === 'slack') iconElement = <Slack size={13} />;
+                            else if (link.customIcon === 'twitch') iconElement = <Twitch size={13} />;
+                            else if (link.customIcon === 'dribbble') iconElement = <Dribbble size={13} />;
+                            else if (link.customIcon === 'briefcase') iconElement = <Briefcase size={13} />;
+                            else if (link.customIcon === 'globe') iconElement = <Globe size={13} />;
+                            else if (link.customIcon === 'mail') iconElement = <Mail size={13} />;
+                            else if (link.customIcon === 'phone') iconElement = <Phone size={13} />;
+                            else if (link.customIcon === 'link') iconElement = <Link size={13} />;
+                            else if (link.platform === 'instagram') iconElement = <Instagram size={13} />;
+                            else if (link.platform === 'whatsapp') iconElement = (
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+                                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                              </svg>
+                            );
+                            else if (link.platform === 'facebook') iconElement = <Facebook size={13} />;
+                            else if (link.platform === 'youtube') iconElement = <Youtube size={13} />;
+                            else if (link.platform === 'camera') iconElement = <Camera size={13} />;
+                            else if (link.platform === 'twitter') iconElement = <Twitter size={13} />;
+                            else if (link.platform === 'linkedin') iconElement = <Linkedin size={13} />;
+                            else if (link.platform === 'etejo') {
+                              iconElement = (
+                                <svg
+                                  viewBox="0 0 100 100"
+                                  fill="none"
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  className="w-3.5 h-3.5 text-inherit"
+                                >
+                                  <rect x="12" y="12" width="76" height="76" rx="22" stroke="currentColor" strokeWidth="8" />
+                                  <circle cx="50" cy="50" r="22" stroke="currentColor" strokeWidth="8" />
+                                  <path d="M42 50 H58" stroke="currentColor" strokeWidth="8" strokeLinecap="round" />
+                                  <path d="M50 38 A12 12 0 1 1 38 50" stroke="currentColor" strokeWidth="8" strokeLinecap="round" fill="none" />
+                                  <circle cx="72" cy="28" r="5" fill="currentColor" />
+                                </svg>
+                              );
+                            }
+
+                            return (
+                              <Reorder.Item
+                                key={link.id}
+                                value={link}
+                                as="div"
+                                onDragEnd={handleSocialDragEnd}
+                                whileHover={{ scale: 1.018, y: -2 }}
+                                whileTap={{ scale: 0.985, cursor: "grabbing" }}
+                                transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                                className={`p-3 rounded-xl border flex items-center justify-between transition-colors duration-200 select-none ${
+                                  currentTheme === 'light'
+                                    ? 'bg-slate-50 hover:bg-white hover:border-[#FF5500]/30 border-slate-200 hover:shadow-md'
+                                    : 'bg-black/35 hover:bg-zinc-900/40 hover:border-[#FF5500]/30 border-white/5 hover:shadow-md'
+                                }`}
+                              >
+                                <div className="flex items-center space-x-2 text-left min-w-0 flex-1">
+                                  {/* Individual Select Checkbox */}
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedSocialIds.includes(link.id)}
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        setSelectedSocialIds(prev => [...prev, link.id]);
+                                      } else {
+                                        setSelectedSocialIds(prev => prev.filter(id => id !== link.id));
+                                      }
+                                    }}
+                                    className="w-3.5 h-3.5 rounded border-slate-350 accent-[#FF5500] cursor-pointer flex-shrink-0"
+                                  />
+
+                                  {/* Drag Handle Indicator */}
+                                  <div className="cursor-grab active:cursor-grabbing p-1 hover:bg-slate-300/10 dark:hover:bg-white/5 rounded text-slate-400 hover:text-slate-200 flex-shrink-0">
+                                    <GripVertical size={13} />
+                                  </div>
+
+                                  <div className={`w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 ${
+                                    currentTheme === 'light' ? 'bg-slate-200/50 text-slate-700' : 'bg-white/5 text-white'
+                                  }`}>
+                                    {iconElement}
+                                  </div>
+
+                                  <div className="truncate pr-2 flex-1 min-w-0">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <span className={`text-[11px] font-bold block truncate leading-tight ${
+                                        link.disabled 
+                                          ? 'text-slate-400 dark:text-zinc-500 line-through font-normal' 
+                                          : currentTheme === 'light' ? 'text-slate-800' : 'text-white'
+                                      }`}>
+                                        {link.name}
+                                      </span>
+                                      {link.disabled && (
+                                        <span className="text-[7.5px] font-black tracking-wider uppercase bg-yellow-500/10 text-yellow-500 px-1 py-0.2 rounded border border-yellow-500/20">
+                                          Muted
+                                        </span>
+                                      )}
+                                    </div>
+                                    <span className="text-[9.5px] text-slate-400 truncate block leading-tight mt-0.5">
+                                      {link.handle}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Controls Toggle/Edit/Arrows/Delete */}
+                                <div className="flex items-center space-x-1 flex-shrink-0 z-30" onClick={(e) => e.stopPropagation()}>
+                                  {/* Toggle Disable/Enable */}
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      const nextDisabled = !link.disabled;
+                                      const updatedLink = { ...link, disabled: nextDisabled };
+                                      setSocialLinks(prev => prev.map(s => s.id === link.id ? updatedLink : s));
+                                      try {
+                                        await setDoc(doc(db, 'social_links', link.id), updatedLink);
+                                        triggerToast(`Social channel "${link.name}" ${nextDisabled ? 'disabled' : 'enabled'} successfully!`, 'success');
+                                      } catch (err) {
+                                        console.error('Error toggling social link:', err);
+                                        triggerToast('Failed to save status to database', 'error');
+                                      }
+                                    }}
+                                    className={`p-1 rounded cursor-pointer transition-colors ${
+                                      link.disabled
+                                        ? 'text-yellow-500 hover:bg-yellow-500/10'
+                                        : 'text-emerald-500 hover:bg-emerald-500/10'
+                                    }`}
+                                    title={link.disabled ? 'Enable Channel' : 'Disable/Mute Channel'}
+                                  >
+                                    {link.disabled ? <EyeOff size={13} /> : <Eye size={13} />}
+                                  </button>
+
+                                  {/* Edit button */}
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingItem({
+                                      type: 'social_link',
+                                      id: link.id,
+                                      data: { ...link }
+                                    })}
+                                    className="p-1 text-slate-400 hover:text-indigo-500 hover:bg-indigo-500/10 dark:hover:bg-white/5 rounded transition-colors cursor-pointer"
+                                    title="Edit Channel Details"
+                                  >
+                                    <Edit size={13} />
+                                  </button>
+
+                                  {/* Move Up */}
+                                  <button
+                                    type="button"
+                                    onClick={() => moveSocialChannel(idx, 'up')}
+                                    disabled={idx === 0}
+                                    className={`p-1 rounded transition-colors ${
+                                      idx === 0
+                                        ? 'text-slate-300 dark:text-zinc-700 cursor-not-allowed opacity-20'
+                                        : 'text-[#FF5500] hover:bg-indigo-500/10 dark:hover:bg-white/5 cursor-pointer'
+                                    }`}
+                                    title="Move Up"
+                                  >
+                                    <ChevronUp size={13} />
+                                  </button>
+
+                                  {/* Move Down */}
+                                  <button
+                                    type="button"
+                                    onClick={() => moveSocialChannel(idx, 'down')}
+                                    disabled={idx === socialLinks.length - 1}
+                                    className={`p-1 rounded transition-colors ${
+                                      idx === socialLinks.length - 1
+                                        ? 'text-slate-300 dark:text-zinc-700 cursor-not-allowed opacity-20'
+                                        : 'text-[#FF5500] hover:bg-indigo-500/10 dark:hover:bg-white/5 cursor-pointer'
+                                    }`}
+                                    title="Move Down"
+                                  >
+                                    <ChevronDown size={13} />
+                                  </button>
+
+                                  {/* Delete button */}
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      if (window.confirm(`Are you sure you want to remove the social channel "${link.name}"?`)) {
+                                        setSocialLinks(prev => prev.filter(s => s.id !== link.id));
+                                        setSelectedSocialIds(prev => prev.filter(id => id !== link.id));
+                                        try {
+                                          await deleteDoc(doc(db, 'social_links', link.id));
+                                          triggerToast('Social channel deleted successfully!', 'success');
+                                        } catch (err) {
+                                          console.error('Error deleting social link:', err);
+                                          triggerToast('Failed to delete channel from database', 'error');
+                                        }
+                                      }
+                                    }}
+                                    className="p-1 text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 rounded transition-colors cursor-pointer"
+                                    title="Delete Channel"
+                                  >
+                                    <Trash2 size={13} />
+                                  </button>
+                                </div>
+                              </Reorder.Item>
+                            );
+                          })
+                        )}
+                      </Reorder.Group>
+                    </div>
+
+                  </div>
+
+                  {/* HOMEPAGE BRAND & CORE IDENTITY EDITOR */}
+                  <div className={`p-6 rounded-3xl border ${s.card} space-y-6 lg:col-span-12 mt-4 text-left`}>
+                    <h3 className={`text-lg font-black flex items-center gap-2 ${
+                      currentTheme === 'light' ? 'text-slate-900' : 'text-white'
+                    }`}>
+                      <Settings size={18} className="text-[#FF5500]" />
+                      <span>Configure Live Web Branding &amp; Identities</span>
+                    </h3>
+                    <p className={`text-xs -mt-3 ${currentTheme === 'light' ? 'text-slate-650' : 'text-slate-400'}`}>
+                      Update the text, logo, top alert banner, phone numbers, contact email, address, and target CTAs. Changes are instantly saved globally in the Firestore cloud database and synchronized live for all visitors!
+                    </p>
+
+                    <form onSubmit={async (e) => {
+                      e.preventDefault();
+                      if (isSavingIdentity) return;
+                      setIsSavingIdentity(true);
+                      try {
+                        await updateSiteConfig({
+                          logoText,
+                          logoSubtext,
+                          bannerText,
+                          exploreButtonText,
+                          exploreButtonLink,
+                          contactPhoneIt,
+                          contactPhonePhotos,
+                          contactEmail,
+                          contactAddress
+                        });
+                        triggerToast('Live configurations updated in clouds successfully!', 'success');
+                      } catch (err) {
+                        console.error(err);
+                        triggerToast('Error saving remote adjustments.', 'error');
+                      } finally {
+                        setIsSavingIdentity(false);
+                      }
+                    }} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="space-y-1">
+                            <label className={`text-xs font-extrabold block ${currentTheme === 'light' ? 'text-slate-650' : 'text-slate-400'}`}>Brand Logo Title:</label>
+                            <input
+                              type="text"
+                              required
+                              value={logoText}
+                              onChange={(e) => setLogoText(e.target.value)}
+                              placeholder="e.g. MURARI PANJIYAR"
+                              className={`w-full px-4 py-2.5 rounded-xl text-xs outline-none transition-all ${s.input}`}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className={`text-xs font-extrabold block ${currentTheme === 'light' ? 'text-slate-650' : 'text-slate-400'}`}>Brand Logo Subtitle:</label>
+                            <input
+                              type="text"
+                              required
+                              value={logoSubtext}
+                              onChange={(e) => setLogoSubtext(e.target.value)}
+                              placeholder="e.g. Pixel Fix & Pixel Frame"
+                              className={`w-full px-4 py-2.5 rounded-xl text-xs outline-none transition-all ${s.input}`}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className={`text-xs font-extrabold block ${currentTheme === 'light' ? 'text-slate-650' : 'text-slate-400'}`}>Top Dynamic Alert Banner:</label>
+                          <textarea
+                            rows={2}
+                            required
+                            value={bannerText}
+                            onChange={(e) => setBannerText(e.target.value)}
+                            placeholder="Add top alert bar promotional info..."
+                            className={`w-full px-4 py-2 rounded-xl text-xs outline-none transition-all ${s.input} h-16 resize-none`}
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="space-y-1">
+                            <label className={`text-xs font-extrabold block ${currentTheme === 'light' ? 'text-slate-650' : 'text-slate-400'}`}>Explore Button Text:</label>
+                            <input
+                              type="text"
+                              required
+                              value={exploreButtonText}
+                              onChange={(e) => setExploreButtonText(e.target.value)}
+                              className={`w-full px-4 py-2.5 rounded-xl text-xs outline-none transition-all ${s.input}`}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className={`text-xs font-extrabold block ${currentTheme === 'light' ? 'text-slate-650' : 'text-slate-400'}`}>Explore Button Link/Tab:</label>
+                            <input
+                              type="text"
+                              required
+                              value={exploreButtonLink}
+                              onChange={(e) => setExploreButtonLink(e.target.value)}
+                              placeholder="e.g. #affiliate, #gallery, #contact"
+                              className={`w-full px-4 py-2.5 rounded-xl text-xs outline-none transition-all ${s.input}`}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="space-y-1">
+                            <label className={`text-xs font-extrabold block ${currentTheme === 'light' ? 'text-slate-650' : 'text-slate-400'}`}>Pixel Fix WhatsApp/Tel:</label>
+                            <input
+                              type="text"
+                              required
+                              value={contactPhoneIt}
+                              onChange={(e) => setContactPhoneIt(e.target.value)}
+                              placeholder="10-digit number e.g. 8638875231"
+                              className={`w-full px-4 py-2.5 rounded-xl text-xs outline-none transition-all ${s.input}`}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className={`text-xs font-extrabold block ${currentTheme === 'light' ? 'text-slate-650' : 'text-slate-400'}`}>Pixel Frame WhatsApp/Tel:</label>
+                            <input
+                              type="text"
+                              required
+                              value={contactPhonePhotos}
+                              onChange={(e) => setContactPhonePhotos(e.target.value)}
+                              placeholder="10-digit number e.g. 9864361940"
+                              className={`w-full px-4 py-2.5 rounded-xl text-xs outline-none transition-all ${s.input}`}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className={`text-xs font-extrabold block ${currentTheme === 'light' ? 'text-slate-650' : 'text-slate-400'}`}>Core Client Inquiry Email:</label>
+                          <input
+                            type="email"
+                            required
+                            value={contactEmail}
+                            onChange={(e) => setContactEmail(e.target.value)}
+                            className={`w-full px-4 py-2.5 rounded-xl text-xs outline-none transition-all ${s.input}`}
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className={`text-xs font-extrabold block ${currentTheme === 'light' ? 'text-slate-650' : 'text-slate-400'}`}>Office Business Location Address:</label>
+                          <input
+                            type="text"
+                            required
+                            value={contactAddress}
+                            onChange={(e) => setContactAddress(e.target.value)}
+                            className={`w-full px-4 py-2.5 rounded-xl text-xs outline-none transition-all ${s.input}`}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="md:col-span-2 flex justify-end pt-2 border-t border-slate-200/50 dark:border-white/5">
+                        <button
+                          type="submit"
+                          disabled={isSavingIdentity}
+                          className={`px-5 py-3 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer border select-none transition-all ${
+                            isSavingIdentity
+                              ? 'bg-[#FF5500]/50 text-white cursor-not-allowed border-transparent'
+                              : 'bg-[#FF5500] hover:bg-[#FF4400] text-white border-[#FF5500] shadow-md hover:scale-[1.01]'
+                          }`}
+                        >
+                          {isSavingIdentity ? 'Saving live settings...' : 'Push Adjustments to Live Site'}
+                        </button>
+                      </div>
+                    </form>
                   </div>
 
                   {/* GOOGLE DRIVE SYNC & ARCHIVE SUITE (FULL WIDTH CONTAINER) */}
@@ -5090,17 +6694,17 @@ export default function App() {
               <div className={`aspect-video w-full rounded-2xl overflow-hidden relative border ${
                 currentTheme === 'light' ? 'bg-slate-100 border-slate-200' : 'bg-black border-white/5'
               }`}>
-                <img
+                <LazyImage
                   src={previewImage.imageUrl}
                   alt={previewImage.altText}
                   className="w-full h-full object-contain"
-                  referrerPolicy="no-referrer"
+                  placeholderClassName="absolute inset-0 z-0"
                 />
               </div>
 
               <div className="space-y-2 text-left">
                 <span className="text-[10px] uppercase font-mono font-bold text-[#FF5500] tracking-wider px-2 py-0.5 bg-[#FF5500]/10 rounded border border-[#FF5500]/20 inline-block">
-                  {previewImage.category.toUpperCase()}
+                  {getCategoryLabel(previewImage.category).toUpperCase()}
                 </span>
                 <h3 className={`text-lg md:text-xl font-black ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
                   {previewImage.title}
@@ -5137,6 +6741,40 @@ export default function App() {
                   Close Spec Preview
                 </button>
               </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* INTERACTIVE SMPS PSU CALCULATOR MODAL */}
+      <AnimatePresence>
+        {isSmpsCalculatorOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setIsSmpsCalculatorOpen(false)}
+            className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 15 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 15 }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-3xl"
+            >
+              <button
+                onClick={() => setIsSmpsCalculatorOpen(false)}
+                className={`absolute top-4 right-4 p-2 rounded-full cursor-pointer z-50 transition-colors ${
+                  currentTheme === 'light' 
+                    ? 'text-slate-500 hover:text-slate-900 bg-slate-100 hover:bg-slate-200' 
+                    : 'text-slate-400 hover:text-white bg-black/60 hover:bg-black/80 border border-white/5'
+                }`}
+                aria-label="Close Calculator"
+              >
+                <X size={18} />
+              </button>
+              <SmpsCalculator currentTheme={currentTheme} />
             </motion.div>
           </motion.div>
         )}
@@ -5194,16 +6832,16 @@ export default function App() {
                 currentTheme === 'light' ? 'border-slate-200' : 'border-white/5'
               }`}>
                 <span>Pixel Fix Support:</span>
-                <a href="tel:8638875231" className="text-[#FF5500] font-bold hover:underline">
-                  +91-8638875231
+                <a href={`tel:${contactPhoneIt}`} className="text-[#FF5500] font-bold hover:underline">
+                  +91-{contactPhoneIt}
                 </a>
               </div>
               <div className={`flex items-center justify-between border-b pb-1 ${
                 currentTheme === 'light' ? 'border-slate-200' : 'border-white/5'
               }`}>
                 <span>Pixel Frame Photography:</span>
-                <a href="tel:9864361940" className="text-[#FF5500] font-bold hover:underline">
-                  +91-9864361940
+                <a href={`tel:${contactPhonePhotos}`} className="text-[#FF5500] font-bold hover:underline">
+                  +91-{contactPhonePhotos}
                 </a>
               </div>
             </div>
@@ -5226,6 +6864,161 @@ export default function App() {
           </div>
         </div>
       </footer>
+
+      {/* SERVICE DETAILS EXPANDED VIEW MODAL */}
+      <AnimatePresence>
+        {activeDetailService && (() => {
+          const extra = getExtraInclusionsAndSpecs(
+            activeDetailService.title,
+            activeDetailService.inclusions,
+            activeDetailService.technicalSpecs
+          );
+          return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                transition={{ duration: 0.25 }}
+                className={`w-full max-w-2xl p-6 md:p-8 rounded-[32px] border text-left shadow-2xl relative max-h-[90vh] overflow-y-auto ${
+                  currentTheme === 'light' 
+                    ? 'bg-white border-slate-350 text-slate-900 shadow-slate-200' 
+                    : 'bg-zinc-950 border-zinc-800 text-white'
+                }`}
+              >
+                {/* Close Button */}
+                <button
+                  type="button"
+                  onClick={() => setActiveDetailService(null)}
+                  className={`absolute top-5 right-5 p-2 rounded-full transition-all cursor-pointer ${
+                    currentTheme === 'light' 
+                      ? 'bg-slate-100 text-slate-500 hover:text-slate-900 hover:bg-slate-200' 
+                      : 'bg-white/5 text-slate-400 hover:text-white hover:bg-white/15'
+                  }`}
+                >
+                  <X size={18} />
+                </button>
+
+                {/* Header Section */}
+                <div className="space-y-4 pr-8">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full ${
+                      activeDetailService.type === 'it'
+                        ? 'bg-orange-500/10 text-[#FF5500] border border-[#FF5500]/20'
+                        : 'bg-indigo-500/10 text-indigo-400 border border-indigo-400/20'
+                    }`}>
+                      {activeDetailService.type === 'it' ? 'Pixel Fix IT Services' : 'Pixel Frame Photography'}
+                    </span>
+                    <span className={`text-xs font-bold px-3 py-1 rounded-full ${
+                      currentTheme === 'light' ? 'bg-slate-100 text-slate-700' : 'bg-white/5 text-slate-300'
+                    }`}>
+                      {activeDetailService.price}
+                    </span>
+                  </div>
+
+                  <h2 className={`text-2xl md:text-3xl font-black tracking-tight ${
+                    currentTheme === 'light' ? 'text-slate-950' : 'text-white'
+                  }`}>
+                    {activeDetailService.title}
+                  </h2>
+
+                  <p className={`text-sm leading-relaxed ${
+                    currentTheme === 'light' ? 'text-slate-600' : 'text-slate-400'
+                  }`}>
+                    {activeDetailService.description}
+                  </p>
+                </div>
+
+                {/* Grid of Inclusions & Specifications */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8 pt-6 border-t border-slate-200/50 dark:border-white/5">
+                  {/* Left Column: Exhaustive Inclusions */}
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 text-[#FF5500]">
+                      <CheckCircle2 size={18} />
+                      <h4 className="text-sm font-black uppercase tracking-wider">Service Inclusions</h4>
+                    </div>
+                    <ul className="space-y-3">
+                      {extra.inclusions.map((inc: string, idx: number) => (
+                        <li key={idx} className="flex gap-2.5 items-start text-xs">
+                          <span className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-[#FF5500] mt-1.5" />
+                          <span className={currentTheme === 'light' ? 'text-slate-700' : 'text-slate-300'}>
+                            {inc}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Right Column: Technical Specifications */}
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 text-indigo-400">
+                      {activeDetailService.type === 'it' ? <Cpu size={18} /> : <Camera size={18} />}
+                      <h4 className="text-sm font-black uppercase tracking-wider">Technical Specs</h4>
+                    </div>
+                    <ul className="space-y-3 font-mono text-[11px] leading-relaxed">
+                      {extra.technicalSpecs.map((spec: string, idx: number) => (
+                        <li key={idx} className={`p-2.5 rounded-xl border ${
+                          currentTheme === 'light' 
+                            ? 'bg-slate-50 border-slate-200 text-slate-800' 
+                            : 'bg-white/5 border-white/5 text-zinc-300'
+                        }`}>
+                          <span className="block font-semibold text-[#FF5500]">
+                            {spec.split(':')[0]}:
+                          </span>
+                          <span className="block mt-0.5 opacity-90">
+                            {spec.split(':').slice(1).join(':').trim()}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+
+                {/* Footer Actions */}
+                <div className="flex flex-wrap items-center justify-between gap-4 mt-8 pt-6 border-t border-slate-200/50 dark:border-white/5">
+                  <div className="text-xs text-slate-400">
+                    *Available across Guwahati and regional Assam districts.
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setActiveDetailService(null)}
+                      className={`px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+                        currentTheme === 'light'
+                          ? 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200'
+                          : 'bg-white/5 hover:bg-white/10 text-white'
+                      }`}
+                    >
+                      Close
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBookingName('');
+                        if (activeDetailService.type === 'it') {
+                          setBookingNotes(`Interested in package: ${activeDetailService.title}. please call.`);
+                          setQuoteType('pixelfix');
+                        } else {
+                          setBookingNotes(`Inquiring about photography category: ${activeDetailService.title}. please coordinate dates.`);
+                          setQuoteType('pixelframe');
+                        }
+                        setActiveDetailService(null);
+                        const element = document.getElementById('interactive-calculator-widget');
+                        if (element) {
+                          element.scrollIntoView({ behavior: 'smooth' });
+                        }
+                      }}
+                      className="bg-[#FF5500] hover:bg-[#FF5500]/90 text-white text-xs uppercase font-extrabold px-5 py-2.5 rounded-xl flex items-center gap-1.5 transition-all cursor-pointer shadow-lg shadow-[#FF5500]/20"
+                    >
+                      <ArrowUpRight size={14} /> Configure Estimate
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          );
+        })()}
+      </AnimatePresence>
 
       {/* DYNAMIC ADMINISTRATIVE RESOURCE EDIT MODAL */}
       <AnimatePresence>
@@ -5261,6 +7054,7 @@ export default function App() {
                       {editingItem.type === 'testimonial' && 'Configure Customer Review'}
                       {editingItem.type === 'pixelfix_review' && 'Configure Pixel Fix IT Review'}
                       {editingItem.type === 'affiliate_link' && 'Configure Curated Affiliate Deal'}
+                      {editingItem.type === 'social_link' && 'Configure Social Media Channel & Link'}
                     </h3>
                   </div>
                 </div>
@@ -5276,10 +7070,12 @@ export default function App() {
                         const updated = [...itServices];
                         updated[editingItem.index!] = editingItem.data;
                         setItServices(updated);
+                        await updateSiteConfig({ itServices: updated });
                       } else if (editingItem.type === 'photo_service') {
                         const updated = [...photoServices];
                         updated[editingItem.index!] = editingItem.data;
                         setPhotoServices(updated);
+                        await updateSiteConfig({ photoServices: updated });
                       } else if (editingItem.type === 'instagram') {
                         const itemData = { ...editingItem.data, imageUrl: toDirectDriveUrl(editingItem.data.imageUrl) };
                         const exists = instagramPosts.some(p => p.id === itemData.id);
@@ -5289,12 +7085,26 @@ export default function App() {
                           setInstagramPosts([itemData, ...instagramPosts]);
                         }
                       } else if (editingItem.type === 'hero') {
-                        setHeroHeadline(editingItem.data.headline);
-                        setHeroSubheadline(editingItem.data.subheadline);
-                        setProfilePhotoUrl(toDirectDriveUrl(editingItem.data.photoUrl));
+                        const nextHeadline = editingItem.data.headline;
+                        const nextSubheadline = editingItem.data.subheadline;
+                        const nextPhoto = toDirectDriveUrl(editingItem.data.photoUrl);
+                        setHeroHeadline(nextHeadline);
+                        setHeroSubheadline(nextSubheadline);
+                        setProfilePhotoUrl(nextPhoto);
+                        await updateSiteConfig({
+                          heroHeadline: nextHeadline,
+                          heroSubheadline: nextSubheadline,
+                          profilePhotoUrl: nextPhoto
+                        });
                       } else if (editingItem.type === 'about') {
-                        setBioHeadline(editingItem.data.bioHeadline);
-                        setBioText(editingItem.data.bioText);
+                        const nextBioHeadline = editingItem.data.bioHeadline;
+                        const nextBioText = editingItem.data.bioText;
+                        setBioHeadline(nextBioHeadline);
+                        setBioText(nextBioText);
+                        await updateSiteConfig({
+                          bioHeadline: nextBioHeadline,
+                          bioText: nextBioText
+                        });
                       } else if (editingItem.type === 'gallery_item') {
                         const itemData = { ...editingItem.data, imageUrl: toDirectDriveUrl(editingItem.data.imageUrl) };
                         const exists = galleryItems.some(item => item.id === itemData.id);
@@ -5304,19 +7114,25 @@ export default function App() {
                           setGalleryItems([itemData, ...galleryItems]);
                         }
                       } else if (editingItem.type === 'testimonial') {
+                        let updated;
                         const exists = testimonials.some(t => t.id === editingItem.data.id);
                         if (exists) {
-                          setTestimonials(testimonials.map(t => t.id === editingItem.data.id ? editingItem.data : t));
+                          updated = testimonials.map(t => t.id === editingItem.data.id ? editingItem.data : t);
                         } else {
-                          setTestimonials([...testimonials, editingItem.data]);
+                          updated = [...testimonials, editingItem.data];
                         }
+                        setTestimonials(updated);
+                        await updateSiteConfig({ testimonials: updated });
                       } else if (editingItem.type === 'pixelfix_review') {
+                        let updated;
                         const exists = pixelFixReviews.some(t => t.id === editingItem.data.id);
                         if (exists) {
-                          setPixelFixReviews(pixelFixReviews.map(t => t.id === editingItem.data.id ? editingItem.data : t));
+                          updated = pixelFixReviews.map(t => t.id === editingItem.data.id ? editingItem.data : t);
                         } else {
-                          setPixelFixReviews([...pixelFixReviews, editingItem.data]);
+                          updated = [...pixelFixReviews, editingItem.data];
                         }
+                        setPixelFixReviews(updated);
+                        await updateSiteConfig({ pixelFixReviews: updated });
                       } else if (editingItem.type === 'affiliate_link') {
                         const itemData = {
                           id: editingItem.data.id || 'aff_' + Date.now().toString(),
@@ -5344,6 +7160,34 @@ export default function App() {
                         } catch (err) {
                           console.error("Error writing affiliate link to Firestore: ", err);
                           handleFirestoreError(err, OperationType.WRITE, 'affiliate_links/' + itemData.id);
+                        }
+                      } else if (editingItem.type === 'social_link') {
+                        const itemData = {
+                          id: editingItem.data.id || 'soc_' + Date.now().toString(),
+                          name: editingItem.data.name || '',
+                          handle: editingItem.data.handle || '',
+                          url: editingItem.data.url || '',
+                          platform: editingItem.data.platform || 'custom',
+                          badge: editingItem.data.badge || '',
+                          order: typeof editingItem.data.order === 'number' ? editingItem.data.order : 0,
+                          disabled: editingItem.data.disabled ?? false,
+                          customIcon: editingItem.data.customIcon || ''
+                        };
+
+                        setSocialLinks((prev) => {
+                          const exists = prev.some(s => s.id === itemData.id);
+                          if (exists) {
+                            return prev.map(s => s.id === itemData.id ? itemData : s).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+                          } else {
+                            return [...prev, itemData].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+                          }
+                        });
+
+                        try {
+                          await setDoc(doc(db, 'social_links', itemData.id), itemData);
+                        } catch (err) {
+                          console.error("Error writing social link to Firestore: ", err);
+                          handleFirestoreError(err, OperationType.WRITE, 'social_links/' + itemData.id);
                         }
                       }
 
@@ -5657,10 +7501,10 @@ export default function App() {
                               currentTheme === 'light' ? 'bg-slate-50 border-slate-300 text-slate-900 focus:border-[#FF5500]' : 'bg-black/45 border-white/10 text-white focus:border-[#FF5500]'
                             }`}
                           >
-                            <option value="wedding">💍 Weddings</option>
-                            <option value="party">🎂 Celebrations & Events</option>
-                            <option value="corporate">👔 Corporate Summit</option>
-                            <option value="custom">📸 Custom Outdoors</option>
+                            <option value="wedding">💍 Wedding</option>
+                            <option value="corporate">👔 Corporate</option>
+                            <option value="party">🎉 Events</option>
+                            <option value="custom">🌲 Outdoor</option>
                           </select>
                         </div>
                         <div className="space-y-1">
@@ -5853,13 +7697,13 @@ export default function App() {
                         <label className={`text-[10px] uppercase font-mono font-bold tracking-wider ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
                           Product Title
                         </label>
-                        <input
+                        <LagFreeInput
                           type="text"
                           required
                           value={editingItem.data.title || ''}
-                          onChange={(ev) => setEditingItem({
+                          onChange={(val) => setEditingItem({
                             ...editingItem,
-                            data: { ...editingItem.data, title: ev.target.value }
+                            data: { ...editingItem.data, title: val }
                           })}
                           className={`w-full p-2.5 rounded-xl border outline-none font-sans font-bold text-xs ${
                             currentTheme === 'light' 
@@ -5875,13 +7719,13 @@ export default function App() {
                         <label className={`text-[10px] uppercase font-mono font-bold tracking-wider ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
                           Categories (Select Multiple / Create New)
                         </label>
-                        <input
+                        <LagFreeInput
                           type="text"
                           required
                           value={editingItem.data.category || ''}
-                          onChange={(ev) => setEditingItem({
+                          onChange={(val) => setEditingItem({
                             ...editingItem,
-                            data: { ...editingItem.data, category: ev.target.value.toLowerCase().replace(/\s+/g, '_') }
+                            data: { ...editingItem.data, category: val.toLowerCase().replace(/\s+/g, '_') }
                           })}
                           className={`w-full p-2.5 rounded-xl border outline-none text-xs font-mono mb-1 ${
                             currentTheme === 'light' 
@@ -5946,24 +7790,60 @@ export default function App() {
 
                       {/* Redirect Link URL */}
                       <div className="space-y-1 text-left">
-                        <label className={`text-[10px] uppercase font-mono font-bold tracking-wider ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
-                          Affiliate Link (Target Buy URL)
-                        </label>
-                        <input
+                        <div className="flex justify-between items-center">
+                          <label className={`text-[10px] uppercase font-mono font-bold tracking-wider ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
+                            Affiliate Link (Target Buy URL)
+                          </label>
+                          {isFetchingAmazon && (
+                            <span className="text-[9px] text-amber-500 font-mono font-bold uppercase animate-pulse flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping inline-block" />
+                              Auto-Fetching...
+                            </span>
+                          )}
+                        </div>
+                        <LagFreeInput
                           type="url"
                           required
                           value={editingItem.data.url || ''}
-                          onChange={(ev) => setEditingItem({
+                          onChange={(val) => setEditingItem({
                             ...editingItem,
-                            data: { ...editingItem.data, url: ev.target.value }
+                            data: { ...editingItem.data, url: val }
                           })}
                           className={`w-full p-2.5 rounded-xl border outline-none text-xs font-sans ${
                             currentTheme === 'light' 
                               ? 'bg-slate-50/50 border-slate-200 text-slate-900 focus:border-amber-500' 
                               : 'bg-black/30 border-white/5 text-white focus:border-amber-500'
-                          }`}
+                          } ${isFetchingAmazon ? 'border-amber-500/50 focus:border-amber-500' : ''}`}
                           placeholder="e.g. https://amzn.to/3xyzabc"
                         />
+                        
+                        <div className="flex justify-between items-center mt-1">
+                          <p className="text-[8px] text-slate-400 font-sans leading-normal">
+                            Paste an Amazon product link to automatically populate the title, description, image, and price.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              lastFetchedUrlRef.current = editingItem.data.url;
+                              fetchAmazonDetails(editingItem.data.url);
+                            }}
+                            disabled={isFetchingAmazon || !editingItem.data.url}
+                            className={`px-2 py-0.5 rounded text-[8px] font-mono font-bold tracking-wider flex items-center gap-1 transition-all ${
+                              isFetchingAmazon
+                                ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20 cursor-not-allowed animate-pulse'
+                                : editingItem.data.url
+                                  ? 'bg-amber-500 hover:bg-amber-600 text-white cursor-pointer shadow-sm hover:shadow'
+                                  : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed dark:bg-white/5 dark:border-white/5 dark:text-zinc-500'
+                            }`}
+                          >
+                            <span>{isFetchingAmazon ? '⚡ FETCHING...' : '✨ AUTO-FILL'}</span>
+                          </button>
+                        </div>
+                        {amazonFetchError && (
+                          <p className="text-[8.5px] text-red-500 font-mono mt-1">
+                            ⚠️ {amazonFetchError}
+                          </p>
+                        )}
                       </div>
 
                       {/* Showcase Product Photo Upload + Direct Link */}
@@ -5983,13 +7863,13 @@ export default function App() {
                             data: { ...editingItem.data, imageUrl: val }
                           })}
                         />
-                        <input
+                        <LagFreeInput
                           type="text"
                           required
                           value={editingItem.data.imageUrl || ''}
-                          onChange={(ev) => setEditingItem({
+                          onChange={(val) => setEditingItem({
                             ...editingItem,
-                            data: { ...editingItem.data, imageUrl: ev.target.value }
+                            data: { ...editingItem.data, imageUrl: val }
                           })}
                           className={`w-full p-2 rounded-lg border outline-none text-[10px] ${
                             currentTheme === 'light' 
@@ -6055,11 +7935,11 @@ export default function App() {
                           <div className="mt-1.5 p-1 rounded-xl border border-white/5 bg-black/20">
                             <span className="text-[8.5px] font-mono text-zinc-400 block mb-1">Preview of Image Asset:</span>
                             <div className="relative aspect-video w-full rounded-lg overflow-hidden bg-zinc-950 border border-white/5">
-                              <img
+                              <LazyImage
                                 src={editingItem.data.imageUrl}
                                 alt="Asset preview"
-                                referrerPolicy="no-referrer"
                                 className="w-full h-full object-cover"
+                                placeholderClassName="absolute inset-0 z-0"
                               />
                             </div>
                           </div>
@@ -6071,12 +7951,12 @@ export default function App() {
                         <label className={`text-[10px] uppercase font-mono font-bold tracking-wider ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
                           Promo / Discount Code (Optional)
                         </label>
-                        <input
+                        <LagFreeInput
                           type="text"
                           value={editingItem.data.discountCode || ''}
-                          onChange={(ev) => setEditingItem({
+                          onChange={(val) => setEditingItem({
                             ...editingItem,
-                            data: { ...editingItem.data, discountCode: ev.target.value }
+                            data: { ...editingItem.data, discountCode: val }
                           })}
                           className={`w-full p-2.5 rounded-xl border outline-none text-xs font-mono ${
                             currentTheme === 'light' 
@@ -6092,13 +7972,13 @@ export default function App() {
                         <label className={`text-[10px] uppercase font-mono font-bold tracking-wider ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
                           Recommendation Text / Testimony
                         </label>
-                        <textarea
+                        <LagFreeTextArea
                           required
                           rows={3}
                           value={editingItem.data.description || ''}
-                          onChange={(ev) => setEditingItem({
+                          onChange={(val) => setEditingItem({
                             ...editingItem,
-                            data: { ...editingItem.data, description: ev.target.value }
+                            data: { ...editingItem.data, description: val }
                           })}
                           className={`w-full p-2.5 rounded-xl border outline-none text-xs font-sans leading-relaxed ${
                             currentTheme === 'light' 
@@ -6106,6 +7986,178 @@ export default function App() {
                               : 'bg-black/30 border-white/5 text-white focus:border-amber-500'
                           }`}
                           placeholder="Explain why this gadget/software is highly recommended..."
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {editingItem.type === 'social_link' && (
+                    <div className="space-y-3">
+                      <div className="space-y-1 text-left">
+                        <label className={`text-[10px] uppercase font-mono font-bold tracking-wider ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
+                          Channel Name
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={editingItem.data.name || ''}
+                          onChange={(ev) => setEditingItem({
+                            ...editingItem,
+                            data: { ...editingItem.data, name: ev.target.value }
+                          })}
+                          className={`w-full p-2.5 rounded-xl border outline-none text-xs font-mono mb-1 ${
+                            currentTheme === 'light' 
+                              ? 'bg-slate-50/50 border-slate-200 text-slate-950 focus:border-indigo-500' 
+                              : 'bg-black/30 border-white/5 text-slate-100 focus:border-indigo-500'
+                          }`}
+                          placeholder="e.g. Instagram (Murari)"
+                        />
+                      </div>
+
+                      <div className="space-y-1 text-left">
+                        <label className={`text-[10px] uppercase font-mono font-bold tracking-wider ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
+                          Handle / Label / Detail
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={editingItem.data.handle || ''}
+                          onChange={(ev) => setEditingItem({
+                            ...editingItem,
+                            data: { ...editingItem.data, handle: ev.target.value }
+                          })}
+                          className={`w-full p-2.5 rounded-xl border outline-none text-xs font-mono mb-1 ${
+                            currentTheme === 'light' 
+                              ? 'bg-slate-50/50 border-slate-200 text-slate-950 focus:border-indigo-500' 
+                              : 'bg-black/30 border-white/5 text-slate-100 focus:border-indigo-500'
+                          }`}
+                          placeholder="e.g. @mpanjiyar1 or +91 8638875231"
+                        />
+                      </div>
+
+                      <div className="space-y-1 text-left">
+                        <label className={`text-[10px] uppercase font-mono font-bold tracking-wider ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
+                          Destination URL Link
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={editingItem.data.url || ''}
+                          onChange={(ev) => setEditingItem({
+                            ...editingItem,
+                            data: { ...editingItem.data, url: ev.target.value }
+                          })}
+                          className={`w-full p-2.5 rounded-xl border outline-none text-xs font-mono mb-1 ${
+                            currentTheme === 'light' 
+                              ? 'bg-slate-50/50 border-slate-200 text-slate-950 focus:border-indigo-500' 
+                              : 'bg-black/30 border-white/5 text-slate-100 focus:border-indigo-500'
+                          }`}
+                          placeholder="https://instagram.com/..."
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1 text-left">
+                          <label className={`text-[10px] uppercase font-mono font-bold tracking-wider ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
+                            Icon Platform
+                          </label>
+                          <select
+                            value={editingItem.data.platform || 'instagram'}
+                            onChange={(ev) => setEditingItem({
+                              ...editingItem,
+                              data: { ...editingItem.data, platform: ev.target.value }
+                            })}
+                            className={`w-full p-2.5 rounded-xl border outline-none text-xs font-mono ${
+                              currentTheme === 'light' 
+                                ? 'bg-slate-50/50 border-slate-200 text-slate-950 focus:border-indigo-500' 
+                                : 'bg-black/30 border-white/5 text-slate-100 focus:border-indigo-500'
+                            }`}
+                          >
+                            <option value="instagram">Instagram</option>
+                            <option value="whatsapp">WhatsApp</option>
+                            <option value="facebook">Facebook</option>
+                            <option value="youtube">YouTube</option>
+                            <option value="twitter">Twitter / X</option>
+                            <option value="linkedin">LinkedIn</option>
+                            <option value="camera">Camera (500px/PulsePX)</option>
+                            <option value="etejo">Etejo Custom</option>
+                            <option value="custom">Generic Web Icon</option>
+                          </select>
+                        </div>
+
+                        <div className="space-y-1 text-left">
+                          <label className={`text-[10px] uppercase font-mono font-bold tracking-wider ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
+                            Status Badge (Optional)
+                          </label>
+                          <input
+                            type="text"
+                            value={editingItem.data.badge || ''}
+                            onChange={(ev) => setEditingItem({
+                              ...editingItem,
+                              data: { ...editingItem.data, badge: ev.target.value }
+                            })}
+                            className={`w-full p-2.5 rounded-xl border outline-none text-xs font-mono ${
+                              currentTheme === 'light' 
+                                ? 'bg-slate-50/50 border-slate-200 text-slate-950 focus:border-indigo-500' 
+                                : 'bg-black/30 border-white/5 text-slate-100 focus:border-indigo-500'
+                            }`}
+                            placeholder="e.g. Tech, Studio"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Custom Icon Field */}
+                      <div className="space-y-1 text-left">
+                        <label className={`text-[10px] uppercase font-mono font-bold tracking-wider ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
+                          Custom Selectable Icon Override
+                        </label>
+                        <select
+                          value={editingItem.data.customIcon || ''}
+                          onChange={(ev) => setEditingItem({
+                            ...editingItem,
+                            data: { ...editingItem.data, customIcon: ev.target.value }
+                          })}
+                          className={`w-full p-2.5 rounded-xl border outline-none text-xs font-mono ${
+                            currentTheme === 'light' 
+                              ? 'bg-slate-50/50 border-slate-200 text-slate-950 focus:border-indigo-500' 
+                              : 'bg-black/30 border-white/5 text-slate-100 focus:border-indigo-500'
+                          }`}
+                        >
+                          <option value="">-- No custom icon (Use platform icon) --</option>
+                          <option value="twitter">Twitter / X Icon</option>
+                          <option value="linkedin">LinkedIn Icon</option>
+                          <option value="github">GitHub Icon</option>
+                          <option value="slack">Slack Icon</option>
+                          <option value="twitch">Twitch Icon</option>
+                          <option value="dribbble">Dribbble Icon</option>
+                          <option value="briefcase">Briefcase (Work Showcase)</option>
+                          <option value="globe">Globe / Website Icon</option>
+                          <option value="mail">Email Icon</option>
+                          <option value="phone">Phone/WhatsApp Icon</option>
+                          <option value="link">Cyan Chain Link Icon</option>
+                        </select>
+                        <p className={`text-[10px] ${currentTheme === 'light' ? 'text-slate-500' : 'text-zinc-400'} mt-1 leading-normal`}>
+                          Choose a specific branded icon to override default platform icons. Perfect for 'Twitter' or 'LinkedIn'.
+                        </p>
+                      </div>
+
+                      <div className="space-y-1 text-left">
+                        <label className={`text-[10px] uppercase font-mono font-bold tracking-wider ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
+                          Sort Order (Integer)
+                        </label>
+                        <input
+                          type="number"
+                          required
+                          value={typeof editingItem.data.order === 'number' ? editingItem.data.order : 0}
+                          onChange={(ev) => setEditingItem({
+                            ...editingItem,
+                            data: { ...editingItem.data, order: parseInt(ev.target.value) || 0 }
+                          })}
+                          className={`w-full p-2.5 rounded-xl border outline-none text-xs font-mono mb-1 ${
+                            currentTheme === 'light' 
+                              ? 'bg-slate-50/50 border-slate-200 text-slate-950 focus:border-indigo-500' 
+                              : 'bg-black/30 border-white/5 text-slate-100 focus:border-indigo-500'
+                          }`}
                         />
                       </div>
                     </div>

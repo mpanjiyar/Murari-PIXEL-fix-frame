@@ -16,6 +16,20 @@ export const INITIAL_IT_SERVICES: ServiceDetail[] = [
       'Wi-Fi router configuration and signal optimization',
       'Data recovery & backup services',
       'Virus, adware, and bloatware clean-up'
+    ],
+    inclusions: [
+      'Complete physical cleaning of laptop/PC cooling fans & vents',
+      'Thermal paste replacement (with high-grade thermal compound)',
+      'Component diagnostic sweep (RAM, SSD/HDD integrity check)',
+      'Local network integration & custom Wi-Fi setup',
+      'Secure data extraction from legacy, unbootable drives'
+    ],
+    technicalSpecs: [
+      'Supported OS: Windows 10, Windows 11, macOS, Linux (Ubuntu/Debian)',
+      'Storage Diagnostic Engines: CrystalDiskInfo, HD Tune Pro',
+      'Network Auditing Range: 2.4GHz & 5.0GHz dual-band wireless networks',
+      'Thermal Compounds Utilized: Noctua NT-H1, Arctic MX-4',
+      'Standard Diagnostic TAT: Under 60 minutes on-site'
     ]
   },
   {
@@ -28,6 +42,20 @@ export const INITIAL_IT_SERVICES: ServiceDetail[] = [
       'Essential driver installations (Graphics, Sound, Network)',
       'Backup of important files before clean install',
       'Performance optimization and fast-boot registry setup'
+    ],
+    inclusions: [
+      'Full drive partition alignment and GPT/MBR sector optimization',
+      'Clean installation of official Microsoft Windows 10/11 operating system',
+      'Essential runtime drivers (Intel/AMD chipset, realtek audio, proprietary graphics)',
+      'Pre-installation manual secure user backup & post-installation restoration',
+      'Custom system performance registry tuning & junk telemetry disabling'
+    ],
+    technicalSpecs: [
+      'Platform Security: UEFI Secure Boot enabled, TPM 2.0 configuration',
+      'File System Standard: NTFS (system drives), exFAT (shared storage)',
+      'Hardware Minimums Verified: 4GB RAM, 64GB SSD storage, 1GHz dual-core 64-bit CPU',
+      'Driver Registry: Official vendor repositories (NVIDIA, AMD, Intel, Realtek)',
+      'Windows Update State: Fully patched to latest stable biannual channel build'
     ]
   },
   {
@@ -40,6 +68,20 @@ export const INITIAL_IT_SERVICES: ServiceDetail[] = [
       'Acrobat Reader & PDF tool chain installations',
       'Tailored troubleshooting for spreadsheet automation macros',
       'Multi-device activation advice and support'
+    ],
+    inclusions: [
+      'Genuine MS Office 2019/2021/2024 license deployment assistance',
+      'Complete IMAP/SMTP corporate and personal email integration (Outlook/Thunderbird)',
+      'Full Adobe PDF toolkit setup with seamless digital signature certificate workflows',
+      'Advanced Excel calculation optimization (rebuilding faulty macro files or VLOOKUPs)',
+      'Custom browser optimization (secure password managers & hardware-accelerated rendering)'
+    ],
+    technicalSpecs: [
+      'Suite Compatibility: Microsoft 365, Office Home & Business standalone editions',
+      'Encryption Standards: TLS 1.2 / TLS 1.3 for secure email transmissions',
+      'Scripting Environment: VBA (Visual Basic for Applications) debugging enabled',
+      'PDF Standard: ISO 32000 compliant digital document containers',
+      'Performance Profile: Tailored memory allocation for large data sheets'
     ]
   }
 ];
@@ -55,6 +97,20 @@ export const INITIAL_PHOTO_SERVICES: ServiceDetail[] = [
       'Stunning cinematic couples shoot at premium heritage locations',
       'High-resolution edited WebP image collections delivered quickly',
       'Optional premium print coffee-table photobook album'
+    ],
+    inclusions: [
+      'Dual-photographer coverage (Murari Panjiyar as lead candid photographer + 1 traditional assistant)',
+      'Comprehensive high-speed cinematic lens setups (wide angles, prime portraiture optics)',
+      'Complete editing (color correction, cinematic film presets, and skin-tone optimization)',
+      'Seamless high-resolution web gallery download link available for 12 months',
+      '1 Deluxe hand-stitched leatherette coffee-table album with 40-sheet lay-flat printing'
+    ],
+    technicalSpecs: [
+      'Primary Camera Bodies: Dual Nikon Z9 & Nikon Z8 mirrorless architectures',
+      'Optic Assortment: NIKKOR Z 85mm f/1.2 S, Z 50mm f/1.2 S, Z 135mm f/1.8 S Plena',
+      'Resolution Delivery: 45.7 Megapixel RAW captures exported to high-fidelity WebP/JPEG',
+      'Lighting Gear: Godox AD600Pro off-camera outdoor strobe and multiple on-camera speedlights',
+      'Color Standards: Customized sRGB & Adobe RGB presets tailored for high-contrast traditional prints'
     ]
   },
   {
@@ -67,6 +123,20 @@ export const INITIAL_PHOTO_SERVICES: ServiceDetail[] = [
       'Beautiful details of intricate henna designs and floral backdrops',
       'Nikon high-contrast low-light optimization for indoor events',
       'Vibrant digital photo registry delivered seamlessly'
+    ],
+    inclusions: [
+      'Lead coverage by Murari Panjiyar with a dedicated indoor lighting assistant',
+      'Creative props & beautiful custom backdrops coordination assistance',
+      'Detailed close-up shots of delicate traditional hand henna designs (Mehndi) and floral setups',
+      'Artistic maternal portraits with family, friends, and ritual participants',
+      'High-speed digital transfer of edited images within 7 business days'
+    ],
+    technicalSpecs: [
+      'Main Body: Nikon Z8 with silent electronic shutter (zero disturbance during sacred rites)',
+      'Optics Utilized: NIKKOR Z 35mm f/1.8 S, Z 85mm f/1.2 S',
+      'Color Space: High-contrast warm, pastel, and glowing golden-hour tones',
+      'Flash Power: Balanced on-camera bounce flashes with soft diffusers',
+      'Output Formats: 24MP optimized digital copies & ultra-high-resolution print files'
     ]
   },
   {
@@ -79,6 +149,20 @@ export const INITIAL_PHOTO_SERVICES: ServiceDetail[] = [
       'Express photo correction & digital album transfer within 48h',
       'Low-light customized lens configuration for ambient party lights',
       'Group shots and detail-oriented decor photography'
+    ],
+    inclusions: [
+      'Solo photographer coverage by Murari Panjiyar',
+      'Live guest portrait-booth corner setup with dynamic lighting',
+      'Express selection gallery with immediate social media sharing folder (within 48 hours)',
+      'Interactive digital photo-album portal with simple guest downloads',
+      'Candid coverage of events, cake cutting, dancing, and décor'
+    ],
+    technicalSpecs: [
+      'Camera Gear: Nikon Z8 mirrorless paired with rapid-focus autofocus lines',
+      'Optics: NIKKOR Z 24-70mm f/2.8 S for dynamic focal versatility',
+      'Focus Performance: Dual eye-tracking auto-focus (dogs, babies, moving crowds)',
+      'Night Performance: Specialized ISO 6400 high-noise-cleansing optimization',
+      'Format: Web-optimized digital delivery for smartphones and iPads'
     ]
   },
   {
@@ -91,6 +175,20 @@ export const INITIAL_PHOTO_SERVICES: ServiceDetail[] = [
       'Speeches, awards, panel discussions, and milestone activities',
       'High-speed deliverable flow for instant social media scheduling',
       'Sleek, professional aesthetic styled with soft, neutral lighting'
+    ],
+    inclusions: [
+      'Unobtrusive, professional on-site coverage by Murari Panjiyar',
+      'High-speed edit-delivery loop (same-day or next-morning PR releases)',
+      'Clean headshot setup on location for keynote speakers or executives',
+      'Event branding elements & sponsor logo placement focus',
+      'Full commercial-use license and print release documentation'
+    ],
+    technicalSpecs: [
+      'Camera Gear: Silent dual-card backup Nikon Z9 master system',
+      'Optics: NIKKOR Z 70-200mm f/2.8 VR S telephoto & NIKKOR Z 14-24mm f/2.8 S ultra-wide',
+      'ISO Noise Guard: Pin-sharp indoor performance up to ISO 12800',
+      'Corporate Palette: Elegant, crisp, cool-neutral color profile suited for business reports',
+      'Resolution: High-definition 300 DPI files for billboards, press kits, and print annuals'
     ]
   },
   {
@@ -103,9 +201,95 @@ export const INITIAL_PHOTO_SERVICES: ServiceDetail[] = [
       'Flexible digital resolution outputs optimized for digital/print use',
       'Color tone customized themes (moody dark, glowing warm, high-fictional)',
       'Multi-concept wardrobe change flexibility'
+    ],
+    inclusions: [
+      'Guided pre-shoot mood boards, styling consultations, and location selection',
+      '2 hours of comprehensive solo or couple portrait shoot in Guwahati scenic locations',
+      'Unlimited wardrobe adjustments within the session duration',
+      'Fully post-processed, magazine-style professional airbrushed portraits',
+      'Access to download digital portfolio files in premium color-grading styles'
+    ],
+    technicalSpecs: [
+      'Camera System: Nikon Z9 with medium-format mimicking portrait optics',
+      'Optics: NIKKOR Z 135mm f/1.8 S Plena & Z 50mm f/1.2 S',
+      'Portrait Bokeh: Gorgeous, natural f/1.2 - f/1.8 optical bokeh rendering',
+      'Lighting System: Ultra-portable Godox AD200Pro strobe with collapsible octabox diffuser',
+      'File Standard: 16-bit TIFF master files and web-ready compressed formats'
     ]
   }
 ];
+
+export function getExtraInclusionsAndSpecs(title: string, currentInclusions?: string[], currentSpecs?: string[]): { inclusions: string[], technicalSpecs: string[] } {
+  if (currentInclusions && currentInclusions.length > 0 && currentSpecs && currentSpecs.length > 0) {
+    return { inclusions: currentInclusions, technicalSpecs: currentSpecs };
+  }
+
+  const lowercaseTitle = title.toLowerCase();
+
+  if (lowercaseTitle.includes('doorstep') || lowercaseTitle.includes('troubleshoot') || lowercaseTitle.includes('repair')) {
+    return {
+      inclusions: INITIAL_IT_SERVICES[0].inclusions || [],
+      technicalSpecs: INITIAL_IT_SERVICES[0].technicalSpecs || []
+    };
+  }
+  if (lowercaseTitle.includes('os') || lowercaseTitle.includes('windows') || lowercaseTitle.includes('setup')) {
+    return {
+      inclusions: INITIAL_IT_SERVICES[1].inclusions || [],
+      technicalSpecs: INITIAL_IT_SERVICES[1].technicalSpecs || []
+    };
+  }
+  if (lowercaseTitle.includes('software') || lowercaseTitle.includes('office') || lowercaseTitle.includes('productivity') || lowercaseTitle.includes('microsoft')) {
+    return {
+      inclusions: INITIAL_IT_SERVICES[2].inclusions || [],
+      technicalSpecs: INITIAL_IT_SERVICES[2].technicalSpecs || []
+    };
+  }
+
+  if (lowercaseTitle.includes('wedding') || lowercaseTitle.includes('pre-wedding') || lowercaseTitle.includes('marriage')) {
+    return {
+      inclusions: INITIAL_PHOTO_SERVICES[0].inclusions || [],
+      technicalSpecs: INITIAL_PHOTO_SERVICES[0].technicalSpecs || []
+    };
+  }
+  if (lowercaseTitle.includes('baby') || lowercaseTitle.includes('shower') || lowercaseTitle.includes('godh') || lowercaseTitle.includes('bharai') || lowercaseTitle.includes('maternity')) {
+    return {
+      inclusions: INITIAL_PHOTO_SERVICES[1].inclusions || [],
+      technicalSpecs: INITIAL_PHOTO_SERVICES[1].technicalSpecs || []
+    };
+  }
+  if (lowercaseTitle.includes('party') || lowercaseTitle.includes('celebration') || lowercaseTitle.includes('birthday') || lowercaseTitle.includes('anniversary')) {
+    return {
+      inclusions: INITIAL_PHOTO_SERVICES[2].inclusions || [],
+      technicalSpecs: INITIAL_PHOTO_SERVICES[2].technicalSpecs || []
+    };
+  }
+  if (lowercaseTitle.includes('corporate') || lowercaseTitle.includes('meeting') || lowercaseTitle.includes('conference') || lowercaseTitle.includes('seminar') || lowercaseTitle.includes('headshot')) {
+    return {
+      inclusions: INITIAL_PHOTO_SERVICES[3].inclusions || [],
+      technicalSpecs: INITIAL_PHOTO_SERVICES[3].technicalSpecs || []
+    };
+  }
+  if (lowercaseTitle.includes('custom') || lowercaseTitle.includes('outdoor') || lowercaseTitle.includes('portrait') || lowercaseTitle.includes('solo')) {
+    return {
+      inclusions: INITIAL_PHOTO_SERVICES[4].inclusions || [],
+      technicalSpecs: INITIAL_PHOTO_SERVICES[4].technicalSpecs || []
+    };
+  }
+
+  return {
+    inclusions: currentInclusions || [
+      'Comprehensive on-site coverage & professional consultation',
+      'Dynamic equipment calibration tailored to environment requirements',
+      'Polished post-processing optimization and color adjustment',
+      'High-resolution digital delivery via rapid secure links'
+    ],
+    technicalSpecs: currentSpecs || [
+      'Diagnostic Platforms: Industry-standard professional tools',
+      'System Configuration: Tailored to bespoke project performance benchmarks',
+      'Standard Timeline: Prompt delivery within agreed scheduling profiles'
+    ]
+  };
+}
 
 export const INITIAL_GALLERY_ITEMS: GalleryItem[] = [
   {

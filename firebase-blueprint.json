@@ -25,6 +25,50 @@
         "labels": { "type": "object" }
       },
       "required": ["id", "labels"]
+    },
+    "SocialLink": {
+      "title": "SocialLink",
+      "description": "A social media link/handle editable by admin.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "handle": { "type": "string" },
+        "url": { "type": "string" },
+        "platform": { "type": "string" },
+        "badge": { "type": "string" },
+        "order": { "type": "integer" },
+        "disabled": { "type": "boolean" },
+        "customIcon": { "type": "string" }
+      },
+      "required": ["id", "name", "handle", "url", "platform", "order"]
+    },
+    "HomepageConfig": {
+      "title": "HomepageConfig",
+      "description": "Customizable homepage branding, content sections, and contact details.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "heroHeadline": { "type": "string" },
+        "heroSubheadline": { "type": "string" },
+        "profilePhotoUrl": { "type": "string" },
+        "bioHeadline": { "type": "string" },
+        "bioText": { "type": "string" },
+        "contactPhoneIt": { "type": "string" },
+        "contactPhonePhotos": { "type": "string" },
+        "logoText": { "type": "string" },
+        "logoSubtext": { "type": "string" },
+        "bannerText": { "type": "string" },
+        "exploreButtonText": { "type": "string" },
+        "exploreButtonLink": { "type": "string" },
+        "contactEmail": { "type": "string" },
+        "contactAddress": { "type": "string" },
+        "itServices": { "type": "array" },
+        "photoServices": { "type": "array" },
+        "testimonials": { "type": "array" },
+        "pixelFixReviews": { "type": "array" }
+      },
+      "required": ["id"]
     }
   },
   "firestore": {
@@ -35,6 +79,14 @@
     "/affiliate_config/{configId}": {
       "schema": "CategoryMap",
       "description": "Global category mappings and other configuration"
+    },
+    "/social_links/{linkId}": {
+      "schema": "SocialLink",
+      "description": "Collection of social media link/handle configurations editable by admin."
+    },
+    "/site_config/{configId}": {
+      "schema": "HomepageConfig",
+      "description": "Collection storing dynamic homepage content configurations and sections."
     }
   }
 }
