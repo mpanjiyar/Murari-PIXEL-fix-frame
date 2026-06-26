@@ -15,8 +15,9 @@ export interface Testimony {
 export interface GalleryItem {
   id: string;
   title: string;
-  category: 'wedding' | 'party' | 'corporate' | 'custom';
+  category: string;
   imageUrl: string;
+  beforeImageUrl?: string; // Optional raw photography image URL
   altText: string;
   date: string;
   cameraInfo?: string;
@@ -61,7 +62,9 @@ export interface AffiliateLink {
   url: string;
   imageUrl: string;
   discountCode?: string;
+  price?: string;
   clicks: number;
+  clickHistory?: Record<string, number>;
 }
 
 export interface SocialLink {

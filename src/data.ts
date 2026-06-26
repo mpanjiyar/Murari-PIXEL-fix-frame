@@ -294,145 +294,145 @@ export function getExtraInclusionsAndSpecs(title: string, currentInclusions?: st
 export const INITIAL_GALLERY_ITEMS: GalleryItem[] = [
   {
     id: 'g1',
-    title: 'Devotional Moments & Traditional Festivities, Guwahati, Assam, India',
+    title: 'Devotional Moments & Sacred Wedding Rituals',
     category: 'wedding',
     imageUrl: 'https://lh3.googleusercontent.com/d/10-HoXkMa_X3axop53ogpiPEyDv_w3Nbn',
-    altText: 'Stunning celebratory capture displaying devotional traditional Indian wedding festivities, photographed beautifully by Murari Panjiyar',
+    altText: 'A beautiful traditional Indian wedding ceremony highlighting sacred rituals and quiet devotion, photographed with Nikon Z9.',
     date: '2026-06-08',
     cameraInfo: 'Nikon Z9 • NIKKOR Z 50mm f/1.2 S • Beautiful Traditional Light'
   },
   {
     id: 'g2',
-    title: 'Elegant Traditional Assamese Bride & Handwoven Silk Mekhela Chador',
-    category: 'wedding',
+    title: 'Elegant Traditional Assamese Bride & Silk Mekhela Chador',
+    category: 'bridal_portraits',
     imageUrl: 'https://lh3.googleusercontent.com/d/1Lf19vDAD8mmFtpI2GH2t8v0IFd2s7hZU',
-    altText: 'Detailed bridal portrait highlighting the exquisite handwoven zari embroidery, traditional Assamese jewelry, and serene expressions of the bride',
+    altText: 'Exquisite bridal portrait featuring rich golden embroidered red silk and traditional ornaments, showcasing Assamese elegance.',
     date: '2026-06-08',
     cameraInfo: 'Nikon Z9 • NIKKOR Z 85mm f/1.2 S • Beautiful Rim Lighting'
   },
   {
     id: 'g3',
-    title: 'Joyful Outdoor Candid Laughs & Authentic Wedding Moments, Guwahati',
-    category: 'custom',
+    title: 'Joyful Outdoor Pre-Wedding Shoot, Guwahati',
+    category: 'pre_wedding',
     imageUrl: 'https://lh3.googleusercontent.com/d/1NDzHguseCZyHVR57bnsOwtdu8kuZTa9n',
-    altText: 'Spontaneous laughing candid captured beautiful outdoors against luxurious lush greenery of Guwahati, showcasing genuine emotions',
+    altText: 'Spontaneous laughing candid captured outdoors against the lush green landscapes of Assam during a dreamy pre-wedding shoot.',
     date: '2026-06-08',
     cameraInfo: 'Nikon Z8 • NIKKOR Z 135mm f/1.8 S Plena • Dreamy Bokeh'
   },
   {
     id: 'g4',
-    title: 'Royal Imperial Bridal Entry Under Hand-Crafted Phoolon Ki Chadar',
+    title: 'Imperial Bridal Entry Under Phoolon Ki Chadar',
     category: 'wedding',
     imageUrl: 'https://lh3.googleusercontent.com/d/1NZ5KZgS7OnNAlh-2LK73Z5vFxQEXqHBF',
-    altText: 'Dramatic wide-angle coverage of the grand bridal gateway entry surrounded by brothers holding a beautifully decorated floral canopy',
+    altText: 'Elegant grand bridal entry under a beautifully handcrafted fresh flower canopy, surrounded by loving family.',
     date: '2026-06-08',
     cameraInfo: 'Nikon Z9 • NIKKOR Z 24-70mm f/2.8 S • Dynamic Flash Mix'
   },
   {
     id: 'g5',
-    title: 'Grand Corporate Gala & Summit Ballroom Setup, Assam',
+    title: 'Grand Corporate Summit Ballroom Setup',
     category: 'corporate',
     imageUrl: 'https://lh3.googleusercontent.com/d/17AUU6FGOxRaje1nElUUDqGKQTboJ5kYX',
-    altText: 'Cinematic wide frame showcasing a majestic corporate banquet gala setup with high-contrast ambient lighting, fine table details, and grand chandeliers',
+    altText: 'Professional wide-angle capture of a corporate awards banquet setup with spectacular architectural and stage lighting.',
     date: '2026-06-08',
     cameraInfo: 'Nikon Z8 • NIKKOR Z 14-24mm f/2.8 S • Professional Event Coverage'
   },
   {
     id: 'g6',
-    title: 'Captivating Bride Portrait with Intricate Mehndi & Custom Henna Art',
-    category: 'wedding',
+    title: 'Captivating Bridal Mehendi Henna Artistry',
+    category: 'mehendi',
     imageUrl: 'https://lh3.googleusercontent.com/d/159c6sugb6tfSr8LLyEax4VHSP5MUnQnI',
-    altText: 'Stunning close-up view highlighting the detailed bridal henna patterns on hands, showcasing fine artwork and elegant traditional bangles',
+    altText: 'Fine details of intricate bridal henna patterns on the hands of the bride during her joyful Mehendi ceremony.',
     date: '2026-06-08',
     cameraInfo: 'Nikon Z9 • NIKKOR Z 85mm f/1.2 S • Close-up Micro Focus'
   },
   {
     id: 'g7',
-    title: 'Groom Imperial Portrait & Classic Designer Sherwani Details',
-    category: 'wedding',
+    title: 'Groom Portrait in Custom Designer Sherwani',
+    category: 'groom_portraits',
     imageUrl: 'https://lh3.googleusercontent.com/d/1WLA_PUnuRhc182D-Ch0mX25wWASXC7-E',
-    altText: 'Polished studio-lit portrait of the groom showcasing authentic red and gold sherwani, pearl garlands, and poised look',
+    altText: 'Poised and elegant studio-lit portrait of the groom wearing a regal embroidered sherwani with classic details.',
     date: '2026-06-08',
     cameraInfo: 'Nikon D850 • AF-S NIKKOR 105mm f/1.4E • Soft Portrait Keylight'
   },
   {
     id: 'g8',
-    title: 'Warm Family Smiles, Auspicious Blessings Ceremony, Assam',
-    category: 'party',
+    title: 'Warm Family Blessings Ceremony',
+    category: 'family_photos',
     imageUrl: 'https://lh3.googleusercontent.com/d/1dhsMr79VPK1J0Uq_gpYz2uqy7WOJZ3ut',
-    altText: 'Warm-toned picture celebrating togetherness, authentic smiles and family elders gifting pure gold blessings to the couple',
+    altText: 'A heart-touching candid moment showcasing family elders blessing the couple with heartfelt smiles and pure gold gifts.',
     date: '2026-06-08',
     cameraInfo: 'Nikon Z8 • NIKKOR Z 35mm f/1.8 S • Soft Speedlight Fill'
   },
   {
     id: 'g9',
-    title: 'Vibrant Traditional Festivity Sangeet Dance & High Energy Beats',
-    category: 'party',
+    title: 'High-Energy Sangeet & Reception Celebration',
+    category: 'reception',
     imageUrl: 'https://lh3.googleusercontent.com/d/1GxdfLNiDk_-pACb3JMSv08TzFGNL7woS',
-    altText: 'Action-packed celebration group shot under glowing fairy lights, capturing full of joy and beautiful traditional attire',
+    altText: 'Dynamic group dance performance capture on stage with colorful light beams during a grand Sangeet celebration.',
     date: '2026-06-08',
     cameraInfo: 'Nikon Z9 • NIKKOR Z 24-70mm f/2.8 S • Dynamic Motion Lock'
   },
   {
     id: 'g10',
-    title: 'Auspicious Varmala Garland Exchange Under Floral Mandap',
+    title: 'Auspicious Varmala Garland Exchange Ceremony',
     category: 'wedding',
     imageUrl: 'https://lh3.googleusercontent.com/d/1SDFtvLDtPOMwBV7zPtRJ_uIfVB9mcSXR',
-    altText: 'Beautiful wide lens portrait of the grand varmala custom under a lavish stage styled with countless imported white and red roses',
+    altText: 'The beautiful and traditional exchange of fresh rose garlands under a spectacular mandap adorned with rich flora.',
     date: '2026-06-08',
     cameraInfo: 'Nikon Z9 • NIKKOR Z 24-70mm f/2.8 S • High Contrast Flare Sync'
   },
   {
     id: 'g11',
-    title: 'Elegant Bridal Veil Details & Classic Hand Jewelry, India',
-    category: 'wedding',
+    title: 'Classic Bridal Veil & Intricate Gold Jewelry Detail',
+    category: 'bridal_portraits',
     imageUrl: 'https://lh3.googleusercontent.com/d/1BrmUP0gZJ1-k8qhkOWteNMNB4fxirA2D',
-    altText: 'Stunning artistic close-up of intricate gold jewelry, traditional red attire, henna, and fine wedding ornaments in ambient golden lighting',
+    altText: 'Close-up focus on the bride\'s sheer red veil and detailed wedding ornaments in romantic warm ambient lighting.',
     date: '2026-06-08',
     cameraInfo: 'Nikon Z7 II • NIKKOR Z 85mm f/1.2 S • Professional Portrait Light'
   },
   {
     id: 'g12',
-    title: 'Vibrant Haldi Ceremony Celebration & Golden Turmeric Blessings',
-    category: 'wedding',
+    title: 'Vibrant Haldi Ceremony Celebration & Marigold Rain',
+    category: 'haldi',
     imageUrl: 'https://lh3.googleusercontent.com/d/1ZVDqvzzWSrJ_NZsku_evg29MeOK69Prr',
-    altText: 'Candid joyful shot of family showering turmeric water and celebratory marigold flowers onto the couple in their custom modern lawn setup',
+    altText: 'Candid shot of family splashing turmeric water and yellow marigold flowers on the happy couple in a lively lawn setup.',
     date: '2026-06-08',
     cameraInfo: 'Nikon Z8 • NIKKOR Z 50mm f/1.2 S • Fast Action Freeze'
   },
   {
     id: 'g13',
-    title: 'Sacred Vermilion Sindoor Ritual, Classical Wedding Ceremony, Assam, India',
+    title: 'Sacred Vermilion Sindoor Ritual of Eternal Commitment',
     category: 'wedding',
     imageUrl: 'https://lh3.googleusercontent.com/d/19CKvI4tsQ7-OCNbjaMMTh4e7QVAxzuJu',
-    altText: 'Capturing a timeless and devotional traditional Indian wedding moment with close-up focus on the gold accents, vermilion, and beautiful family blessings',
+    altText: 'A timeless wedding moment capturing the groom applying vermilion to the bride\'s parting under auspicious family blessings.',
     date: '2026-06-08',
     cameraInfo: 'Nikon Z7 II • NIKKOR Z 50mm f/1.2 S • Soft Studio Ring Light'
   },
   {
     id: 'g14',
-    title: 'Groom Entrance & Traditional Baraat Procession, Guwahati',
-    category: 'wedding',
+    title: 'Elegant Ring Exchange & Engagement Ceremony',
+    category: 'engagement',
     imageUrl: 'https://lh3.googleusercontent.com/d/1tdGCsa4KwKyrCMl9F4cMLaMNPfzQqFmB',
-    altText: 'An energetic baraat dance capture with vibrant colors, lively expressions, and beautiful natural environment coverage by Murari Panjiyar Portfolio',
+    altText: 'Close-up capturing the emotional moment of ring exchange and commitment during the couple\'s cozy engagement party.',
     date: '2026-06-08',
     cameraInfo: 'Nikon Z9 • NIKKOR Z 24-70mm f/2.8 S • Dynamic Action Track'
   },
   {
     id: 'g15',
-    title: 'Premium Candid Wedding Expressions & Ceremonial Joy, Assam',
-    category: 'wedding',
+    title: 'Dreamy Candid Couple Portrait during Nuptials',
+    category: 'couple_portraits',
     imageUrl: 'https://lh3.googleusercontent.com/d/1kig015zZ81sKM_eG_Bn523aFCsLf812w',
-    altText: 'Breathtaking close-up of a smiling bride and groom sharing raw emotions during an auspicious ritual, shot beautifully by Murari Panjiyar',
+    altText: 'A beautiful candid shot of the bride and groom sharing a quiet, joyful look amidst their busy wedding festivities.',
     date: '2026-06-08',
     cameraInfo: 'Nikon Z9 • NIKKOR Z 85mm f/1.2 S • Creative Speedlight'
   },
   {
     id: 'g16',
-    title: 'Authentic Traditional Ceremony Rituals, Guwahati, Assam',
-    category: 'wedding',
+    title: 'Authentic Saptapadi Wedding Rituals & Holy Fire',
+    category: 'candid_moments',
     imageUrl: 'https://lh3.googleusercontent.com/d/1ujSDKi4hwO5sN6L_tEVpzfn80k1L35d4',
-    altText: 'Detailed capture of auspicious wedding customs, traditional brass utensils, holy fire blessings, and emotional family participations',
+    altText: 'Detailed capture of sacred vows taken around the holy fire, documenting traditional brass utensils and pure devotion.',
     date: '2026-06-08',
     cameraInfo: 'Nikon Z7 II • NIKKOR Z 50mm f/1.2 S • Ambient Warm Light'
   }
@@ -465,55 +465,64 @@ export const INITIAL_TESTIMONIALS: Testimony[] = [
   }
 ];
 
-// Curated Instagram placeholder posts
+// Curated Instagram placeholder posts with 3 photos and 3 reels/videos
 export const INSTAGRAM_POSTS = [
   {
     id: 'i1',
-    imageUrl: 'https://lh3.googleusercontent.com/d/1TI7y2H4O31gv3qOdwxg2oUY_r2mK4-kz',
+    imageUrl: 'https://lh3.googleusercontent.com/d/10-HoXkMa_X3axop53ogpiPEyDv_w3Nbn',
     likes: 452,
     comments: 28,
     caption: 'Chasing timeless moments and candid smiles under the morning sun. Truly beautiful. ✨🌸 #PixelFrame #GuwahatiWeddings #AssamDiaries',
-    permalink: 'https://www.instagram.com/mpanjiyar1'
+    permalink: 'https://www.instagram.com/mpanjiyar1',
+    mediaType: 'IMAGE'
   },
   {
     id: 'i2',
-    imageUrl: 'https://lh3.googleusercontent.com/d/1JgyjpBwh_raC84MVgEVDzjkBpHGyAkl0',
+    imageUrl: 'https://lh3.googleusercontent.com/d/1Lf19vDAD8mmFtpI2GH2t8v0IFd2s7hZU',
     likes: 389,
     comments: 21,
     caption: 'The majestic grandeur of high-energy celebration beats! Drum rolls and rich traditional dances. 🥁🤵‍♂️ #PixelFrame #GuwahatiEvents #BaraatJoy',
-    permalink: 'https://www.instagram.com/mpanjiyar1'
+    permalink: 'https://www.instagram.com/mpanjiyar1',
+    mediaType: 'IMAGE'
   },
   {
     id: 'i3',
-    imageUrl: 'https://lh3.googleusercontent.com/d/1OlD8wVZo4-3ly9YsAEwqKYLCDpglqld6',
+    imageUrl: 'https://lh3.googleusercontent.com/d/1NDzHguseCZyHVR57bnsOwtdu8kuZTa9n',
     likes: 512,
     comments: 34,
     caption: 'Intricate ornaments, detailed silk embroidery, and elegance of the traditional Assamese bridal wear. 💍🌾 #MekhelaChador #BridalPortraits #AssamesePride',
-    permalink: 'https://www.instagram.com/mpanjiyar1'
+    permalink: 'https://www.instagram.com/mpanjiyar1',
+    mediaType: 'IMAGE'
   },
   {
-    id: 'i4',
-    imageUrl: 'https://lh3.googleusercontent.com/d/1RpZqOPwkNcgjOX-VeRnniwE-ZL4YaNiM',
-    likes: 421,
-    comments: 19,
-    caption: 'Bound by sacred vows and holy fire blessings, custom designed stages crafted with pure white roses. 🔥💒 #CandidVows #SanskritBlessings #GuwahatiPhotographer',
-    permalink: 'https://www.instagram.com/mpanjiyar1'
-  },
-  {
-    id: 'i5',
-    imageUrl: 'https://lh3.googleusercontent.com/d/1S7ucq14Q1YNWx6vG39OEemiw9PUCFTVv',
-    likes: 378,
-    comments: 15,
-    caption: 'Raw expressions of pure love and blissful family smiles during classic traditional morning customs. 😍✨ #PureMoments #PixelFramePortraits #Guwahati',
-    permalink: 'https://www.instagram.com/mpanjiyar1'
-  },
-  {
-    id: 'i6',
-    imageUrl: 'https://lh3.googleusercontent.com/d/1M36Zil8-MtGCeL3bAfcRridcvK6KB-Gl',
-    likes: 495,
+    id: 'v1',
+    imageUrl: 'https://lh3.googleusercontent.com/d/1NZ5KZgS7OnNAlh-2LK73Z5vFxQEXqHBF',
+    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-videographer-with-a-camera-at-a-wedding-40118-large.mp4',
+    likes: 685,
     comments: 42,
-    caption: 'Immersive majestic ballroom reception setup with flickering candles and beautiful high-contrast floral design. 🍿🕯️ #BallroomSetup #ReceptionAesthetics #PixelFrame',
-    permalink: 'https://www.instagram.com/mpanjiyar1'
+    caption: 'Cinematic wedding highlight reel. Experience the raw emotion, beautiful color grading, and transition magic. 🎥✨ #AssamWeddings #GuwahatiPhotographer #Reels',
+    permalink: 'https://www.instagram.com/mpanjiyar1',
+    mediaType: 'VIDEO'
+  },
+  {
+    id: 'v2',
+    imageUrl: 'https://lh3.googleusercontent.com/d/1ZVDqvzzWSrJ_NZsku_evg29MeOK69Prr',
+    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-photographer-taking-photos-of-a-bride-and-groom-40120-large.mp4',
+    likes: 521,
+    comments: 31,
+    caption: 'Behind the scenes: capturing candid couple smiles in the lush green tea gardens of Assam. 🌿🍵 #AssamTourism #CandidMoments #BTS',
+    permalink: 'https://www.instagram.com/mpanjiyar1',
+    mediaType: 'VIDEO'
+  },
+  {
+    id: 'v3',
+    imageUrl: 'https://lh3.googleusercontent.com/d/159c6sugb6tfSr8LLyEax4VHSP5MUnQnI',
+    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-photographer-capturing-a-video-of-a-dancing-couple-40114-large.mp4',
+    likes: 742,
+    comments: 53,
+    caption: 'Dynamic gimbal sweeps and focus tracking. Cinematic storytelling that brings memories back to life. 🎬✨ #Storytelling #GimbalSweeps #PixelFrame',
+    permalink: 'https://www.instagram.com/mpanjiyar1',
+    mediaType: 'VIDEO'
   }
 ];
 

@@ -66,7 +66,8 @@
         "itServices": { "type": "array" },
         "photoServices": { "type": "array" },
         "testimonials": { "type": "array" },
-        "pixelFixReviews": { "type": "array" }
+        "pixelFixReviews": { "type": "array" },
+        "instagramPosts": { "type": "array" }
       },
       "required": ["id"]
     }

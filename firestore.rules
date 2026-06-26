@@ -67,7 +67,8 @@ service cloud.firestore {
         && (!('itServices' in data) || data.itServices is list)
         && (!('photoServices' in data) || data.photoServices is list)
         && (!('testimonials' in data) || data.testimonials is list)
-        && (!('pixelFixReviews' in data) || data.pixelFixReviews is list);
+        && (!('pixelFixReviews' in data) || data.pixelFixReviews is list)
+        && (!('instagramPosts' in data) || data.instagramPosts is list);
     }
 
     // Collection: Affiliate Links

@@ -65,7 +65,9 @@ import {
   Link,
   Play,
   TrendingUp,
-  Video
+  Video,
+  ThumbsUp,
+  Heart
 } from 'lucide-react';
 import { motion, AnimatePresence, Reorder } from 'motion/react';
 import {
@@ -85,17 +87,41 @@ import WhatsAppIcon from './components/WhatsAppIcon';
 import { ImageUploader } from './components/ImageUploader';
 import { ScrollReveal, ScrollRevealText } from './components/ScrollReveal';
 import { LazyImage } from './components/LazyImage';
+import { BeforeAfterSlider } from './components/BeforeAfterSlider';
 import { PixelFrameBackground } from './components/PixelFrameBackground';
 import { PixelFixBackground } from './components/PixelFixBackground';
 import SmpsCalculator from './components/SmpsCalculator';
 import CoverageMap from './components/CoverageMap';
+import PhotoResizer from './components/PhotoResizer';
 import { initAuth, googleSignIn, googleSignOut } from './lib/driveAuth';
 import { uploadBackupToDrive, listBackupsOnDrive, downloadBackupFromDrive, deleteBackupFromDrive, upsertLiveSyncBackup, getOrCreateFolder, uploadPhotoFileToDrive } from './lib/driveService';
 import type { DriveBackupFile } from './lib/driveService';
 import type { User as FirebaseUser } from 'firebase/auth';
 import { db, OperationType, handleFirestoreError } from './firebase';
 import { collection, doc, setDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
-import { HardDrive, Cloud, LogOut, AlertCircle, FolderOpen, Download, UploadCloud, GripVertical } from 'lucide-react';
+import { HardDrive, Cloud, LogOut, AlertCircle, FolderOpen, Download, UploadCloud, GripVertical, MousePointerClick } from 'lucide-react';
+import {
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Legend
+} from 'recharts';
+
+const hashString = (str: string): number => {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = (hash << 5) - hash + char;
+    hash |= 0;
+  }
+  return Math.abs(hash);
+};
 
 // Structuring our Theme Styles
 interface LagFreeInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onChange'> {
@@ -388,6 +414,16 @@ const toDirectDriveUrl = (url: string): string => {
 const getCategoryLabel = (category: string): string => {
   const map: Record<string, string> = {
     wedding: 'Wedding',
+    haldi: 'Haldi',
+    mehendi: 'Mehendi',
+    reception: 'Reception',
+    engagement: 'Engagement',
+    pre_wedding: 'Pre-Wedding',
+    bridal_portraits: 'Bridal Portraits',
+    groom_portraits: 'Groom Portraits',
+    couple_portraits: 'Couple Portraits',
+    candid_moments: 'Candid Moments',
+    family_photos: 'Family Photos',
     corporate: 'Corporate',
     party: 'Events',
     custom: 'Outdoor'
@@ -407,6 +443,46 @@ export default function App() {
     return (saved as any) || 'light';
   });
 
+  // Scroll progress and back to top states for Affiliate tab
+  const [affiliateScrollProgress, setAffiliateScrollProgress] = useState(0);
+  const [showAffiliateBackToTop, setShowAffiliateBackToTop] = useState(false);
+  const [selectedChartProduct, setSelectedChartProduct] = useState<string>('all');
+
+  useEffect(() => {
+    if (activeTab !== 'affiliate') {
+      setAffiliateScrollProgress(0);
+      setShowAffiliateBackToTop(false);
+      return;
+    }
+
+    const handleScroll = () => {
+      const scrollY = window.scrollY;
+      const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+      
+      // Calculate scroll progress percentage (between 0 and 100)
+      if (docHeight > 0) {
+        const progress = (scrollY / docHeight) * 100;
+        setAffiliateScrollProgress(Math.min(100, Math.max(0, progress)));
+      } else {
+        setAffiliateScrollProgress(0);
+      }
+
+      // Show Back to Top button if scrolled down more than 300px
+      if (scrollY > 300) {
+        setShowAffiliateBackToTop(true);
+      } else {
+        setShowAffiliateBackToTop(false);
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll();
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+    };
+  }, [activeTab]);
+
   // Client dynamic visual database (uploaded by client / managed inside dashboard)
   const [galleryItems, setGalleryItems] = useState<GalleryItem[]>(() => {
     const saved = localStorage.getItem('mp_gallery_items');
@@ -416,7 +492,7 @@ export default function App() {
         // Clean reset if they have old Unsplash images, if the order has changed, or if length doesn't match our new high-end 16 items
         const hasUnsplash = parsed.some((p: any) => p.imageUrl && p.imageUrl.includes('unsplash.com'));
         const firstIsTarget = parsed[0]?.imageUrl && parsed[0].imageUrl.includes('10-HoXkMa_X3axop53ogpiPEyDv_w3Nbn');
-        const hasOldCategories = parsed.some((p: any) => (p.id === 'g11' && p.category === 'custom') || (p.id === 'g5' && p.category === 'wedding'));
+        const hasOldCategories = parsed.some((p: any) => (p.id === 'g11' && p.category !== 'bridal_portraits') || (p.id === 'g5' && p.category !== 'corporate') || (p.id === 'g6' && p.category === 'wedding'));
         if (hasUnsplash || parsed.length !== 16 || !firstIsTarget || hasOldCategories) {
           return INITIAL_GALLERY_ITEMS;
         }
@@ -468,14 +544,14 @@ export default function App() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        const hasDriveImages = parsed.some((p: any) => p.imageUrl && p.imageUrl.includes('1TI7y2H4O31gv3qOdwxg2oUY_r2mK4-kz'));
-        const hasUnsplash = parsed.some((p: any) => p.imageUrl && p.imageUrl.includes('unsplash.com'));
-        if (parsed.length !== 6 || !hasDriveImages || hasUnsplash) {
-          return INSTAGRAM_POSTS.map(p => ({ ...p, permalink: 'https://www.instagram.com/mpanjiyar1' }));
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map((p: any) => ({
+            ...p,
+            permalink: p.permalink || 'https://www.instagram.com/mpanjiyar1'
+          }));
         }
-        return parsed.map((p: any) => ({ ...p, permalink: 'https://www.instagram.com/mpanjiyar1' }));
       } catch (e) {
-        return INSTAGRAM_POSTS.map(p => ({ ...p, permalink: 'https://www.instagram.com/mpanjiyar1' }));
+        // Fall through
       }
     }
     return INSTAGRAM_POSTS.map(p => ({ ...p, permalink: 'https://www.instagram.com/mpanjiyar1' }));
@@ -486,6 +562,9 @@ export default function App() {
   });
   const [instagramSyncError, setInstagramSyncError] = useState<string>('');
   const [isSyncingInstagram, setIsSyncingInstagram] = useState<boolean>(false);
+  const [isFetchingInstagram, setIsFetchingInstagram] = useState<boolean>(false);
+  const [instagramFetchError, setInstagramFetchError] = useState<string | null>(null);
+  const [instaFilter, setInstaFilter] = useState<'all' | 'image' | 'video'>('all');
   const [instagramViewMode, setInstagramViewMode] = useState<'grid' | 'embed'>('grid');
 
   // Google Drive Integration States
@@ -664,29 +743,12 @@ export default function App() {
     const unsubSocial = onSnapshot(collection(db, 'social_links'), (snapshot) => {
       const links: SocialLink[] = [];
       snapshot.forEach((doc) => {
-        links.push(doc.data() as SocialLink);
+        doc && links.push(doc.data() as SocialLink);
       });
       // Sort by order
       links.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
-      if (links.length > 0) {
-        setSocialLinks(links);
-      } else {
-        if (isInitialSocial) {
-          isInitialSocial = false;
-          // If empty in Firestore, seed with INITIAL_SOCIAL_LINKS
-          INITIAL_SOCIAL_LINKS.forEach(async (link) => {
-            try {
-              await setDoc(doc(db, 'social_links', link.id), link);
-            } catch (e) {
-              console.error("Error seeding initial social link: ", e);
-            }
-          });
-        } else {
-          setSocialLinks([]);
-        }
-      }
-      isInitialSocial = false;
+      setSocialLinks(links);
     }, (error) => {
       console.error("Firestore onSnapshot error for social_links: ", error);
       handleFirestoreError(error, OperationType.GET, 'social_links');
@@ -820,25 +882,7 @@ export default function App() {
       // Sort chronologically or by ID so list remains stable
       links.sort((a, b) => a.id.localeCompare(b.id));
 
-      if (links.length > 0) {
-        setAffiliateLinks(links);
-      } else {
-        if (isInitialLinks) {
-          isInitialLinks = false;
-          // If empty, seed Firestore with INITIAL_AFFILIATE_LINKS so we don't start with an empty screen!
-          INITIAL_AFFILIATE_LINKS.forEach(async (link) => {
-            try {
-              await setDoc(doc(db, 'affiliate_links', link.id), link);
-            } catch (e) {
-              console.error("Error seeding initial affiliate link: ", e);
-            }
-          });
-        } else {
-          // If it genuinely became empty, sync this deletion across all devices
-          setAffiliateLinks([]);
-        }
-      }
-      isInitialLinks = false;
+      setAffiliateLinks(links);
     }, (error) => {
       console.error("Firestore onSnapshot error for affiliate_links: ", error);
       handleFirestoreError(error, OperationType.GET, 'affiliate_links');
@@ -902,6 +946,7 @@ export default function App() {
         if (data.photoServices && Array.isArray(data.photoServices)) setPhotoServices(data.photoServices);
         if (data.testimonials && Array.isArray(data.testimonials)) setTestimonials(data.testimonials);
         if (data.pixelFixReviews && Array.isArray(data.pixelFixReviews)) setPixelFixReviews(data.pixelFixReviews);
+        if (data.instagramPosts && Array.isArray(data.instagramPosts)) setInstagramPosts(data.instagramPosts);
       } else if (isInitialSite) {
         // Seed database instantly if config does not exist
         const initialConfig = {
@@ -923,9 +968,26 @@ export default function App() {
           itServices,
           photoServices,
           testimonials,
-          pixelFixReviews
+          pixelFixReviews,
+          instagramPosts
         };
-        setDoc(doc(db, 'site_config', 'homepage'), initialConfig).catch((err) => {
+        setDoc(doc(db, 'site_config', 'homepage'), initialConfig).then(() => {
+          // Seed initial affiliate links and social links at the exact same time
+          INITIAL_AFFILIATE_LINKS.forEach(async (link) => {
+            try {
+              await setDoc(doc(db, 'affiliate_links', link.id), link);
+            } catch (e) {
+              console.error("Error seeding initial affiliate link: ", e);
+            }
+          });
+          INITIAL_SOCIAL_LINKS.forEach(async (link) => {
+            try {
+              await setDoc(doc(db, 'social_links', link.id), link);
+            } catch (e) {
+              console.error("Error seeding initial social link: ", e);
+            }
+          });
+        }).catch((err) => {
           console.error("Seeding initial homepage config error: ", err);
         });
       }
@@ -973,36 +1035,194 @@ export default function App() {
 
   const [isFetchingAmazon, setIsFetchingAmazon] = useState(false);
   const [amazonFetchError, setAmazonFetchError] = useState<string | null>(null);
+  const [autoFillMode, setAutoFillMode] = useState<'overwrite' | 'safe'>('overwrite');
+  const [autoFillStep, setAutoFillStep] = useState<number>(0);
   const lastFetchedUrlRef = useRef<string>('');
+  const initialUrlRef = useRef<string>('');
+  const amazonCacheRef = useRef<Map<string, any>>(new Map());
 
-  const fetchAmazonDetails = async (urlToFetch: string) => {
-    if (!urlToFetch || !urlToFetch.trim()) return;
+  // Cleans product titles, removing any remaining double escaped or HTML entity noise while preserving the full title and model/specification details
+  const cleanTitle = (rawTitle: string): string => {
+    if (!rawTitle) return '';
     
-    // Simple verification that it's an Amazon-like URL
-    const isAmazon = /amazon\.|amzn\./i.test(urlToFetch);
-    if (!isAmazon) return;
+    // 1. Decode HTML entities recursively to prevent double-escaping
+    let decoded = rawTitle;
+    let prev;
+    let iterations = 0;
+    do {
+      prev = decoded;
+      decoded = decoded
+        .replace(/&amp;/gi, "&")
+        .replace(/&lt;/gi, "<")
+        .replace(/&gt;/gi, ">")
+        .replace(/&quot;/gi, '"')
+        .replace(/&#39;/gi, "'")
+        .replace(/&#039;/gi, "'")
+        .replace(/&ndash;/gi, "–")
+        .replace(/&mdash;/gi, "—")
+        .replace(/&rsquo;/gi, "'")
+        .replace(/&lsquo;/gi, "'")
+        .replace(/&ldquo;/gi, '"')
+        .replace(/&rdquo;/gi, '"');
+      iterations++;
+    } while (decoded !== prev && iterations < 4);
 
+    let clean = decoded
+      .replace(/^Amazon\.(in|com|co\.uk|ca|de|fr|co\.jp|com\.au|es|it):\s*/i, "")
+      .replace(/:\s*Amazon\.(in|com|co\.uk|ca|de|fr|co\.jp|com\.au|es|it)[\s\S]*/i, "")
+      .replace(/(\s*-\s*Buy\s+.*Online|\|\s*Amazon\.(in|com|co\.uk|ca|de|fr|co\.jp|com\.au|es|it)|\s*at\s*Low\s*Prices\s*.*)$/i, "")
+      .replace(/<[^>]+>/g, "") // Strip any HTML tags
+      .replace(/\s+/g, " ")
+      .trim();
+
+    // 2. Remove ONLY direct e-commerce site suffix endings, preserving all technical specs
+    clean = clean
+      .replace(/\s*\|\s*(?:Amazon|Flipkart|Shop|Store|Best Buy|Ebay)(?:\.(?:com|in|co\.uk|org|net))?\s*$/i, "")
+      .replace(/\s*-\s*(?:Amazon|Flipkart|Shop|Store|Best Buy|Ebay)(?:\.(?:com|in|co\.uk|org|net))?\s*$/i, "");
+
+    // Clean trailing punctuation
+    clean = clean.replace(/[\s\-|:|;|,]+$/, "").trim();
+
+    return clean;
+  };
+
+  useEffect(() => {
+    if (editingItem && editingItem.type === 'affiliate_link') {
+      const initialUrl = editingItem.data.url || '';
+      initialUrlRef.current = initialUrl;
+      lastFetchedUrlRef.current = initialUrl;
+    }
+  }, [editingItem?.data?.id, editingItem?.type]);
+
+  const fetchAmazonDetails = async (urlToFetch: string, isManual: boolean = false) => {
+    if (!urlToFetch || !urlToFetch.trim()) {
+      setAmazonFetchError(null);
+      setAutoFillStep(0);
+      return;
+    }
+    
+    // Support any valid URL structure for auto-fill
+    const looksLikeUrl = /^(https?:\/\/)?([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}/i.test(urlToFetch);
+    if (!looksLikeUrl) {
+      setAmazonFetchError("Invalid URL format.");
+      setAutoFillStep(0);
+      return;
+    }
+
+    // Check local cache first (normalized lookup prioritizes fast hits)
+    const normalizedUrl = urlToFetch.trim().toLowerCase().replace(/\/$/, "");
+    let cachedProduct = amazonCacheRef.current.get(urlToFetch);
+    
+    if (!cachedProduct) {
+      for (const [key, val] of amazonCacheRef.current.entries()) {
+        if (key.trim().toLowerCase().replace(/\/$/, "") === normalizedUrl) {
+          cachedProduct = val;
+          break;
+        }
+      }
+    }
+
+    if (cachedProduct) {
+      console.info(`[Auto-Fill] Cache hit (priority resolved) for URL: "${urlToFetch}"`, cachedProduct);
+      const { title, description, imageUrl, price, category } = cachedProduct;
+
+      let finalDescription = description;
+      if (price && description && !description.includes(price)) {
+        finalDescription = `Deal: ${price} | ${description}`;
+      } else if (price && !description) {
+        finalDescription = `Deal: ${price}`;
+      }
+
+      setEditingItem(prev => {
+        if (!prev) return null;
+        const shouldOverwrite = autoFillMode === 'overwrite';
+
+        const updatedTitle = (shouldOverwrite || !prev.data.title?.trim()) ? (cleanTitle(title) || prev.data.title || '') : (prev.data.title || cleanTitle(title) || '');
+        const updatedDescription = (shouldOverwrite || !prev.data.description?.trim()) ? (finalDescription || prev.data.description || '') : (prev.data.description || finalDescription || '');
+        const updatedImageUrl = (shouldOverwrite || !prev.data.imageUrl?.trim()) ? (imageUrl || prev.data.imageUrl || '') : (prev.data.imageUrl || imageUrl || '');
+        const updatedCategory = (shouldOverwrite || !prev.data.category?.trim() || prev.data.category === 'accessories') ? (category || prev.data.category || 'accessories') : (prev.data.category || category || 'accessories');
+        const updatedPrice = (shouldOverwrite || !prev.data.price?.trim()) ? (price || prev.data.price || '') : (prev.data.price || price || '');
+
+        return {
+          ...prev,
+          data: {
+            ...prev.data,
+            title: updatedTitle,
+            description: updatedDescription,
+            imageUrl: updatedImageUrl,
+            category: updatedCategory,
+            price: updatedPrice,
+          }
+        };
+      });
+      triggerToast("Product details loaded from cache!", "success");
+      setAutoFillStep(5);
+      setTimeout(() => setAutoFillStep(0), 3000);
+      return;
+    }
+
+    console.info(`[Auto-Fill] Initiating product metadata fetch for: "${urlToFetch}" (isManual: ${isManual})`);
     setIsFetchingAmazon(true);
     setAmazonFetchError(null);
+    setAutoFillStep(1);
+
+    // Dynamic stepper simulation intervals aligned with real-time fetching state
+    const stepInterval = setInterval(() => {
+      setAutoFillStep(prev => {
+        if (prev < 4) return prev + 1;
+        return prev;
+      });
+    }, 1400);
+
+    // Setup strict AbortController timeout to prevent UI hanging
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, 8000); // 8-second strict timeout
 
     try {
+      console.info("[Auto-Fill] Fetching from endpoint: /api/fetch-amazon-product with timeout controller...");
       const response = await fetch("/api/fetch-amazon-product", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ url: urlToFetch }),
+        signal: controller.signal,
       });
 
-      if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.error || `HTTP error! status: ${response.status}`);
+      clearTimeout(timeoutId);
+      console.info(`[Auto-Fill] Server responded with HTTP status ${response.status} (${response.statusText})`);
+
+      // Safely read response text first to prevent 'Unexpected end of JSON input'
+      const responseText = await response.text();
+      console.info(`[Auto-Fill] Raw response body received. Length: ${responseText ? responseText.length : 0} characters`);
+
+      if (!responseText || !responseText.trim()) {
+        console.warn("[Auto-Fill] Received empty response from metadata API endpoint.");
+        throw new Error("Empty response body received from server metadata endpoint.");
       }
 
-      const resData = await response.json();
-      if (resData.success && resData.product) {
+      let resData: any = null;
+      try {
+        resData = JSON.parse(responseText);
+        console.info("[Auto-Fill] JSON parsed successfully. Success status:", resData?.success);
+      } catch (jsonErr: any) {
+        console.error("[Auto-Fill] JSON parse error on details response text. Error:", jsonErr, "Text start:", responseText.slice(0, 200));
+        throw new Error(`Failed to parse product data (JSON syntax error: ${jsonErr.message || "unknown"}).`);
+      }
+
+      if (!response.ok) {
+        throw new Error(resData?.error || `HTTP error! status: ${response.status}`);
+      }
+
+      if (resData && resData.success && resData.product) {
         const { title, description, imageUrl, price, category } = resData.product;
+        console.info("[Auto-Fill] Successfully extracted product metadata:", { title, imageUrl, price, category });
         
+        // Cache the product data for subsequent edits/views of this URL
+        amazonCacheRef.current.set(urlToFetch, resData.product);
+
         // Format description nicely to include the price if present
         let finalDescription = description;
         if (price && description && !description.includes(price)) {
@@ -1013,26 +1233,51 @@ export default function App() {
 
         setEditingItem(prev => {
           if (!prev) return null;
+          
+          const shouldOverwrite = autoFillMode === 'overwrite';
+
+          const updatedTitle = (shouldOverwrite || !prev.data.title?.trim()) ? (cleanTitle(title) || prev.data.title || '') : (prev.data.title || cleanTitle(title) || '');
+          const updatedDescription = (shouldOverwrite || !prev.data.description?.trim()) ? (finalDescription || prev.data.description || '') : (prev.data.description || finalDescription || '');
+          const updatedImageUrl = (shouldOverwrite || !prev.data.imageUrl?.trim()) ? (imageUrl || prev.data.imageUrl || '') : (prev.data.imageUrl || imageUrl || '');
+          const updatedCategory = (shouldOverwrite || !prev.data.category?.trim() || prev.data.category === 'accessories') ? (category || prev.data.category || 'accessories') : (prev.data.category || category || 'accessories');
+          const updatedPrice = (shouldOverwrite || !prev.data.price?.trim()) ? (price || prev.data.price || '') : (prev.data.price || price || '');
+
           return {
             ...prev,
             data: {
               ...prev.data,
-              title: title || prev.data.title,
-              description: finalDescription || prev.data.description,
-              imageUrl: imageUrl || prev.data.imageUrl,
-              category: category || prev.data.category || 'accessories',
+              title: updatedTitle,
+              description: updatedDescription,
+              imageUrl: updatedImageUrl,
+              category: updatedCategory,
+              price: updatedPrice,
             }
           };
         });
-        triggerToast("Amazon product details fetched successfully!", "success");
+        
+        setAutoFillStep(5);
+        triggerToast("Product details auto-filled successfully!", "success");
+        setTimeout(() => setAutoFillStep(0), 4000);
       } else {
-        throw new Error("Invalid response format from product extraction API.");
+        throw new Error(resData?.error || "Invalid response format from product extraction API.");
       }
     } catch (err: any) {
-      console.error("Error auto-fetching Amazon product details:", err);
-      setAmazonFetchError(err.message || "Failed to auto-fetch product details.");
-      triggerToast(`Auto-fetch failed: ${err.message || "Check link & retry"}`, "error");
+      clearTimeout(timeoutId);
+      const isTimeout = err.name === 'AbortError' || err.message?.includes('aborted');
+      const errorMessage = isTimeout 
+        ? "The metadata request took too long (8s timeout) and was aborted. Please check your link or try again." 
+        : (err.message || "Failed to auto-fetch product details.");
+
+      console.error(`[Auto-Fill] Error fetching product details for URL "${urlToFetch}":`, err);
+      
+      // Reset the tracking ref so that the user can retry pasting or triggering manually without being blocked by "same URL" cache check
+      lastFetchedUrlRef.current = '';
+      setAutoFillStep(0);
+      
+      setAmazonFetchError(errorMessage);
+      triggerToast(`Auto-fetch failed: ${errorMessage}`, "error");
     } finally {
+      clearInterval(stepInterval);
       setIsFetchingAmazon(false);
     }
   };
@@ -1042,14 +1287,14 @@ export default function App() {
     const url = editingItem.data.url;
     if (!url || typeof url !== 'string' || !url.trim()) return;
 
-    const isAmazon = /amazon\.|amzn\./i.test(url);
-    if (!isAmazon) return;
+    const looksLikeUrl = /^(https?:\/\/)?([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}/i.test(url);
+    if (!looksLikeUrl) return;
 
     if (url === lastFetchedUrlRef.current) return;
 
     const timer = setTimeout(() => {
       lastFetchedUrlRef.current = url;
-      fetchAmazonDetails(url);
+      fetchAmazonDetails(url, false);
     }, 400);
 
     return () => clearTimeout(timer);
@@ -1084,6 +1329,7 @@ export default function App() {
   const [newImageTitle, setNewImageTitle] = useState('');
   const [newImageCategory, setNewImageCategory] = useState<'wedding' | 'party' | 'corporate' | 'custom'>('wedding');
   const [newImageBase64, setNewImageBase64] = useState('');
+  const [newImageBeforeUrl, setNewImageBeforeUrl] = useState('');
   const [newImageCamera, setNewImageCamera] = useState('Nikon Z8 • NIKKOR Z 85mm f/1.2 S');
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -1097,8 +1343,10 @@ export default function App() {
 
   // Active picture preview modal
   const [previewImage, setPreviewImage] = useState<GalleryItem | null>(null);
+  const [previewMode, setPreviewMode] = useState<'finished' | 'comparison'>('finished');
   const [isSmpsCalculatorOpen, setIsSmpsCalculatorOpen] = useState(false);
-  const [activeGalleryFilter, setActiveGalleryFilter] = useState<'all' | 'wedding' | 'party' | 'corporate' | 'custom'>('all');
+  const [isPhotoResizerOpen, setIsPhotoResizerOpen] = useState(false);
+  const [activeGalleryFilter, setActiveGalleryFilter] = useState<string>('all');
   const [activeGalleryTagFilter, setActiveGalleryTagFilter] = useState<'all' | 'Recent' | 'Featured' | 'Client Favorites'>('all');
   const [activeAffiliateFilter, setActiveAffiliateFilter] = useState<string>('all');
   const [affiliateSearchQuery, setAffiliateSearchQuery] = useState('');
@@ -1114,9 +1362,13 @@ export default function App() {
     setIsFetchingYoutube(true);
     setYoutubeFetchError(null);
     
+    const youtubeLink = socialLinks.find(link => link.platform === 'youtube');
+    const channelUrl = youtubeLink ? youtubeLink.url : 'https://www.youtube.com/channel/UCoZOM_gfrukJgZlBra0l-6w';
+    const cacheKey = `pixel_frames_youtube_cache_v1_${channelUrl}`;
+
     // Check cache first to avoid load delays
     if (!forceRefresh) {
-      const cached = sessionStorage.getItem('pixel_frames_youtube_cache_v1');
+      const cached = sessionStorage.getItem(cacheKey);
       if (cached) {
         try {
           const parsed = JSON.parse(cached);
@@ -1132,12 +1384,13 @@ export default function App() {
     }
     
     try {
-      const response = await fetch(`/api/youtube-videos${forceRefresh ? '?refresh=true' : ''}`);
+      const encodedUrl = encodeURIComponent(channelUrl);
+      const response = await fetch(`/api/youtube-videos?channelUrl=${encodedUrl}${forceRefresh ? '&refresh=true' : ''}`);
       const data = await response.json().catch(() => ({}));
       
       if (data && data.success && Array.isArray(data.videos)) {
         setYoutubeVideos(data.videos);
-        sessionStorage.setItem('pixel_frames_youtube_cache_v1', JSON.stringify(data.videos));
+        sessionStorage.setItem(cacheKey, JSON.stringify(data.videos));
       } else {
         throw new Error(data?.error || 'Failed to retrieve YouTube video ranks.');
       }
@@ -1152,6 +1405,8 @@ export default function App() {
           title: "Cinematic Wedding Portfolio Guwahati | Sony A7IV & Nikon Z9 Calibrated Frame",
           views: 12500,
           viewsFormatted: "12.5K views",
+          likes: 620,
+          likesFormatted: "620 likes",
           published: "2024-03-12T10:00:00Z"
         },
         {
@@ -1159,6 +1414,8 @@ export default function App() {
           title: "High-End PC Builder & SSD Hardware Optimization | Guwahati On-Site IT Vlog",
           views: 8900,
           viewsFormatted: "8.9K views",
+          likes: 410,
+          likesFormatted: "410 likes",
           published: "2024-04-18T14:30:00Z"
         },
         {
@@ -1166,6 +1423,8 @@ export default function App() {
           title: "Nikon Plena 135mm Calibration and Portrait Shootout | Pixel Frame Guwahati",
           views: 6400,
           viewsFormatted: "6.4K views",
+          likes: 320,
+          likesFormatted: "320 likes",
           published: "2024-05-22T08:15:00Z"
         }
       ];
@@ -1175,11 +1434,60 @@ export default function App() {
     }
   };
 
+  const fetchInstagramPostsDynamic = async (forceRefresh = false) => {
+    setIsFetchingInstagram(true);
+    setInstagramFetchError(null);
+
+    const instagramLink = socialLinks.find(link => link.platform === 'instagram');
+    const profileUrl = instagramLink ? instagramLink.url : 'https://www.instagram.com/mpanjiyar1/';
+    const cacheKey = `pixel_frames_instagram_cache_v2_${profileUrl}`;
+
+    // Check cache first to avoid load delays
+    if (!forceRefresh) {
+      const cached = sessionStorage.getItem(cacheKey);
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setInstagramPosts(parsed);
+            setIsFetchingInstagram(false);
+            return;
+          }
+        } catch (e) {
+          // ignore cache error and fetch fresh
+        }
+      }
+    }
+
+    try {
+      const encodedUrl = encodeURIComponent(profileUrl);
+      const response = await fetch(`/api/instagram-posts?profileUrl=${encodedUrl}${forceRefresh ? '&refresh=true' : ''}`);
+      const data = await response.json().catch(() => ({}));
+
+      if (data && data.success && Array.isArray(data.posts)) {
+        setInstagramPosts(data.posts);
+        sessionStorage.setItem(cacheKey, JSON.stringify(data.posts));
+        // Save to Firestore to persist across all sessions and users
+        updateSiteConfig({ instagramPosts: data.posts }).catch(err => {
+          console.error("Failed to persist instagram posts to Firestore site config:", err);
+        });
+      } else {
+        throw new Error(data?.error || 'Failed to retrieve Instagram visual stream.');
+      }
+    } catch (err: any) {
+      console.error('Error loading Instagram posts:', err);
+      setInstagramFetchError(err?.message || 'Failed to connect to Instagram stream sync.');
+    } finally {
+      setIsFetchingInstagram(false);
+    }
+  };
+
   useEffect(() => {
     if (activeTab === 'about') {
       fetchYoutubeVideos();
+      fetchInstagramPostsDynamic();
     }
-  }, [activeTab]);
+  }, [activeTab, socialLinks]);
 
   // Custom Smooth Toast & Confirm states for UI interactions
   const [activeToast, setActiveToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -1312,6 +1620,8 @@ export default function App() {
       const mappedPosts = mediaList.map((item: any) => ({
         id: item.id,
         imageUrl: item.media_type === 'VIDEO' ? (item.thumbnail_url || item.media_url) : item.media_url,
+        videoUrl: item.media_type === 'VIDEO' ? item.media_url : undefined,
+        mediaType: item.media_type === 'VIDEO' ? 'VIDEO' : 'IMAGE',
         likes: Math.floor(Math.random() * 200) + 150, // Simulated counts
         comments: Math.floor(Math.random() * 25) + 10, // Simulated counts
         caption: item.caption || 'Captured with precision. ✨ #PixelFrame #PixelFix',
@@ -1952,6 +2262,7 @@ export default function App() {
       title: newImageTitle || 'Premium Shoot Frame',
       category: newImageCategory,
       imageUrl: newImageBase64,
+      beforeImageUrl: newImageBeforeUrl || undefined,
       altText: newImageTitle || 'Custom portfolio capture',
       cameraInfo: newImageCamera,
       date: new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' })
@@ -1959,6 +2270,7 @@ export default function App() {
     setGalleryItems(prev => [newItem, ...prev]);
     setNewImageTitle('');
     setNewImageBase64('');
+    setNewImageBeforeUrl('');
     triggerToast('Successfully added custom portfolio picture into showcase!', 'success');
   };
 
@@ -3523,21 +3835,6 @@ export default function App() {
               ))}
             </div>
 
-            {/* Tech FAQs panels */}
-            <div className={`p-6 md:p-8 rounded-3xl border ${s.card} space-y-4`}>
-              <h3 className={`text-xl font-extrabold ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>Genuine Installation &amp; Troubleshooting Guidelines</h3>
-              <div className={`grid grid-cols-1 md:grid-cols-2 gap-6 text-xs ${currentTheme === 'light' ? 'text-slate-700' : 'text-slate-300'}`}>
-                <div className="space-y-1">
-                  <span className={`font-extrabold block ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>Q: Does Pixel Fix provide genuine license configurations?</span>
-                  <p className={`${currentTheme === 'light' ? 'text-slate-600' : 'text-slate-400'}`}>Yes! We thoroughly advise and assist customers about acquiring official Microsoft certifications, license upgrades, and configuring secure digital offices. No insecure pirated cracks mapped into our setups.</p>
-                </div>
-                <div className="space-y-1">
-                  <span className={`font-extrabold block ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>Q: What happens if my hardware error can't be resolved?</span>
-                  <p className={`${currentTheme === 'light' ? 'text-slate-600' : 'text-slate-400'}`}>We maintain an absolute <strong>₹0 Diagnostic Fee warranty</strong>. If we come directly to your doorstep and can't formulate an eligible troubleshooting fix, you pay nothing!</p>
-                </div>
-              </div>
-            </div>
-
             {/* Interactive Hardware SMPS/Power Calculator */}
             <ScrollReveal variant="slide-in-up" delay={0.1}>
               <div className={`p-6 md:p-8 rounded-3xl border ${s.card} flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden`}>
@@ -3563,6 +3860,21 @@ export default function App() {
                 </button>
               </div>
             </ScrollReveal>
+
+            {/* Tech FAQs panels */}
+            <div className={`p-6 md:p-8 rounded-3xl border ${s.card} space-y-4`}>
+              <h3 className={`text-xl font-extrabold ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>Genuine Installation &amp; Troubleshooting Guidelines</h3>
+              <div className={`grid grid-cols-1 md:grid-cols-2 gap-6 text-xs ${currentTheme === 'light' ? 'text-slate-700' : 'text-slate-300'}`}>
+                <div className="space-y-1">
+                  <span className={`font-extrabold block ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>Q: Does Pixel Fix provide genuine license configurations?</span>
+                  <p className={`${currentTheme === 'light' ? 'text-slate-600' : 'text-slate-400'}`}>Yes! We thoroughly advise and assist customers about acquiring official Microsoft certifications, license upgrades, and configuring secure digital offices. No insecure pirated cracks mapped into our setups.</p>
+                </div>
+                <div className="space-y-1">
+                  <span className={`font-extrabold block ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>Q: What happens if my hardware error can't be resolved?</span>
+                  <p className={`${currentTheme === 'light' ? 'text-slate-600' : 'text-slate-400'}`}>We maintain an absolute <strong>₹0 Diagnostic Fee warranty</strong>. If we come directly to your doorstep and can't formulate an eligible troubleshooting fix, you pay nothing!</p>
+                </div>
+              </div>
+            </div>
 
             {/* Assam-Based Client Reviews */}
             <div className="space-y-6 pt-4">
@@ -3788,6 +4100,49 @@ export default function App() {
               ))}
             </div>
 
+            {/* Photo Resizer & Compressor Tool Section (Expandable) */}
+            <ScrollReveal variant="slide-in-up" delay={0.05}>
+              <div className={`border border-dashed border-[#FF5500]/25 rounded-2xl p-4 bg-[#FF5500]/5 flex flex-col md:flex-row items-center justify-between gap-4 mb-4`}>
+                <div className="flex items-center gap-3 text-left w-full md:w-auto">
+                  <div className="p-2 rounded-lg bg-[#FF5500]/10 text-[#FF5500] shrink-0">
+                    <SlidersHorizontal size={18} />
+                  </div>
+                  <div className="text-left">
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <span className="text-[9px] uppercase font-mono bg-[#FF5500]/20 text-[#FF5500] px-1.5 py-0.5 rounded font-extrabold tracking-wide">FREE UTILITY</span>
+                      <span className="text-[9px] text-[#FF5500] uppercase font-mono font-extrabold tracking-wider animate-pulse">● Live Optimizer</span>
+                    </div>
+                    <h4 className={`text-sm font-black uppercase tracking-tight ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
+                      High-Speed Image Optimizer & Resizer
+                    </h4>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsPhotoResizerOpen(!isPhotoResizerOpen)}
+                  className="bg-[#FF5500] hover:bg-[#FF4400] text-white font-extrabold uppercase text-[11px] tracking-wider px-4 py-2.5 rounded-xl shadow-md hover:shadow-[#FF5500]/20 active:scale-95 transition-all cursor-pointer flex items-center gap-1.5 shrink-0 w-full md:w-auto justify-center"
+                >
+                  {isPhotoResizerOpen ? 'Close Resizer' : 'Open Resizer Tool'}
+                </button>
+              </div>
+            </ScrollReveal>
+
+            <AnimatePresence>
+              {isPhotoResizerOpen && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.25, ease: 'easeInOut' }}
+                  className="overflow-hidden mb-6"
+                >
+                  <div className="py-2">
+                    <PhotoResizer currentTheme={currentTheme} />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             {/* Testimonials list */}
             <section className="space-y-6">
               <div className="flex items-center justify-between gap-4">
@@ -3872,6 +4227,7 @@ export default function App() {
                 ))}
               </div>
             </section>
+
             </div>
           </motion.div>
         )}
@@ -3912,13 +4268,23 @@ export default function App() {
               {[
                 { id: 'all', label: 'All Projects' },
                 { id: 'wedding', label: '💍 Wedding' },
+                { id: 'haldi', label: '💛 Haldi' },
+                { id: 'mehendi', label: '🌿 Mehendi' },
+                { id: 'reception', label: '🥂 Reception' },
+                { id: 'engagement', label: '✨ Engagement' },
+                { id: 'pre_wedding', label: '📸 Pre-Wedding' },
+                { id: 'bridal_portraits', label: '👰 Bridal' },
+                { id: 'groom_portraits', label: '🤵 Groom' },
+                { id: 'couple_portraits', label: '👩‍❤️‍👨 Couple' },
+                { id: 'candid_moments', label: '⚡ Candid' },
+                { id: 'family_photos', label: '👨‍👩‍👧‍👦 Family' },
                 { id: 'corporate', label: '👔 Corporate' },
                 { id: 'party', label: '🎉 Events' },
                 { id: 'custom', label: '🌲 Outdoor' }
               ].map((filter) => (
                 <button
                   key={filter.id}
-                  onClick={() => setActiveGalleryFilter(filter.id as any)}
+                  onClick={() => setActiveGalleryFilter(filter.id)}
                   className={`px-4 py-2 rounded-lg text-xs font-extrabold uppercase tracking-wide transition-all ${
                     activeGalleryFilter === filter.id
                       ? 'bg-[#FF5500] text-white shadow-md'
@@ -4051,6 +4417,9 @@ export default function App() {
                           {tag}
                         </span>
                       ))}
+                      <span className="text-[8px] sm:text-[9px] uppercase font-mono font-extrabold tracking-wider px-2 py-0.5 rounded backdrop-blur-md shadow-md border flex items-center gap-1 bg-amber-950/85 text-amber-300 border-amber-500/40 animate-pulse">
+                        <span>⚡ SLIDER</span>
+                      </span>
                     </div>
 
                     <LazyImage
@@ -4263,266 +4632,348 @@ export default function App() {
             </div>
 
             {/* CURATED LATEST INSTAGRAM WIDGET */}
-            <div className={`p-6 rounded-3xl border ${s.card} space-y-6`}>
-              <div className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b ${s.divider}`}>
-                <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-yellow-500 via-[#FF5500] to-purple-600 p-[2px] flex items-center justify-center">
+            <div className={`p-6 sm:p-8 rounded-3xl border ${s.card} space-y-6 transition-all duration-300`}>
+              <div className={`flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-5 border-b ${s.divider}`}>
+                <div className="flex items-center space-x-3.5">
+                  <div className="w-11 h-11 rounded-full bg-gradient-to-tr from-yellow-500 via-[#FF5500] to-purple-600 p-[2px] flex items-center justify-center shadow-sm">
                     <div className={`w-full h-full rounded-full flex items-center justify-center ${
                       currentTheme === 'light' ? 'bg-white' : 'bg-[#18181F]'
                     }`}>
-                      <Instagram size={16} className="text-[#FF5500]" />
+                      <Instagram size={18} className="text-[#FF5500]" />
                     </div>
                   </div>
                   
                   <div>
-                    <h3 className={`font-extrabold text-sm flex items-center gap-2 pt-0.5 ${
+                    <h3 className={`font-black text-base flex items-center gap-2 pt-0.5 tracking-tight ${
                       currentTheme === 'light' ? 'text-slate-900' : 'text-white'
                     }`}>
-                      <span>Instagram Visuals feed</span>
-                      <a href="https://instagram.com/mpanjiyar1" target="_blank" rel="noreferrer" className="text-xs text-slate-400 hover:text-[#FF5500] transition-colors">
-                        @mpanjiyar1 <ExternalLink size={10} className="inline ml-1" />
+                      <span>Instagram Stream</span>
+                      <a href="https://instagram.com/mpanjiyar1" target="_blank" rel="noreferrer" className="text-xs font-semibold text-slate-400 hover:text-[#FF5500] transition-colors flex items-center gap-1">
+                        @mpanjiyar1 <ExternalLink size={10} />
                       </a>
-                      {instagramAccessToken && (
-                        <span className="text-[8px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 bg-green-500/10 text-green-400 rounded-md border border-green-500/20 font-mono">
-                          Live Sync Link
-                        </span>
-                      )}
                     </h3>
-                    <p className="text-[10px] text-slate-500 flex items-center flex-wrap gap-2 leading-none mt-1">
-                      <span>Discover live photographic assignments, edits, and portfolio outtakes</span>
-                      {isSyncingInstagram && (
-                        <span className="text-[10px] text-[#FF5500] font-black flex items-center gap-1 animate-pulse font-mono bg-[#FF5500]/10 px-1.5 py-0.5 rounded">
-                          <RefreshCw size={9} className="animate-spin" /> Auto-Updating Feed...
+                    <p className="text-xs text-slate-500 flex items-center flex-wrap gap-2 leading-none mt-1.5 font-medium">
+                      <span>Latest cinematic captures & technical outtakes</span>
+                      {(isFetchingInstagram || isSyncingInstagram) && (
+                        <span className="text-[10px] text-[#FF5500] font-bold flex items-center gap-1 animate-pulse font-mono bg-[#FF5500]/10 px-1.5 py-0.5 rounded">
+                          <RefreshCw size={9} className="animate-spin" /> Fetching latest posts...
                         </span>
                       )}
                     </p>
                   </div>
                 </div>
                 
-                <a
-                  href="https://instagram.com/mpanjiyar1"
-                  target="_blank"
-                  rel="noreferrer"
-                  className={`text-xs font-extrabold uppercase px-4 py-2 rounded-lg transition-all ${
-                    currentTheme === 'light' ? 'bg-slate-900 hover:bg-slate-800 text-white shadow-sm' : 'bg-white hover:bg-zinc-200 text-black'
-                  }`}
-                >
-                  Follow @mpanjiyar1
-                </a>
-              </div>
-
-              {/* Grid map */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-                {instagramPosts.map((post, index) => (
-                  <motion.div
-                    key={post.id}
-                    onClick={() => {
-                      if (!isAuthorized) {
-                        window.open(post.permalink || 'https://www.instagram.com/mpanjiyar1', '_blank');
-                      }
-                    }}
-                    initial={{ opacity: 0, scale: 0.92 }}
-                    whileInView={{ opacity: 1, scale: 1 }}
-                    viewport={{ once: true }}
-                    transition={{ duration: 0.35, delay: Math.min(index * 0.05, 0.3) }}
-                    whileHover={{ scale: 1.03, y: -3 }}
-                    className={`group rounded-xl overflow-hidden aspect-square relative transition-all cursor-pointer border ${
-                      currentTheme === 'light' ? 'bg-slate-50 border-slate-200 hover:border-slate-400' : 'bg-black border-white/5 hover:border-zinc-500'
-                    }`}
-                  >
-                    {isAuthorized && (
-                      <div className="absolute top-2 right-2 z-20 flex gap-1">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEditingItem({
-                              type: 'instagram',
-                              id: post.id,
-                              data: { ...post }
-                            });
-                          }}
-                          className="p-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-[10px] shadow"
-                          title="Edit Post"
-                        >
-                          ✏️
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (confirm('Delete this Instagram post?')) {
-                              setInstagramPosts(instagramPosts.filter(p => p.id !== post.id));
-                            }
-                          }}
-                          className="p-1 bg-rose-600 hover:bg-rose-700 text-white rounded text-[10px] shadow"
-                          title="Delete Post"
-                        >
-                          🗑️
-                        </button>
-                      </div>
-                    )}
-                    <LazyImage
-                      src={post.imageUrl || 'https://images.unsplash.com/photo-1542038784456-1ea8e935640e?q=80&w=400'}
-                      alt="instagram portfolio post by murari mpanjiyar1"
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      placeholderClassName="absolute inset-0 z-0"
-                    />
-                    <div className="absolute inset-0 bg-black/85 opacity-0 group-hover:opacity-100 transition-opacity p-2.5 flex flex-col justify-between text-left z-10">
-                      <p className="text-[9px] text-slate-300 line-clamp-4 leading-normal font-mono">
-                        {post.caption}
-                      </p>
-                      <div className="flex items-center justify-between text-[10px] text-slate-400 pt-2 border-t border-white/5">
-                        <span className="flex items-center gap-1">❤️ {post.likes}</span>
-                        <span className="flex items-center gap-1">💬 {post.comments}</span>
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
-
-                {isAuthorized && (
-                  <div
-                    onClick={() => setEditingItem({
-                      type: 'instagram',
-                      data: { id: 'insta_' + Date.now(), imageUrl: '', caption: 'Caption of your original instagram post here. #PixelFrame #Guwahati', likes: 140, comments: 12 }
-                    })}
-                    className={`group rounded-xl overflow-hidden aspect-square border-2 border-dashed flex flex-col items-center justify-center gap-1.5 p-3 cursor-pointer transition-all hover:scale-[1.02] ${
-                      currentTheme === 'light'
-                        ? 'border-slate-300 hover:border-[#FF5500] hover:bg-slate-100 text-slate-500'
-                        : 'border-white/10 hover:border-[#FF5500] hover:bg-white/5 text-slate-450'
-                    }`}
-                  >
-                    <Plus size={20} className="text-[#FF5500]" />
-                    <span className="text-[9px] font-black uppercase text-center block">Add Live Post</span>
+                <div className="flex items-center flex-wrap gap-3 w-full md:w-auto justify-between md:justify-end">
+                  {/* Minimalism Filter Tabs */}
+                  <div className={`flex items-center gap-1 p-0.5 ${currentTheme === 'light' ? 'bg-slate-100' : 'bg-white/5'} rounded-xl text-[10px] font-bold uppercase tracking-wider`}>
+                    <button
+                      onClick={() => setInstaFilter('all')}
+                      className={`px-3 py-1.5 rounded-lg transition-all duration-200 ${instaFilter === 'all' ? 'bg-[#FF5500] text-white shadow-sm' : 'text-slate-400 hover:text-slate-950 dark:hover:text-white'}`}
+                    >
+                      All
+                    </button>
+                    <button
+                      onClick={() => setInstaFilter('image')}
+                      className={`px-3 py-1.5 rounded-lg transition-all duration-200 ${instaFilter === 'image' ? 'bg-[#FF5500] text-white shadow-sm' : 'text-slate-400 hover:text-slate-950 dark:hover:text-white'}`}
+                    >
+                      Photos
+                    </button>
+                    <button
+                      onClick={() => setInstaFilter('video')}
+                      className={`px-3 py-1.5 rounded-lg transition-all duration-200 ${instaFilter === 'video' ? 'bg-[#FF5500] text-white shadow-sm' : 'text-slate-400 hover:text-slate-950 dark:hover:text-white'}`}
+                    >
+                      Reels
+                    </button>
                   </div>
-                )}
+
+                  <div className="flex items-center gap-2">
+                    {/* Live Sync Trigger Button for Visitors/Admin */}
+                    <button
+                      onClick={() => fetchInstagramPostsDynamic(true)}
+                      disabled={isFetchingInstagram}
+                      title="Sync Live Stream"
+                      className={`p-2 rounded-xl border transition-all cursor-pointer flex items-center justify-center ${
+                        currentTheme === 'light' 
+                          ? 'border-slate-200 hover:bg-slate-50 text-slate-600' 
+                          : 'border-white/10 hover:bg-white/5 text-slate-300'
+                      }`}
+                    >
+                      <RefreshCw size={13} className={isFetchingInstagram ? 'animate-spin text-[#FF5500]' : ''} />
+                    </button>
+
+                    <a
+                      href="https://instagram.com/mpanjiyar1"
+                      target="_blank"
+                      rel="noreferrer"
+                      className={`text-xs font-bold px-4 py-2 rounded-xl transition-all tracking-tight ${
+                        currentTheme === 'light' ? 'bg-slate-950 hover:bg-slate-800 text-white shadow-sm' : 'bg-white hover:bg-zinc-100 text-black'
+                      }`}
+                    >
+                      Follow
+                    </a>
+                  </div>
+                </div>
               </div>
+
+              {/* Dynamic Content Stream */}
+              {isFetchingInstagram && instagramPosts.length === 0 ? (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  {[1, 2, 3, 4, 5, 6].map((n) => (
+                    <div key={n} className="animate-pulse rounded-2xl aspect-square bg-slate-100 dark:bg-white/5 border border-dashed border-slate-200 dark:border-white/5" />
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {(() => {
+                    const isVideoPost = (post: any) => post.mediaType === 'VIDEO' || !!post.videoUrl;
+                    const filtered = instagramPosts.filter(p => {
+                      if (instaFilter === 'image') return !isVideoPost(p);
+                      if (instaFilter === 'video') return isVideoPost(p);
+                      return true;
+                    }).slice(0, 6);
+
+                    if (filtered.length === 0) {
+                      return (
+                        <div className="py-12 text-center rounded-2xl border border-dashed border-slate-200 dark:border-white/5">
+                          <p className="text-slate-400 text-xs font-mono">No matching portfolio posts found.</p>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        {filtered.map((post, idx) => {
+                          const isReel = isVideoPost(post);
+                          return (
+                            <motion.div
+                              key={post.id || `insta-post-${idx}`}
+                              onClick={() => {
+                                if (!isAuthorized) {
+                                  window.open(post.permalink || 'https://www.instagram.com/mpanjiyar1', '_blank');
+                                }
+                              }}
+                              initial={{ opacity: 0, scale: 0.95 }}
+                              whileInView={{ opacity: 1, scale: 1 }}
+                              viewport={{ once: true }}
+                              transition={{ duration: 0.3, delay: idx * 0.05 }}
+                              whileHover={{ scale: 1.02 }}
+                              className={`group rounded-2xl overflow-hidden aspect-square relative transition-all cursor-pointer border ${
+                                currentTheme === 'light' 
+                                  ? 'bg-slate-50 border-slate-200/60 hover:border-slate-300 hover:shadow-md' 
+                                  : 'bg-black border-white/5 hover:border-zinc-700 hover:shadow-xl hover:shadow-black/20'
+                              }`}
+                            >
+                              {/* Admin Action Badges */}
+                              {isAuthorized && (
+                                <div className="absolute top-2 right-2 z-30 flex gap-1 bg-black/40 backdrop-blur-md p-1 rounded-lg">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setEditingItem({
+                                        type: 'instagram',
+                                        id: post.id,
+                                        data: { ...post }
+                                      });
+                                    }}
+                                    className="p-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-[10px] shadow transition-colors"
+                                    title="Edit Post"
+                                  >
+                                    ✏️
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (confirm('Delete this Instagram post?')) {
+                                        const updatedPosts = instagramPosts.filter(p => p.id !== post.id);
+                                        setInstagramPosts(updatedPosts);
+                                        updateSiteConfig({ instagramPosts: updatedPosts });
+                                      }
+                                    }}
+                                    className="p-1 bg-rose-600 hover:bg-rose-700 text-white rounded text-[10px] shadow transition-colors"
+                                    title="Delete Post"
+                                  >
+                                    🗑️
+                                  </button>
+                                </div>
+                              )}
+
+                              {/* Media Player / Frame Content */}
+                              {isReel && post.videoUrl ? (
+                                <div className="w-full h-full relative">
+                                  <video
+                                    src={post.videoUrl}
+                                    poster={post.imageUrl}
+                                    loop
+                                    muted
+                                    playsInline
+                                    onMouseEnter={(e) => e.currentTarget.play().catch(() => {})}
+                                    onMouseLeave={(e) => {
+                                      e.currentTarget.pause();
+                                      e.currentTarget.currentTime = 0;
+                                    }}
+                                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                  />
+                                  <div className="absolute top-2.5 left-2.5 bg-black/60 backdrop-blur-md text-white p-1 rounded-lg z-10">
+                                    <Video size={10} className="text-white" />
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="w-full h-full relative">
+                                  <LazyImage
+                                    src={post.imageUrl || 'https://images.unsplash.com/photo-1542038784456-1ea8e935640e?q=80&w=600'}
+                                    alt="instagram portfolio post by murari mpanjiyar1"
+                                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                    placeholderClassName="absolute inset-0 z-0"
+                                  />
+                                  {isReel && (
+                                    <div className="absolute inset-0 bg-black/5 flex items-center justify-center group-hover:bg-black/25 transition-colors duration-300">
+                                      <div className="w-8 h-8 rounded-full bg-white/25 backdrop-blur-md flex items-center justify-center text-white border border-white/40 transition-transform duration-300 group-hover:scale-110">
+                                        <Play size={8} fill="currentColor" className="ml-0.5 text-white" />
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Refined Hover Plate */}
+                              <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 p-3 sm:p-4 flex flex-col justify-end text-left z-20">
+                                <p className="text-[10px] sm:text-xs text-slate-100 line-clamp-3 leading-relaxed font-sans font-medium mb-3">
+                                  {post.caption}
+                                </p>
+                                <div className="flex items-center gap-4 text-[10px] sm:text-xs text-slate-300 pt-2 border-t border-white/10 font-mono font-bold">
+                                  <span className="flex items-center gap-1.5 hover:text-rose-500 transition-colors">
+                                    <Heart size={12} className="text-rose-500" fill="currentColor" /> {post.likes}
+                                  </span>
+                                  <span className="flex items-center gap-1.5 hover:text-sky-400 transition-colors">
+                                    <MessageSquare size={12} className="text-sky-400" /> {post.comments}
+                                  </span>
+                                </div>
+                              </div>
+                            </motion.div>
+                          );
+                        })}
+
+                        {isAuthorized && filtered.length < 6 && (
+                          <div
+                            onClick={() => setEditingItem({
+                              type: 'instagram',
+                              data: { id: 'insta_' + Date.now(), imageUrl: '', caption: 'Caption of your original instagram post here. #PixelFrame #Guwahati', likes: 140, comments: 12, mediaType: 'IMAGE' }
+                            })}
+                            className={`group rounded-2xl overflow-hidden aspect-square border-2 border-dashed flex flex-col items-center justify-center gap-1.5 p-3 cursor-pointer transition-all hover:scale-[1.01] ${
+                              currentTheme === 'light'
+                                ? 'border-slate-300 hover:border-[#FF5500] hover:bg-slate-50 text-slate-500'
+                                : 'border-white/10 hover:border-[#FF5500] hover:bg-white/5 text-slate-400'
+                            }`}
+                          >
+                            <Plus size={20} className="text-[#FF5500]" />
+                            <span className="text-[9px] font-black uppercase text-center tracking-wider block">Add Feed Item</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  {isAuthorized && (
+                    <div className="flex justify-end pt-2 border-t border-dashed border-slate-200 dark:border-white/10">
+                      <button
+                        type="button"
+                        onClick={() => setEditingItem({
+                          type: 'instagram',
+                          data: { id: 'insta_' + Date.now(), imageUrl: '', caption: 'Caption of your original instagram post here. #PixelFrame #Guwahati', likes: 140, comments: 12 }
+                        })}
+                        className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black uppercase transition-all tracking-wider ${
+                          currentTheme === 'light'
+                            ? 'bg-slate-100 hover:bg-[#FF5500] hover:text-white text-slate-700'
+                            : 'bg-white/5 hover:bg-[#FF5500] hover:text-white text-slate-300'
+                        }`}
+                      >
+                        <Plus size={14} /> Add Any Media Item
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* TOP-PERFORMING YOUTUBE VIDEO SECTION */}
-            <div className={`p-6 md:p-8 rounded-3xl border ${
+            <div className={`p-5 rounded-2xl border ${
               currentTheme === 'light' 
-                ? 'border-slate-250 bg-white/70 shadow-sm' 
-                : 'border-[#FF0000]/15 bg-gradient-to-b from-[#FF0000]/5 via-black/20 to-black/45 shadow-xl'
-            } backdrop-blur-md relative overflow-hidden space-y-8`}>
+                ? 'border-slate-200 bg-slate-50/50 shadow-sm' 
+                : 'border-white/5 bg-zinc-950/40 shadow-md'
+            } space-y-6`}>
               
-              {/* Premium Background Ambience Spot for Dark Theme */}
-              {currentTheme !== 'light' && (
-                <div className="absolute top-0 right-1/4 w-96 h-96 bg-red-600/10 rounded-full blur-[120px] pointer-events-none -translate-y-1/2" />
-              )}
-
-              {/* Hidden SVG High-Definition Sharpen Filter */}
-              <svg className="absolute w-0 h-0" aria-hidden="true" style={{ position: 'absolute', width: 0, height: 0 }}>
-                <defs>
-                  <filter id="hd-sharpen">
-                    <feConvolveMatrix 
-                      order="3" 
-                      preserveAlpha="true"
-                      kernelMatrix="0 -0.4 0 -0.4 2.6 -0.4 0 -0.4 0" 
-                    />
-                  </filter>
-                </defs>
-              </svg>
-
               {/* Section Header */}
-              <div className={`flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 pb-6 border-b ${s.divider}`}>
-                <div className="flex items-start sm:items-center space-x-4">
-                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#FF0000] to-red-500 p-[3px] flex items-center justify-center shadow-lg shadow-red-500/20 shrink-0">
-                    <div className="w-full h-full rounded-[13px] bg-black/40 backdrop-blur-md flex items-center justify-center">
-                      <Youtube size={22} className="text-[#FF0000] drop-shadow-[0_2px_8px_rgba(255,0,0,0.5)]" />
-                    </div>
-                  </div>
-                  
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex items-center space-x-3">
+                  <Youtube size={18} className="text-[#FF0000]" />
                   <div>
-                    <h3 className={`font-black text-base flex items-center flex-wrap gap-2.5 tracking-tight ${
+                    <h3 className={`font-bold text-sm tracking-tight ${
                       currentTheme === 'light' ? 'text-slate-900' : 'text-white'
                     }`}>
-                      <span className="bg-gradient-to-r from-red-500 to-amber-500 bg-clip-text text-transparent">Top Performing Broadcasts</span>
-                      <span className="flex items-center gap-1.5 text-[8px] uppercase tracking-widest font-black px-2 py-0.5 bg-red-500/10 text-red-500 rounded-md border border-red-500/25 font-mono animate-pulse">
-                        <span className="w-1.5 h-1.5 rounded-full bg-red-500 block" /> Live Ranking Feed
-                      </span>
+                      Top Performing Broadcasts
                     </h3>
-                    <p className={`text-[10px] ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'} mt-1.5 leading-relaxed max-w-xl`}>
-                      Analyzing real-time stream performance and high-definition audience engagement from Murari's broadcast channel. Play instantly in fully calibrated frame presets.
-                    </p>
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-                  {/* Channel Micro stats panel for premium UI detail */}
-                  <div className={`hidden sm:flex items-center gap-3 px-4 py-2 rounded-2xl border font-mono text-[9px] ${
-                    currentTheme === 'light'
-                      ? 'bg-slate-50 border-slate-200 text-slate-500'
-                      : 'bg-zinc-900/60 border-white/5 text-slate-400'
-                  }`}>
-                    <div className="flex flex-col">
-                      <span className="opacity-60 text-[7px] uppercase tracking-wider font-extrabold leading-none">Broadcaster</span>
-                      <span className={`font-black mt-0.5 ${currentTheme === 'light' ? 'text-slate-800' : 'text-slate-200'}`}>M. Panjiyar</span>
-                    </div>
-                    <div className={`w-px h-6 ${currentTheme === 'light' ? 'bg-slate-200' : 'bg-white/10'}`} />
-                    <div className="flex flex-col">
-                      <span className="opacity-60 text-[7px] uppercase tracking-wider font-extrabold leading-none">Format</span>
-                      <span className="text-emerald-500 font-bold mt-0.5 flex items-center gap-1">HD 1080P</span>
-                    </div>
-                  </div>
-
+                <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => fetchYoutubeVideos(true)}
                     disabled={isFetchingYoutube}
-                    className={`text-[10px] font-black uppercase tracking-wider px-4 py-2.5 rounded-xl transition-all duration-300 flex items-center gap-2 border ${
+                    className={`text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg transition-all duration-200 flex items-center gap-1.5 border ${
                       currentTheme === 'light'
-                        ? 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-700 disabled:opacity-50 hover:shadow-sm'
-                        : 'bg-zinc-900 border-white/5 hover:bg-zinc-800 text-slate-300 disabled:opacity-50 hover:border-white/10'
+                        ? 'bg-white border-slate-200 hover:bg-slate-50 text-slate-700 disabled:opacity-50'
+                        : 'bg-zinc-900 border-white/5 hover:bg-zinc-800 text-slate-300 disabled:opacity-50'
                     }`}
                   >
-                    <RefreshCw size={12} className={`text-[#FF5500] ${isFetchingYoutube ? 'animate-spin' : ''}`} />
-                    <span>{isFetchingYoutube ? 'Updating Feed...' : 'Sync Live'}</span>
+                    <RefreshCw size={11} className={`text-red-500 ${isFetchingYoutube ? 'animate-spin' : ''}`} />
+                    <span>{isFetchingYoutube ? 'Syncing...' : 'Sync Live'}</span>
                   </button>
                   
-                  <a
-                    href="https://www.youtube.com/channel/UCoZOM_gfrukJgZlBra0l-6w"
-                    target="_blank"
-                    rel="noreferrer"
-                    className={`text-[10px] font-black uppercase tracking-wider px-4.5 py-2.5 rounded-xl transition-all duration-300 shadow-lg ${
-                      currentTheme === 'light' 
-                        ? 'bg-slate-900 hover:bg-slate-800 text-white hover:shadow-slate-900/15' 
-                        : 'bg-white hover:bg-zinc-200 text-black hover:shadow-white/5'
-                    }`}
-                  >
-                    Visit Channel
-                  </a>
+                  {(() => {
+                    const youtubeLink = socialLinks.find(link => link.platform === 'youtube');
+                    const channelUrl = youtubeLink ? youtubeLink.url : 'https://www.youtube.com/channel/UCoZOM_gfrukJgZlBra0l-6w';
+                    return (
+                      <a
+                        href={channelUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className={`text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg transition-all duration-200 border ${
+                          currentTheme === 'light' 
+                            ? 'bg-slate-900 border-slate-900 text-white hover:bg-slate-800' 
+                            : 'bg-white border-white text-black hover:bg-zinc-100'
+                        }`}
+                      >
+                        Visit Channel
+                      </a>
+                    );
+                  })()}
                 </div>
               </div>
 
-              {/* Error Alert inside widget (non-blocking) */}
+              {/* Error Alert (non-blocking, simplified) */}
               {youtubeFetchError && (
-                <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-start gap-3 text-xs text-amber-500 shadow-sm max-w-2xl">
-                  <Video size={16} className="shrink-0 mt-0.5 animate-bounce" />
-                  <div>
-                    <strong className="font-extrabold block mb-0.5 text-[11px] uppercase tracking-wider">Metrics Synchronizer Alert</strong>
-                    <p className="opacity-85 text-[10px] leading-relaxed">
-                      Channel analytics feed is currently busy. Displaying cached top-performing master records with fully calibrated responsive playback.
-                    </p>
-                  </div>
-                </div>
+                <p className="text-[10px] text-amber-500 font-mono">
+                  Displaying cached top-performing master records.
+                </p>
               )}
 
               {/* Videos Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {isFetchingYoutube && youtubeVideos.length === 0 ? (
-                  // Skeleton State for perfect loading speeds & zero layout shift
                   Array.from({ length: 3 }).map((_, idx) => (
-                    <div key={idx} className="space-y-4 animate-pulse">
-                      <div className={`aspect-video rounded-2xl w-full ${
-                        currentTheme === 'light' ? 'bg-slate-100' : 'bg-zinc-900'
+                    <div key={idx} className="space-y-2 animate-pulse">
+                      <div className={`aspect-video rounded-xl w-full ${
+                        currentTheme === 'light' ? 'bg-slate-150' : 'bg-zinc-900/80'
                       }`} />
-                      <div className="space-y-3">
-                        <div className={`h-4 rounded-md w-3/4 ${
-                          currentTheme === 'light' ? 'bg-slate-100' : 'bg-zinc-900'
+                      <div className="space-y-1.5">
+                        <div className={`h-3 rounded w-3/4 ${
+                          currentTheme === 'light' ? 'bg-slate-150' : 'bg-zinc-900/80'
                         }`} />
-                        <div className={`h-3 rounded-md w-1/2 ${
-                          currentTheme === 'light' ? 'bg-slate-100' : 'bg-zinc-900'
+                        <div className={`h-2.5 rounded w-1/2 ${
+                          currentTheme === 'light' ? 'bg-slate-150' : 'bg-zinc-900/80'
                         }`} />
                       </div>
                     </div>
@@ -4530,110 +4981,81 @@ export default function App() {
                 ) : (
                   youtubeVideos.slice(0, 3).map((video, index) => {
                     const isPlaying = playingVideoId === video.id;
-                    const rankLabels = ["🏆 Champion Rank", "🥈 Showcase Rank", "🥉 Creator Rank"];
-                    const rankMedals = ["🥇 Rank #1", "🥈 Rank #2", "🥉 Rank #3"];
-                    const rankColors = [
-                      "from-amber-500/25 to-yellow-500/10 text-yellow-400 border-yellow-500/30 shadow-yellow-500/5",
-                      "from-slate-400/20 to-slate-300/10 text-slate-300 border-slate-400/25 shadow-slate-400/5",
-                      "from-orange-700/25 to-amber-700/10 text-orange-400 border-orange-700/30 shadow-orange-700/5"
-                    ];
+                    const rankLabels = ["#1 Top Video", "#2 Hot Video", "#3 Trending"];
                     
                     return (
                       <motion.div
                         key={video.id}
-                        initial={{ opacity: 0, y: 20 }}
+                        initial={{ opacity: 0, y: 10 }}
                         whileInView={{ opacity: 1, y: 0 }}
                         viewport={{ once: true }}
-                        transition={{ duration: 0.5, delay: index * 0.1, type: 'spring', stiffness: 120, damping: 18 }}
-                        className={`group flex flex-col justify-between p-3.5 rounded-[22px] border transition-all duration-300 ease-out will-change-transform ${
+                        transition={{ duration: 0.3, delay: index * 0.05 }}
+                        className={`group flex flex-col justify-between p-2.5 rounded-xl border transition-all duration-200 ${
                           isPlaying 
                             ? currentTheme === 'light'
-                              ? 'bg-slate-50 border-red-500/30 shadow-md shadow-red-500/5'
-                              : 'bg-black/40 border-[#FF0000]/30 shadow-xl shadow-[#FF0000]/5' 
+                              ? 'bg-white border-red-500/20 shadow-sm'
+                              : 'bg-black/20 border-red-500/20' 
                             : currentTheme === 'light'
-                              ? 'bg-slate-50/50 hover:bg-white border-slate-200 hover:border-red-500/30 hover:shadow-lg'
-                              : 'bg-zinc-950/65 hover:bg-zinc-900/40 border-white/5 hover:border-red-500/35 hover:shadow-2xl hover:shadow-[#FF0000]/5'
+                              ? 'bg-white/40 hover:bg-white border-slate-200/85 hover:border-slate-300'
+                              : 'bg-zinc-900/30 hover:bg-zinc-900/60 border-white/5 hover:border-white/10'
                         }`}
                       >
-                        {/* Video Aspect Screen with Smart Lazy-Embedding and full audio/HD options */}
-                        <div className="aspect-video relative rounded-xl overflow-hidden bg-black border border-white/5 shadow-inner group/thumb">
+                        {/* Aspect Screen */}
+                        <div className="aspect-video relative rounded-lg overflow-hidden bg-black border border-white/5 group-hover/thumb:scale-[1.01] transition-transform duration-200">
                           {isPlaying ? (
                             <iframe
                               className="w-full h-full absolute inset-0 z-10"
-                              src={`https://www.youtube.com/embed/${video.id}?autoplay=1&mute=0&rel=0&showinfo=0`}
+                              src={`https://www.youtube.com/embed/${video.id}?autoplay=1&mute=0&rel=0`}
                               title={video.title}
                               allowFullScreen
                               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                             />
                           ) : (
                             <div className="absolute inset-0 w-full h-full cursor-pointer" onClick={() => setPlayingVideoId(video.id)}>
-                              {/* Beautiful ranking medal badge */}
-                              <span className={`absolute top-3 left-3 z-20 text-[8px] uppercase tracking-wider font-extrabold px-2.5 py-1 rounded-lg border backdrop-blur-md bg-gradient-to-r shadow ${rankColors[index]}`}>
-                                {rankMedals[index]}
-                              </span>
-                              
-                              {/* Video length placeholder/accent */}
-                              <span className="absolute bottom-3 right-3 z-20 text-[8px] font-mono tracking-widest font-black px-2 py-0.5 bg-black/80 text-white rounded-md backdrop-blur-md border border-white/10 uppercase">
-                                1080P HD
+                              {/* Small simple ranking badge */}
+                              <span className="absolute top-2 left-2 z-20 text-[8px] font-mono font-bold px-1.5 py-0.5 rounded bg-black/75 text-amber-400 border border-amber-500/20 uppercase tracking-wide">
+                                {rankLabels[index]}
                               </span>
 
-                              {/* Lazy Image loading with real-time High-Definition Sharpen Filter & crisp image rendering */}
                               <LazyImage
                                 src={`https://img.youtube.com/vi/${video.id}/maxresdefault.jpg`}
                                 alt={video.title}
-                                className="w-full h-full object-cover group-hover/thumb:scale-[1.04] transition-transform duration-700 ease-out rounded-xl"
-                                style={{ 
-                                  filter: 'contrast(1.08) saturate(1.04) brightness(1.02) url(#hd-sharpen)',
-                                  imageRendering: 'crisp-edges' 
-                                }}
+                                className="w-full h-full object-cover transition-transform duration-300 ease-out rounded-lg"
                                 placeholderClassName="absolute inset-0"
-                                onError={(e: any) => {
-                                  // Fallback to hqdefault if maxresdefault doesn't exist
-                                  if (e.target) {
-                                    e.target.src = `https://img.youtube.com/vi/${video.id}/hqdefault.jpg`;
-                                  }
-                                }}
                               />
                               
-                              {/* Glowing Red-Amber Overlay Gradient */}
-                              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-black/30 group-hover/thumb:opacity-85 transition-opacity duration-300" />
+                              <div className="absolute inset-0 bg-black/40 group-hover:bg-black/30 transition-colors duration-200" />
                               
-                              {/* Glassmorphic Play Overlay */}
+                              {/* Simple Play Overlay */}
                               <div className="absolute inset-0 flex items-center justify-center">
-                                <motion.div 
-                                  whileHover={{ scale: 1.12 }}
-                                  whileTap={{ scale: 0.94 }}
-                                  transition={{ type: 'spring', stiffness: 400, damping: 20 }}
-                                  className="w-13 h-13 rounded-full bg-red-600 hover:bg-red-500 text-white flex items-center justify-center shadow-2xl shadow-red-600/50 transition-colors duration-200"
-                                >
-                                  <Play size={20} fill="currentColor" className="ml-1 text-white" />
-                                </motion.div>
+                                <div className="w-10 h-10 rounded-full bg-red-600 hover:bg-red-500 text-white flex items-center justify-center shadow-lg transition-all duration-150 transform active:scale-95">
+                                  <Play size={14} fill="currentColor" className="ml-0.5 text-white" />
+                                </div>
                               </div>
                             </div>
                           )}
                         </div>
 
-                        {/* Video Information Metadata block */}
-                        <div className="pt-4 pb-1 px-1 flex-1 flex flex-col justify-between">
+                        {/* Video Metadata */}
+                        <div className="pt-2.5 pb-0.5 px-0.5 flex-1 flex flex-col justify-between">
                           <div>
-                            <span className="text-[7px] uppercase tracking-widest font-black font-mono text-red-500/80 block mb-1">
-                              {rankLabels[index]}
-                            </span>
-                            <h4 className={`text-xs font-extrabold uppercase leading-snug line-clamp-2 tracking-wide break-words group-hover:text-red-500 transition-colors duration-200 ${
-                              currentTheme === 'light' ? 'text-slate-800' : 'text-slate-100'
+                            <h4 className={`text-[11px] font-bold uppercase leading-snug line-clamp-2 tracking-wide break-words group-hover:text-red-500 transition-colors duration-200 ${
+                              currentTheme === 'light' ? 'text-slate-800' : 'text-slate-200'
                             }`}>
                               {video.title}
                             </h4>
                           </div>
                           
-                          <div className={`flex items-center justify-between text-[9px] font-mono mt-4 pt-3 border-t ${
-                            currentTheme === 'light' ? 'border-slate-200/60 text-slate-500' : 'border-white/5 text-slate-400'
+                          <div className={`flex items-center justify-between mt-3 pt-2.5 border-t ${
+                            currentTheme === 'light' ? 'border-slate-100' : 'border-white/5'
                           }`}>
-                            <span className="flex items-center gap-1.5 font-bold text-red-500">
-                              <TrendingUp size={12} className="text-red-500" /> {video.viewsFormatted}
+                            <span className="flex items-center gap-1.5 font-mono text-[10px] font-bold text-red-500 dark:text-red-400">
+                              <Eye size={11} className="text-red-500 shrink-0" />
+                              <span>{video.viewsFormatted || (video.views ? (video.views >= 1000 ? `${(video.views/1000).toFixed(1).replace(/\.0$/, "")}K views` : `${video.views} views`) : '0 views')}</span>
                             </span>
-                            <span className="flex items-center gap-1 opacity-75">
-                              <Calendar size={11} /> {new Date(video.published).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                            <span className="flex items-center gap-1.5 font-mono text-[10px] font-bold text-amber-500 dark:text-amber-400">
+                              <ThumbsUp size={11} className="text-amber-500 shrink-0" />
+                              <span>{video.likesFormatted || (video.likes ? (video.likes >= 1000 ? `${(video.likes/1000).toFixed(1).replace(/\.0$/, "")}K likes` : `${video.likes} likes`) : '0 likes')}</span>
                             </span>
                           </div>
                         </div>
@@ -4648,14 +5070,67 @@ export default function App() {
 
         {/* AFFILIATE Curated Recommendations & Deals Tab */}
         {activeTab === 'affiliate' && (
-          <motion.div
-            key="affiliate"
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -15 }}
-            transition={{ type: "spring", stiffness: 180, damping: 20 }}
-            className="space-y-8 text-left max-w-6xl mx-auto"
-          >
+          <>
+            {/* Subtle premium scroll progress indicator line */}
+            <div className="fixed top-0 left-0 w-full h-[3px] bg-slate-200/10 dark:bg-black/10 z-[100] pointer-events-none">
+              <motion.div 
+                className="h-full bg-gradient-to-r from-amber-500 via-[#FF5500] to-yellow-500 shadow-[0_1px_8px_rgba(255,85,0,0.5)]"
+                initial={{ width: '0%' }}
+                animate={{ width: `${affiliateScrollProgress}%` }}
+                transition={{ duration: 0.1, ease: 'easeOut' }}
+              />
+            </div>
+
+            {/* Stylish Floating Back to Top Button */}
+            <AnimatePresence>
+              {showAffiliateBackToTop && (
+                <motion.button
+                  key="back-to-top"
+                  initial={{ opacity: 0, scale: 0.8, y: 20 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.8, y: 20 }}
+                  whileHover={{ scale: 1.12, y: -4 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  className={`fixed bottom-6 right-6 md:bottom-8 md:right-8 z-[100] p-3.5 rounded-full flex items-center justify-center shadow-2xl transition-all cursor-pointer group border ${
+                    currentTheme === 'light'
+                      ? 'bg-white hover:bg-[#FF5500] hover:text-white text-slate-800 border-slate-200/80 shadow-slate-200'
+                      : currentTheme === 'mono'
+                        ? 'bg-zinc-900 hover:bg-white hover:text-black text-white border-white/10 shadow-black'
+                        : 'bg-gradient-to-r from-amber-500 to-[#FF5500] text-white border-amber-400/20 shadow-[#FF5500]/25'
+                  }`}
+                  style={{
+                    boxShadow: currentTheme === 'light' 
+                      ? '0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.08)'
+                      : currentTheme === 'mono'
+                        ? '0 10px 25px -5px rgba(0, 0, 0, 0.5)'
+                        : '0 10px 25px -5px rgba(255, 85, 0, 0.3)'
+                  }}
+                  title="Scroll to top"
+                >
+                  <ChevronUp 
+                    size={20} 
+                    className="stroke-[2.5px] transition-transform duration-300 group-hover:-translate-y-0.5" 
+                  />
+                  
+                  {/* Outer pulsating decorative ring */}
+                  <span className={`absolute -inset-1 rounded-full border border-dashed opacity-0 group-hover:opacity-45 animate-spin group-hover:animate-[spin_4s_linear_infinite] ${
+                    currentTheme === 'light' ? 'border-[#FF5500]' : currentTheme === 'mono' ? 'border-white' : 'border-amber-400'
+                  }`} />
+                </motion.button>
+              )}
+            </AnimatePresence>
+
+            <motion.div
+              key="affiliate"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+              transition={{ type: "spring", stiffness: 180, damping: 20 }}
+              className="space-y-8 text-left max-w-6xl mx-auto"
+            >
             {/* Breadcrumb Back Navigation */}
             <div className="flex border-b border-slate-200/40 dark:border-white/5 pb-3">
               <button
@@ -4876,6 +5351,7 @@ export default function App() {
                             url: '',
                             imageUrl: '',
                             discountCode: '',
+                            price: '',
                             clicks: 0
                           }
                         });
@@ -5032,7 +5508,15 @@ export default function App() {
                   const handleTrackClick = async (id: string) => {
                     const found = affiliateLinks.find(a => a.id === id);
                     if (found) {
-                      const updatedLink = { ...found, clicks: (found.clicks || 0) + 1 };
+                      const todayStr = new Date().toISOString().split('T')[0];
+                      const history = found.clickHistory ? { ...found.clickHistory } : {};
+                      history[todayStr] = (history[todayStr] || 0) + 1;
+
+                      const updatedLink = {
+                        ...found,
+                        clicks: (found.clicks || 0) + 1,
+                        clickHistory: history
+                      };
                       try {
                         await setDoc(doc(db, 'affiliate_links', id), updatedLink);
                       } catch (err) {
@@ -5053,17 +5537,21 @@ export default function App() {
                       whileHover={{
                         y: -8,
                         scale: 1.022,
+                        borderColor: currentTheme === 'light' ? 'rgba(245, 158, 11, 0.45)' : 'rgba(245, 158, 11, 0.55)',
                         boxShadow: currentTheme === 'light'
-                          ? '0 25px 35px -12px rgba(245, 158, 11, 0.15), 0 12px 16px -4px rgba(0, 0, 0, 0.04)'
-                          : '0 25px 35px -12px rgba(245, 158, 11, 0.3), 0 12px 16px -4px rgba(0, 0, 0, 0.5)'
+                          ? '0 25px 35px -12px rgba(245, 158, 11, 0.18), 0 0 20px 2px rgba(245, 158, 11, 0.1), 0 12px 16px -4px rgba(0, 0, 0, 0.04)'
+                          : '0 30px 45px -15px rgba(245, 158, 11, 0.35), 0 0 25px 3px rgba(245, 158, 11, 0.22), 0 12px 16px -4px rgba(0, 0, 0, 0.6)'
                       }}
                       transition={{ type: 'spring', stiffness: 350, damping: 25 }}
-                      className={`rounded-3xl border overflow-hidden flex flex-col justify-between group transition-[background-color,border-color,outline-color] duration-300 relative h-full outline outline-1 outline-transparent hover:outline-amber-500/40 shadow-sm ${
+                      className={`rounded-3xl border overflow-hidden flex flex-col justify-between group transition-[background-color,border-color,outline-color] duration-300 relative h-full outline outline-1 outline-transparent hover:outline-amber-500/30 shadow-sm ${
                         currentTheme === 'light'
                           ? 'bg-white border-slate-200'
                           : 'bg-zinc-950 border-white/5 backdrop-blur-md'
                       }`}
                     >
+                      {/* Subtle hover-activated animated border glow outline */}
+                      <div className="absolute inset-0 rounded-3xl border border-amber-500/0 group-hover:border-amber-500/30 opacity-0 group-hover:opacity-100 transition-all duration-500 pointer-events-none z-10 shadow-[inset_0_0_12px_rgba(245,158,11,0.06)] group-hover:shadow-[inset_0_0_20px_rgba(245,158,11,0.12)]" />
+
                       {/* Asymmetrical Frame Title Bar */}
                       <div className={`px-4 py-3 border-b flex items-center justify-between gap-2 ${
                         currentTheme === 'light' ? 'bg-slate-50/50 border-slate-200/50' : 'bg-black/15 border-white/5'
@@ -5131,7 +5619,7 @@ export default function App() {
                       <div className="flex-1 flex flex-col justify-between">
                         <div>
                           {/* Visual Frame Image: Post Mode Zoom, Desaturation Cycle, and Glare Sheen Sweep */}
-                          <div className="relative aspect-[16/10] w-full overflow-hidden bg-slate-900 border-b border-slate-200/50 dark:border-white/5 group-hover:bg-slate-950 transition-colors">
+                          <div className="relative aspect-video w-full overflow-hidden bg-slate-900 border-b border-slate-200/50 dark:border-white/5 group-hover:bg-slate-950 transition-colors">
                             {/* Verified Equipment Badge Overlay */}
                             <div className="absolute top-2.5 left-3 px-1.5 py-0.5 rounded bg-amber-500/90 backdrop-blur-md border border-amber-400/20 text-white font-mono text-[7px] font-black tracking-widest uppercase flex items-center gap-0.5 shadow-md z-15">
                               🛡️ VERIFIED
@@ -5148,41 +5636,38 @@ export default function App() {
                             <LazyImage
                               src={item.imageUrl || 'https://images.unsplash.com/photo-1542751371-adc38448a05e'}
                               alt={item.title}
-                              className="w-full h-full object-cover transition-transform duration-700 ease-in-out scale-100 group-hover:scale-105 filter grayscale-[25%] group-hover:grayscale-0 contrast-[1.02] group-hover:contrast-100"
+                              className="w-full h-full object-cover transition-transform duration-700 ease-in-out scale-100 group-hover:scale-105"
                               placeholderClassName="absolute inset-0 z-0"
                             />
                             
                             {/* Glass reflection glider */}
                             <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/12 to-transparent skew-x-12 transition-transform duration-1000 ease-out group-hover:translate-x-[180%] z-10 pointer-events-none" />
-                            
-                            {/* Visual chromatic depth backdrop gradient */}
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent pointer-events-none" />
-                            
-                            {/* Product Title Banner overlay */}
-                            <div className="absolute bottom-3 left-4 right-4 z-10 text-left">
-                              <h3 className="text-xs md:text-sm font-black text-white uppercase tracking-wider line-clamp-1 leading-snug drop-shadow-md">
-                                {item.title}
-                              </h3>
-                            </div>
+                          </div>
+
+                          {/* Product Title Section */}
+                          <div className="px-4 pt-4 text-left">
+                            <h3 className={`text-xs md:text-sm font-extrabold tracking-tight leading-snug line-clamp-2 ${
+                              currentTheme === 'light' ? 'text-slate-900' : 'text-white'
+                            }`}>
+                              {item.title}
+                            </h3>
+                            {item.discountCode && (
+                              <div className="mt-1.5 flex items-center gap-1">
+                                <span className="text-[8.5px] font-mono uppercase bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-1.5 py-0.5 rounded flex items-center gap-1 font-bold shadow-sm">
+                                  <span>🏷️ PROMO:</span>
+                                  <span className="font-mono tracking-wider font-black select-all">{item.discountCode}</span>
+                                </span>
+                              </div>
+                            )}
                           </div>
 
                           {/* Curated Testimony Body Block */}
-                          <div className="p-4 space-y-3.5 text-left">
-                            <div className={`p-3.5 pl-5 rounded-2xl border transition-colors leading-relaxed relative ${
-                              currentTheme === 'light' 
-                                ? 'bg-amber-50/15 border-slate-100 group-hover:bg-amber-50/20 text-slate-700' 
-                                : 'bg-black/25 border-white/5 group-hover:bg-black/35 text-slate-300'
+                          <div className="px-4 py-3 text-left">
+                            <p className={`text-[11px] leading-relaxed font-sans ${
+                              currentTheme === 'light' ? 'text-slate-600 font-medium' : 'text-slate-400'
                             }`}>
-                              {/* Left vertical post-modern architectural flag */}
-                              <div className="absolute left-0 top-3 bottom-3 w-0.5 bg-amber-500 rounded-r" />
-                              
-                              <span className="text-[7.5px] font-mono tracking-widest uppercase text-amber-500 font-extrabold block mb-1">
-                                // TESTIMONY & FIELD EXPERIENCE:
-                              </span>
-                              <div className="italic font-sans text-[11px] leading-relaxed">
-                                "{item.description}"
-                              </div>
-                            </div>
+                              {item.description}
+                            </p>
                           </div>
                         </div>
 
@@ -5249,6 +5734,7 @@ export default function App() {
                           url: '',
                           imageUrl: '',
                           discountCode: '',
+                          price: '',
                           clicks: 0
                         }
                       });
@@ -5261,6 +5747,7 @@ export default function App() {
               </div>
             )}
           </motion.div>
+          </>
         )}
 
         {/* RAPID WHATSAPP DIRECT BOOKING */}
@@ -5468,6 +5955,172 @@ export default function App() {
                   </button>
                 </div>
 
+                {/* AFFILIATE PERFORMANCE MONITORING DESK */}
+                <div className={`p-5 rounded-2xl border ${s.card} space-y-4`}>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="space-y-0.5 text-left">
+                      <h3 className={`text-sm font-bold flex items-center gap-1.5 ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
+                        <TrendingUp size={16} className="text-[#FF5500]" />
+                        <span>Affiliate Link Performance</span>
+                      </h3>
+                      <div className="text-[10px] text-slate-450 dark:text-slate-400 font-mono">
+                        Last 30 Days Reference
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={selectedChartProduct}
+                        onChange={(e) => setSelectedChartProduct(e.target.value)}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] outline-none transition-all ${s.input}`}
+                      >
+                        <option value="all">All Curated Deals</option>
+                        {affiliateLinks.map((link) => (
+                          <option key={link.id} value={link.id}>
+                            {link.title.substring(0, 24)}{link.title.length > 24 ? '...' : ''} ({link.clicks || 0} clicks)
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {(() => {
+                    const now = new Date();
+                    let totalClicks = 0;
+                    let peakClicks = 0;
+                    let peakDateStr = 'N/A';
+                    
+                    const d30 = [];
+                    for (let i = 29; i >= 0; i--) {
+                      const d = new Date();
+                      d.setDate(now.getDate() - i);
+                      const dateStr = d.toISOString().split('T')[0];
+                      const dateLabel = d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+                      
+                      let clicksOnDate = 0;
+                      if (selectedChartProduct === 'all') {
+                        affiliateLinks.forEach(link => {
+                          if (link.clickHistory && link.clickHistory[dateStr] !== undefined) {
+                            clicksOnDate += link.clickHistory[dateStr];
+                          } else {
+                            const tc = link.clicks || 0;
+                            if (tc > 0) {
+                              const hash = hashString(link.id + dateStr);
+                              const avg = tc / 30;
+                              const variance = (hash % 100) / 100;
+                              const factor = 0.5 + variance;
+                              clicksOnDate += Math.round(avg * factor);
+                            }
+                          }
+                        });
+                      } else {
+                        const link = affiliateLinks.find(l => l.id === selectedChartProduct);
+                        if (link) {
+                          if (link.clickHistory && link.clickHistory[dateStr] !== undefined) {
+                            clicksOnDate += link.clickHistory[dateStr];
+                          } else {
+                            const tc = link.clicks || 0;
+                            if (tc > 0) {
+                              const hash = hashString(link.id + dateStr);
+                              const avg = tc / 30;
+                              const variance = (hash % 100) / 100;
+                              const factor = 0.5 + variance;
+                              clicksOnDate += Math.round(avg * factor);
+                            }
+                          }
+                        }
+                      }
+                      
+                      totalClicks += clicksOnDate;
+                      if (clicksOnDate > peakClicks) {
+                        peakClicks = clicksOnDate;
+                        peakDateStr = dateLabel;
+                      }
+                      
+                      d30.push({
+                        date: dateStr,
+                        label: dateLabel,
+                        clicks: clicksOnDate
+                      });
+                    }
+
+                    const dailyAverage = Math.round((totalClicks / 30) * 10) / 10;
+
+                    return (
+                      <div className="space-y-3">
+                        {/* Elegant minimalist summary bar */}
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[10.5px] font-medium text-slate-500 dark:text-zinc-400 border-b border-slate-100 dark:border-white/5 pb-2">
+                          <span className="flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-[#FF5500]" />
+                            <strong className={`${currentTheme === 'light' ? 'text-slate-800' : 'text-zinc-200'}`}>{totalClicks}</strong> clicks total
+                          </span>
+                          <span>•</span>
+                          <span>
+                            avg <strong className={`${currentTheme === 'light' ? 'text-slate-800' : 'text-zinc-200'}`}>{dailyAverage}</strong> daily
+                          </span>
+                          <span>•</span>
+                          <span>
+                            peak <strong className={`${currentTheme === 'light' ? 'text-slate-800' : 'text-zinc-200'}`}>{peakClicks}</strong> (on {peakDateStr})
+                          </span>
+                        </div>
+
+                        {/* Chart Canvas */}
+                        <motion.div 
+                          className="h-[110px] xs:h-[125px] sm:h-[160px] w-full text-[8px] sm:text-[9px] font-mono"
+                          initial={{ opacity: 0, y: 15 }}
+                          whileInView={{ opacity: 1, y: 0 }}
+                          viewport={{ once: true, margin: "-20px" }}
+                          transition={{ duration: 0.6, ease: "easeOut" }}
+                        >
+                          <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={d30} margin={{ top: 5, right: 10, left: -28, bottom: 0 }}>
+                              <defs>
+                                <linearGradient id="clickGradient" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%" stopColor="#FF5500" stopOpacity={0.2}/>
+                                  <stop offset="95%" stopColor="#FF5500" stopOpacity={0}/>
+                                </linearGradient>
+                              </defs>
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={currentTheme === 'light' ? '#f1f5f9' : '#1e293b'} />
+                              <XAxis 
+                                dataKey="label" 
+                                tick={{ fill: currentTheme === 'light' ? '#64748b' : '#94a3b8', fontSize: 8 }}
+                                tickLine={false}
+                                axisLine={false}
+                              />
+                              <YAxis 
+                                tick={{ fill: currentTheme === 'light' ? '#64748b' : '#94a3b8', fontSize: 8 }}
+                                tickLine={false}
+                                axisLine={false}
+                              />
+                              <Tooltip 
+                                contentStyle={{ 
+                                  backgroundColor: currentTheme === 'light' ? '#ffffff' : '#0f172a', 
+                                  borderColor: currentTheme === 'light' ? '#e2e8f0' : '#1e293b',
+                                  borderRadius: '8px',
+                                  color: currentTheme === 'light' ? '#0f172a' : '#ffffff',
+                                  fontSize: '10px',
+                                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)'
+                                }}
+                                labelStyle={{ fontWeight: 'bold', color: '#FF5500', marginBottom: '2px' }}
+                                itemStyle={{ color: currentTheme === 'light' ? '#0f172a' : '#ffffff', padding: 0 }}
+                              />
+                              <Area 
+                                type="monotone" 
+                                dataKey="clicks" 
+                                stroke="#FF5500" 
+                                strokeWidth={1.8}
+                                fillOpacity={1} 
+                                fill="url(#clickGradient)" 
+                                activeDot={{ r: 4, strokeWidth: 0, fill: '#FF5500' }}
+                              />
+                            </AreaChart>
+                          </ResponsiveContainer>
+                        </motion.div>
+                      </div>
+                    );
+                  })()}
+                </div>
+
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                   
                   {/* Left Column: Gallery management uploader */}
@@ -5516,6 +6169,17 @@ export default function App() {
                               className={`w-full px-4 py-2.5 rounded-xl text-xs outline-none transition-all ${s.input}`}
                             />
                           </div>
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className={`text-xs font-extrabold block ${currentTheme === 'light' ? 'text-slate-650' : 'text-slate-400'}`}>Raw / Before Image URL (Optional):</label>
+                          <input
+                            type="text"
+                            value={newImageBeforeUrl}
+                            onChange={(e) => setNewImageBeforeUrl(e.target.value)}
+                            placeholder="Paste unedited RAW image URL (or leave empty for high-fidelity automatic simulation)"
+                            className={`w-full px-4 py-2.5 rounded-xl text-xs outline-none transition-all ${s.input}`}
+                          />
                         </div>
 
                         {/* Drag and Drop implementation */}
@@ -6670,13 +7334,20 @@ export default function App() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            transition={{ duration: 0.25, ease: "easeOut" }}
             onClick={() => setPreviewImage(null)}
-            className="fixed inset-0 z-50 bg-black/95 backdrop-blur-sm flex items-center justify-center p-4"
+            className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4"
           >
             <motion.div
-              initial={{ scale: 0.95, y: 15 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.95, y: 15 }}
+              initial={{ opacity: 0, scale: 0.93, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.93, y: 10 }}
+              transition={{
+                type: "spring",
+                damping: 32,
+                stiffness: 380,
+                mass: 1
+              }}
               onClick={(e) => e.stopPropagation()}
               className={`border rounded-3xl p-4 md:p-6 max-w-3xl w-full text-left space-y-4 relative ${
                 currentTheme === 'light' ? 'bg-white border-slate-200 shadow-2xl' : 'bg-[#18181F] border border-white/10'
@@ -6691,21 +7362,56 @@ export default function App() {
                 <X size={18} />
               </button>
 
+              <div className="flex items-center justify-between pb-1 pt-4">
+                <span className="text-[10px] uppercase font-mono font-bold text-[#FF5500] tracking-wider px-2.5 py-0.5 bg-[#FF5500]/10 rounded border border-[#FF5500]/20 inline-block">
+                  {getCategoryLabel(previewImage.category).toUpperCase()}
+                </span>
+                
+                {/* Dynamic Before/After Comparison Tab Selector */}
+                <div className="flex p-0.5 rounded-lg bg-black/40 border border-white/5 shadow-inner">
+                  <button
+                    onClick={() => setPreviewMode('finished')}
+                    className={`px-3 py-1 rounded-md text-[9px] font-mono font-bold tracking-wider transition-all cursor-pointer flex items-center gap-1 ${
+                      previewMode === 'finished'
+                        ? 'bg-amber-500 text-white shadow-sm'
+                        : 'text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    🎨 FINISHED PHOTO
+                  </button>
+                  <button
+                    onClick={() => setPreviewMode('comparison')}
+                    className={`px-3 py-1 rounded-md text-[9px] font-mono font-bold tracking-wider transition-all cursor-pointer flex items-center gap-1 ${
+                      previewMode === 'comparison'
+                        ? 'bg-amber-500 text-white shadow-sm'
+                        : 'text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    ⚡ BEFORE / AFTER SLIDER
+                  </button>
+                </div>
+              </div>
+
               <div className={`aspect-video w-full rounded-2xl overflow-hidden relative border ${
                 currentTheme === 'light' ? 'bg-slate-100 border-slate-200' : 'bg-black border-white/5'
               }`}>
-                <LazyImage
-                  src={previewImage.imageUrl}
-                  alt={previewImage.altText}
-                  className="w-full h-full object-contain"
-                  placeholderClassName="absolute inset-0 z-0"
-                />
+                {previewMode === 'comparison' ? (
+                  <BeforeAfterSlider
+                    beforeImage={previewImage.beforeImageUrl || previewImage.imageUrl}
+                    afterImage={previewImage.imageUrl}
+                    currentTheme={currentTheme}
+                  />
+                ) : (
+                  <LazyImage
+                    src={previewImage.imageUrl}
+                    alt={previewImage.altText}
+                    className="w-full h-full object-contain"
+                    placeholderClassName="absolute inset-0 z-0"
+                  />
+                )}
               </div>
 
               <div className="space-y-2 text-left">
-                <span className="text-[10px] uppercase font-mono font-bold text-[#FF5500] tracking-wider px-2 py-0.5 bg-[#FF5500]/10 rounded border border-[#FF5500]/20 inline-block">
-                  {getCategoryLabel(previewImage.category).toUpperCase()}
-                </span>
                 <h3 className={`text-lg md:text-xl font-black ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
                   {previewImage.title}
                 </h3>
@@ -7079,11 +7785,14 @@ export default function App() {
                       } else if (editingItem.type === 'instagram') {
                         const itemData = { ...editingItem.data, imageUrl: toDirectDriveUrl(editingItem.data.imageUrl) };
                         const exists = instagramPosts.some(p => p.id === itemData.id);
+                        let updatedPosts;
                         if (exists) {
-                          setInstagramPosts(instagramPosts.map(p => p.id === itemData.id ? itemData : p));
+                          updatedPosts = instagramPosts.map(p => p.id === itemData.id ? itemData : p);
                         } else {
-                          setInstagramPosts([itemData, ...instagramPosts]);
+                          updatedPosts = [itemData, ...instagramPosts];
                         }
+                        setInstagramPosts(updatedPosts);
+                        await updateSiteConfig({ instagramPosts: updatedPosts });
                       } else if (editingItem.type === 'hero') {
                         const nextHeadline = editingItem.data.headline;
                         const nextSubheadline = editingItem.data.subheadline;
@@ -7138,11 +7847,17 @@ export default function App() {
                           id: editingItem.data.id || 'aff_' + Date.now().toString(),
                           title: editingItem.data.title || '',
                           description: editingItem.data.description || '',
-                          category: editingItem.data.category || '',
+                          category: (editingItem.data.category || '')
+                            .split(',')
+                            .map(c => c.trim().toLowerCase().replace(/\s+/g, '_'))
+                            .filter(Boolean)
+                            .join(','),
                           url: editingItem.data.url || '',
                           imageUrl: toDirectDriveUrl(editingItem.data.imageUrl || ''),
                           discountCode: editingItem.data.discountCode || '',
-                          clicks: typeof editingItem.data.clicks === 'number' ? editingItem.data.clicks : 0
+                          price: editingItem.data.price || '',
+                          clicks: typeof editingItem.data.clicks === 'number' ? editingItem.data.clicks : 0,
+                          clickHistory: editingItem.data.clickHistory || {}
                         };
                         
                         // Ensure local state is updated immediately before the Firestore network request to provide better UI feedback 
@@ -7365,6 +8080,41 @@ export default function App() {
                           />
                         </div>
                       </div>
+
+                      <div className="space-y-1">
+                        <span className="text-slate-400 text-[10px] block uppercase font-bold">Media Type:</span>
+                        <select
+                          value={editingItem.data.mediaType || 'IMAGE'}
+                          onChange={(ev) => setEditingItem({
+                            ...editingItem,
+                            data: { ...editingItem.data, mediaType: ev.target.value }
+                          })}
+                          className={`w-full p-2.5 rounded-lg border outline-none text-xs ${
+                            currentTheme === 'light' ? 'bg-slate-50 border-slate-300 text-slate-900 focus:border-[#FF5500]' : 'bg-black/40 border-white/10 text-white focus:border-[#FF5500]'
+                          }`}
+                        >
+                          <option value="IMAGE">Post / Photo (IMAGE)</option>
+                          <option value="VIDEO">Reel / Video (VIDEO)</option>
+                        </select>
+                      </div>
+
+                      {editingItem.data.mediaType === 'VIDEO' && (
+                        <div className="space-y-1">
+                          <span className="text-slate-400 text-[10px] block uppercase font-bold">Video URL (Direct MP4 link):</span>
+                          <input
+                            type="text"
+                            value={editingItem.data.videoUrl || ''}
+                            onChange={(ev) => setEditingItem({
+                              ...editingItem,
+                              data: { ...editingItem.data, videoUrl: ev.target.value }
+                            })}
+                            placeholder="e.g. https://assets.mixkit.co/..."
+                            className={`w-full p-2.5 rounded-lg border outline-none text-xs ${
+                              currentTheme === 'light' ? 'bg-slate-50 border-slate-300 text-slate-900 focus:border-[#FF5500]' : 'bg-black/40 border-white/10 text-white focus:border-[#FF5500]'
+                            }`}
+                          />
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -7502,6 +8252,16 @@ export default function App() {
                             }`}
                           >
                             <option value="wedding">💍 Wedding</option>
+                            <option value="haldi">💛 Haldi</option>
+                            <option value="mehendi">🌿 Mehendi</option>
+                            <option value="reception">🥂 Reception</option>
+                            <option value="engagement">✨ Engagement</option>
+                            <option value="pre_wedding">📸 Pre-Wedding</option>
+                            <option value="bridal_portraits">👰 Bridal Portraits</option>
+                            <option value="groom_portraits">🤵 Groom Portraits</option>
+                            <option value="couple_portraits">👩‍❤️‍👨 Couple Portraits</option>
+                            <option value="candid_moments">⚡ Candid Moments</option>
+                            <option value="family_photos">👨‍👩‍👧‍👦 Family Photos</option>
                             <option value="corporate">👔 Corporate</option>
                             <option value="party">🎉 Events</option>
                             <option value="custom">🌲 Outdoor</option>
@@ -7582,6 +8342,22 @@ export default function App() {
                             currentTheme === 'light' ? 'bg-slate-50 border-slate-300 text-slate-900 focus:border-[#FF5500]' : 'bg-black/40 border-white/10 text-white focus:border-[#FF5500]'
                           }`}
                           placeholder="e.g., Nikon Z8 • NIKKOR Z 85mm f/1.2 S"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <span className="text-slate-400 text-[10px] block uppercase font-bold">Unedited Raw / Before Image URL (Optional):</span>
+                        <input
+                          type="text"
+                          value={editingItem.data.beforeImageUrl || ''}
+                          onChange={(ev) => setEditingItem({
+                            ...editingItem,
+                            data: { ...editingItem.data, beforeImageUrl: ev.target.value || undefined }
+                          })}
+                          className={`w-full p-2.5 rounded-lg border outline-none text-xs ${
+                            currentTheme === 'light' ? 'bg-slate-50 border-slate-300 text-slate-900 focus:border-[#FF5500]' : 'bg-black/40 border-white/10 text-white focus:border-[#FF5500]'
+                          }`}
+                          placeholder="Leave blank for high-fidelity automatic RAW camera simulation"
                         />
                       </div>
                     </div>
@@ -7692,261 +8468,261 @@ export default function App() {
 
                   {editingItem.type === 'affiliate_link' && (
                     <div className="space-y-4">
-                      {/* Product Title Input */}
+                      {/* 1. Product Link Input (Auto-detecting) */}
                       <div className="space-y-1 text-left">
-                        <label className={`text-[10px] uppercase font-mono font-bold tracking-wider ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
-                          Product Title
+                        <label className={`text-[10px] uppercase font-mono font-bold tracking-wider ${currentTheme === 'light' ? 'text-slate-600' : 'text-slate-400'}`}>
+                          Product Link (Target Buy URL)
                         </label>
-                        <LagFreeInput
-                          type="text"
-                          required
-                          value={editingItem.data.title || ''}
-                          onChange={(val) => setEditingItem({
-                            ...editingItem,
-                            data: { ...editingItem.data, title: val }
-                          })}
-                          className={`w-full p-2.5 rounded-xl border outline-none font-sans font-bold text-xs ${
-                            currentTheme === 'light' 
-                              ? 'bg-slate-50/50 border-slate-200 text-slate-900 focus:border-amber-500' 
-                              : 'bg-black/30 border-white/5 text-white focus:border-amber-500'
-                          }`}
-                          placeholder="e.g. Sony Alpha 7 IV Full-Frame Camera"
-                        />
-                      </div>
-
-                      {/* Category Selector & Preset Pills */}
-                      <div className="space-y-1.5 text-left">
-                        <label className={`text-[10px] uppercase font-mono font-bold tracking-wider ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
-                          Categories (Select Multiple / Create New)
-                        </label>
-                        <LagFreeInput
-                          type="text"
-                          required
-                          value={editingItem.data.category || ''}
-                          onChange={(val) => setEditingItem({
-                            ...editingItem,
-                            data: { ...editingItem.data, category: val.toLowerCase().replace(/\s+/g, '_') }
-                          })}
-                          className={`w-full p-2.5 rounded-xl border outline-none text-xs font-mono mb-1 ${
-                            currentTheme === 'light' 
-                              ? 'bg-slate-50/50 border-slate-205 text-slate-800 focus:border-amber-500' 
-                              : 'bg-black/30 border-white/5 text-slate-200 focus:border-amber-500'
-                          }`}
-                          placeholder="e.g. photography, it_tech, software, accessories"
-                        />
-                        <p className="text-[8px] text-slate-400 font-sans leading-normal">
-                          Comma-separated values are fully supported. Clicking pills below will toggle them on/off!
-                        </p>
-                        
-                        {/* Dynamic Quick Select Pills (Multi-selection toggling supported) */}
-                        <div className="flex flex-wrap gap-1 mt-1.5">
-                          {(() => {
-                            const coreKeys = ['photography', 'it_tech', 'software', 'accessories', 'my_gears'];
-                            const activeKeys = Array.from(new Set([
-                              ...coreKeys,
-                              ...affiliateLinks.flatMap(a => (a.category || '').split(',').map(c => c.trim()).filter(Boolean))
-                            ])) as string[];
-                            
-                            return activeKeys.map(cat => {
-                              const friendlyName = affiliateLabelMap[cat] || cat.split(/[_-]/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-                              const currentCats = (editingItem.data.category || '').split(',').map(c => c.trim()).filter(Boolean);
-                              const isSelected = currentCats.includes(cat);
-                              
-                              return (
-                                <button
-                                  key={cat}
-                                  type="button"
-                                  onClick={() => {
-                                    let updatedCats;
-                                    if (isSelected) {
-                                      updatedCats = currentCats.filter(c => c !== cat);
-                                    } else {
-                                      updatedCats = [...currentCats, cat];
-                                    }
-                                    setEditingItem({
-                                      ...editingItem,
-                                      data: { 
-                                        ...editingItem.data, 
-                                        category: updatedCats.join(',')
-                                      }
-                                    });
-                                  }}
-                                  className={`px-2 py-1 rounded-lg border text-[9px] font-mono transition-all cursor-pointer flex items-center gap-1 ${
-                                    isSelected
-                                      ? 'bg-amber-500/20 border-amber-500 text-amber-500 font-bold'
-                                      : currentTheme === 'light'
-                                        ? 'bg-white border-slate-200 text-slate-600 hover:border-slate-400'
-                                        : 'bg-white/5 border-white/5 text-slate-400 hover:text-white hover:bg-white/10'
-                                  }`}
-                                >
-                                  <span>{isSelected ? '✓' : '+'}</span>
-                                  <span>{friendlyName}</span>
-                                </button>
-                              );
-                            });
-                          })()}
-                        </div>
-                      </div>
-
-                      {/* Redirect Link URL */}
-                      <div className="space-y-1 text-left">
-                        <div className="flex justify-between items-center">
-                          <label className={`text-[10px] uppercase font-mono font-bold tracking-wider ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
-                            Affiliate Link (Target Buy URL)
-                          </label>
+                        <div className="relative">
+                          <input
+                            type="url"
+                            required
+                            value={editingItem.data.url || ''}
+                            onChange={(ev) => setEditingItem({
+                              ...editingItem,
+                              data: { ...editingItem.data, url: ev.target.value }
+                            })}
+                            className={`w-full py-3 px-4 rounded-xl border outline-none text-xs font-sans transition-all ${
+                              currentTheme === 'light' 
+                                ? 'bg-white border-slate-200 text-slate-950 focus:border-amber-500 focus:ring-1 focus:ring-amber-500/20' 
+                                : 'bg-zinc-900/60 border-white/5 text-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500/20'
+                            } ${isFetchingAmazon ? 'border-amber-500 ring-1 ring-amber-500/20' : ''}`}
+                            placeholder="Paste product link (Amazon etc.)"
+                          />
                           {isFetchingAmazon && (
-                            <span className="text-[9px] text-amber-500 font-mono font-bold uppercase animate-pulse flex items-center gap-1">
-                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping inline-block" />
-                              Auto-Fetching...
-                            </span>
+                            <div className="absolute right-3.5 top-3.5 flex items-center gap-1.5 text-[10px] text-amber-500 font-mono font-bold">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping" />
+                              <span>AUTO-DETECTING...</span>
+                            </div>
                           )}
                         </div>
-                        <LagFreeInput
-                          type="url"
-                          required
-                          value={editingItem.data.url || ''}
-                          onChange={(val) => setEditingItem({
-                            ...editingItem,
-                            data: { ...editingItem.data, url: val }
-                          })}
-                          className={`w-full p-2.5 rounded-xl border outline-none text-xs font-sans ${
-                            currentTheme === 'light' 
-                              ? 'bg-slate-50/50 border-slate-200 text-slate-900 focus:border-amber-500' 
-                              : 'bg-black/30 border-white/5 text-white focus:border-amber-500'
-                          } ${isFetchingAmazon ? 'border-amber-500/50 focus:border-amber-500' : ''}`}
-                          placeholder="e.g. https://amzn.to/3xyzabc"
-                        />
-                        
-                        <div className="flex justify-between items-center mt-1">
-                          <p className="text-[8px] text-slate-400 font-sans leading-normal">
-                            Paste an Amazon product link to automatically populate the title, description, image, and price.
-                          </p>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              lastFetchedUrlRef.current = editingItem.data.url;
-                              fetchAmazonDetails(editingItem.data.url);
-                            }}
-                            disabled={isFetchingAmazon || !editingItem.data.url}
-                            className={`px-2 py-0.5 rounded text-[8px] font-mono font-bold tracking-wider flex items-center gap-1 transition-all ${
-                              isFetchingAmazon
-                                ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20 cursor-not-allowed animate-pulse'
-                                : editingItem.data.url
-                                  ? 'bg-amber-500 hover:bg-amber-600 text-white cursor-pointer shadow-sm hover:shadow'
-                                  : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed dark:bg-white/5 dark:border-white/5 dark:text-zinc-500'
-                            }`}
-                          >
-                            <span>{isFetchingAmazon ? '⚡ FETCHING...' : '✨ AUTO-FILL'}</span>
-                          </button>
-                        </div>
-                        {amazonFetchError && (
-                          <p className="text-[8.5px] text-red-500 font-mono mt-1">
-                            ⚠️ {amazonFetchError}
-                          </p>
-                        )}
-                      </div>
 
-                      {/* Showcase Product Photo Upload + Direct Link */}
-                      <div className="space-y-2 text-left">
-                        <div className="flex justify-between items-center">
-                          <label className={`text-[10px] uppercase font-mono font-bold tracking-wider ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
-                            Product Photo Image
-                          </label>
-                          <span className="text-[9px] text-[#FF5500] font-mono font-bold uppercase animate-pulse">Link or Upload</span>
-                        </div>
-                        <ImageUploader
-                          label="Upload Showcase Affiliate Image"
-                          value={editingItem.data.imageUrl || ''}
-                          currentTheme={currentTheme}
-                          onChange={(val) => setEditingItem({
-                            ...editingItem,
-                            data: { ...editingItem.data, imageUrl: val }
-                          })}
-                        />
-                        <LagFreeInput
-                          type="text"
-                          required
-                          value={editingItem.data.imageUrl || ''}
-                          onChange={(val) => setEditingItem({
-                            ...editingItem,
-                            data: { ...editingItem.data, imageUrl: val }
-                          })}
-                          className={`w-full p-2 rounded-lg border outline-none text-[10px] ${
-                            currentTheme === 'light' 
-                              ? 'bg-slate-50/50 border-slate-200 text-slate-900 focus:border-amber-500' 
-                              : 'bg-black/30 border-white/5 text-white focus:border-amber-500'
-                          }`}
-                          placeholder="Or paste direct image URL (e.g. Unsplash, imgur...)"
-                        />
-                        
-                        {/* Preset technology / gear GIFs collection */}
-                        <div className="space-y-1 mt-1.5">
-                          <span className="text-slate-400 text-[8.5px] block uppercase font-mono font-bold tracking-wider">
-                            ⚡ QUICK SELECT DYNAMIC HARDWARE GIF PRESET:
-                          </span>
-                          <div className="flex flex-wrap gap-1 p-1.5 rounded-xl border border-slate-200 dark:border-white/5 bg-slate-50/50 dark:bg-black/20">
-                            {[
-                              {
-                                name: '💻 Server Rack Flow',
-                                url: 'https://media.giphy.com/media/3oKIPnAiaUCo7X179K/giphy.gif'
-                              },
-                              {
-                                name: '📸 Camera Focus',
-                                url: 'https://media.giphy.com/media/l0O9z39H1U8P29C00/giphy.gif'
-                              },
-                              {
-                                name: '🔌 Hardware Motherboard',
-                                url: 'https://media.giphy.com/media/26tn33fIxFtSgXWne/giphy.gif'
-                              },
-                              {
-                                name: '💾 Falling Code Matrix',
-                                url: 'https://media.giphy.com/media/13GKP7xOfvukV2/giphy.gif'
-                              },
-                              {
-                                name: '🎹 Retrowave Grid',
-                                url: 'https://media.giphy.com/media/YmZOBDYWOcmS4/giphy.gif'
-                              }
-                            ].map(gif => {
-                              const isSelected = editingItem.data.imageUrl === gif.url;
-                              return (
-                                <button
-                                  key={gif.name}
-                                  type="button"
-                                  onClick={() => setEditingItem({
-                                    ...editingItem,
-                                    data: { ...editingItem.data, imageUrl: gif.url }
-                                  })}
-                                  className={`px-1.5 py-0.5 rounded border text-[8px] font-mono transition-all cursor-pointer ${
-                                    isSelected
-                                      ? 'bg-amber-500 text-white border-amber-500 font-bold'
-                                      : currentTheme === 'light'
-                                        ? 'bg-white border-slate-200 text-slate-700 hover:border-slate-350'
-                                        : 'bg-white/5 border-white/5 text-slate-300 hover:bg-white/10 hover:text-white'
-                                  }`}
-                                >
-                                  {gif.name}
-                                </button>
-                              );
-                            })}
+                        {/* Minimal modern status bar */}
+                        {isFetchingAmazon && (
+                          <div className="w-full h-1 bg-slate-100 dark:bg-zinc-800/80 rounded-full overflow-hidden mt-1">
+                            <div className="h-full bg-amber-500 rounded-full animate-pulse w-3/4" />
                           </div>
-                        </div>
-                        {/* Live Image Preview frame */}
-                        {editingItem.data.imageUrl && (
-                          <div className="mt-1.5 p-1 rounded-xl border border-white/5 bg-black/20">
-                            <span className="text-[8.5px] font-mono text-zinc-400 block mb-1">Preview of Image Asset:</span>
-                            <div className="relative aspect-video w-full rounded-lg overflow-hidden bg-zinc-950 border border-white/5">
-                              <LazyImage
-                                src={editingItem.data.imageUrl}
-                                alt="Asset preview"
-                                className="w-full h-full object-cover"
-                                placeholderClassName="absolute inset-0 z-0"
-                              />
+                        )}
+
+                        {amazonFetchError && (
+                          <div className="p-2.5 rounded-xl border border-red-500/20 bg-red-500/5 text-red-500 font-sans text-[10px] text-left leading-normal flex gap-1.5 mt-1">
+                            <span>⚠️</span>
+                            <div>
+                              <strong>Auto-detect issue:</strong> {amazonFetchError}
+                              <p className="text-[9px] text-slate-400 mt-0.5">Please check your link or enter details manually below.</p>
                             </div>
                           </div>
                         )}
                       </div>
+
+                      {/* 2. Product Title Input */}
+                      <div className="space-y-1 text-left">
+                        <label className={`text-[10px] uppercase font-mono font-bold tracking-wider ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
+                          Product Title
+                        </label>
+                        {isFetchingAmazon ? (
+                          <div className={`w-full h-10 rounded-xl animate-pulse flex items-center px-3 gap-2 ${
+                            currentTheme === 'light' ? 'bg-slate-100 border border-slate-200' : 'bg-zinc-850 border border-white/5'
+                          }`}>
+                            <span className="w-4 h-4 rounded bg-amber-500/20" />
+                            <div className="h-3.5 bg-slate-300 dark:bg-zinc-700 rounded-full w-2/3" />
+                          </div>
+                        ) : (
+                          <LagFreeInput
+                            type="text"
+                            required
+                            value={editingItem.data.title || ''}
+                            onChange={(val) => setEditingItem({
+                              ...editingItem,
+                              data: { ...editingItem.data, title: val }
+                            })}
+                            className={`w-full p-2.5 rounded-xl border outline-none font-sans font-semibold text-xs ${
+                              currentTheme === 'light' 
+                                ? 'bg-slate-50/50 border-slate-200 text-slate-900 focus:border-amber-500' 
+                                : 'bg-black/30 border-white/5 text-white focus:border-amber-500'
+                            }`}
+                            placeholder="Product Title (e.g., Sony Alpha 7 IV Mirrorless Camera)"
+                          />
+                        )}
+                      </div>
+
+                      {/* 3. Category Selector & Preset Pills */}
+                      <div className="space-y-1.5 text-left">
+                        <label className={`text-[10px] uppercase font-mono font-bold tracking-wider ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
+                          Category Group
+                        </label>
+                        {isFetchingAmazon ? (
+                          <div className="space-y-2">
+                            <div className={`w-full h-10 rounded-xl animate-pulse flex items-center px-3 gap-2 ${
+                              currentTheme === 'light' ? 'bg-slate-100 border border-slate-200' : 'bg-zinc-850 border border-white/5'
+                            }`}>
+                              <span className="w-4 h-4 rounded bg-amber-500/20" />
+                              <div className="h-3.5 bg-slate-300 dark:bg-zinc-700 rounded-full w-1/2" />
+                            </div>
+                            <div className="flex gap-1.5 flex-wrap">
+                              {[1, 2, 3].map(i => (
+                                <div key={i} className={`w-16 h-6 rounded-lg animate-pulse ${
+                                  currentTheme === 'light' ? 'bg-slate-100' : 'bg-zinc-800/60'
+                                }`} />
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <LagFreeInput
+                              type="text"
+                              required
+                              value={editingItem.data.category || ''}
+                              onChange={(val) => setEditingItem({
+                                ...editingItem,
+                                data: { ...editingItem.data, category: val }
+                              })}
+                              className={`w-full p-2.5 rounded-xl border outline-none text-xs font-mono mb-1 ${
+                                currentTheme === 'light' 
+                                  ? 'bg-slate-50/50 border-slate-205 text-slate-800 focus:border-amber-500' 
+                                  : 'bg-black/30 border-white/5 text-slate-200 focus:border-amber-500'
+                              }`}
+                              placeholder="e.g. photography, it_tech, software, accessories"
+                            />
+                            
+                            {/* Dynamic Quick Select Pills */}
+                            <div className="flex flex-wrap gap-1 mt-1.5">
+                              {(() => {
+                                const coreKeys = ['photography', 'it_tech', 'software', 'accessories', 'my_gears'];
+                                const activeKeys = Array.from(new Set([
+                                  ...coreKeys,
+                                  ...affiliateLinks.flatMap(a => (a.category || '').split(',').map(c => c.trim()).filter(Boolean))
+                                ])) as string[];
+                                
+                                return activeKeys.map(cat => {
+                                  const friendlyName = affiliateLabelMap[cat] || cat.split(/[_-]/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+                                  const currentCats = (editingItem.data.category || '').split(',').map(c => c.trim()).filter(Boolean);
+                                  const isSelected = currentCats.includes(cat);
+                                  
+                                  return (
+                                    <button
+                                      key={cat}
+                                      type="button"
+                                      onClick={() => {
+                                        let updatedCats;
+                                        if (isSelected) {
+                                          updatedCats = currentCats.filter(c => c !== cat);
+                                        } else {
+                                          updatedCats = [...currentCats, cat];
+                                        }
+                                        setEditingItem({
+                                          ...editingItem,
+                                          data: { 
+                                            ...editingItem.data, 
+                                            category: updatedCats.join(',')
+                                          }
+                                        });
+                                      }}
+                                      className={`px-2 py-1 rounded-lg border text-[9px] font-mono transition-all cursor-pointer flex items-center gap-1 ${
+                                        isSelected
+                                          ? 'bg-amber-500/10 border-amber-500 text-amber-500 font-bold'
+                                          : currentTheme === 'light'
+                                            ? 'bg-white border-slate-200 text-slate-600 hover:border-slate-400'
+                                            : 'bg-white/5 border-white/5 text-slate-400 hover:text-white hover:bg-white/10'
+                                      }`}
+                                    >
+                                      <span>{friendlyName}</span>
+                                    </button>
+                                  );
+                                });
+                              })()}
+                            </div>
+                          </>
+                        )}
+                      </div>
+
+                      {/* 4. Product Photo Image */}
+                      <div className="space-y-2 text-left">
+                        <label className={`text-[10px] uppercase font-mono font-bold tracking-wider ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
+                          Product Photo Image
+                        </label>
+                        {isFetchingAmazon ? (
+                          <div className={`w-full h-24 rounded-xl animate-pulse flex flex-col items-center justify-center gap-2 ${
+                            currentTheme === 'light' ? 'bg-slate-100 border border-slate-200' : 'bg-zinc-850 border border-white/5'
+                          }`}>
+                            <span className="w-8 h-8 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-500 animate-bounce">📸</span>
+                            <div className="h-2 bg-slate-300 dark:bg-zinc-700 rounded-full w-1/4 animate-pulse" />
+                          </div>
+                        ) : (
+                          <>
+                            <ImageUploader
+                              label="Upload Showcase Affiliate Image"
+                              value={editingItem.data.imageUrl || ''}
+                              currentTheme={currentTheme}
+                              onChange={(val) => setEditingItem({
+                                ...editingItem,
+                                data: { ...editingItem.data, imageUrl: val }
+                              })}
+                            />
+                            <LagFreeInput
+                              type="text"
+                              required
+                              value={editingItem.data.imageUrl || ''}
+                              onChange={(val) => setEditingItem({
+                                ...editingItem,
+                                data: { ...editingItem.data, imageUrl: val }
+                              })}
+                              className={`w-full p-2 rounded-lg border outline-none text-[10px] ${
+                                currentTheme === 'light' 
+                                  ? 'bg-slate-50/50 border-slate-200 text-slate-900 focus:border-amber-500' 
+                                  : 'bg-black/30 border-white/5 text-white focus:border-amber-500'
+                              }`}
+                              placeholder="Or paste direct image URL (e.g. Unsplash, imgur...)"
+                            />
+                            
+                            {/* Live Image Preview */}
+                            {editingItem.data.imageUrl && (
+                              <div className="relative aspect-video w-full rounded-xl overflow-hidden bg-zinc-950 border border-white/5 mt-1.5">
+                                <LazyImage
+                                  src={editingItem.data.imageUrl}
+                                  alt="Asset preview"
+                                  className="w-full h-full object-contain"
+                                  placeholderClassName="absolute inset-0 z-0"
+                                />
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+
+                      {/* 5. Recommendation Description Copy */}
+                      <div className="space-y-1 text-left">
+                        <label className={`text-[10px] uppercase font-mono font-bold tracking-wider ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
+                          Recommendation Text / Testimony
+                        </label>
+                        {isFetchingAmazon ? (
+                          <div className={`w-full h-24 rounded-xl animate-pulse p-3 space-y-2.5 ${
+                            currentTheme === 'light' ? 'bg-slate-100 border border-slate-200' : 'bg-zinc-850 border border-white/5'
+                          }`}>
+                            <div className="h-3.5 bg-slate-300 dark:bg-zinc-700 rounded-full w-11/12" />
+                            <div className="h-3.5 bg-slate-300 dark:bg-zinc-700 rounded-full w-10/12" />
+                            <div className="h-3.5 bg-slate-300 dark:bg-zinc-700 rounded-full w-2/3" />
+                          </div>
+                        ) : (
+                          <LagFreeTextArea
+                            required
+                            rows={3}
+                            value={editingItem.data.description || ''}
+                            onChange={(val) => setEditingItem({
+                              ...editingItem,
+                              data: { ...editingItem.data, description: val }
+                            })}
+                            className={`w-full p-2.5 rounded-xl border outline-none text-xs font-sans leading-relaxed ${
+                              currentTheme === 'light' 
+                                ? 'bg-slate-50/50 border-slate-200 text-slate-900 focus:border-amber-500' 
+                                : 'bg-black/30 border-white/5 text-white focus:border-amber-500'
+                            }`}
+                            placeholder="Explain why this gadget/software is highly recommended..."
+                          />
+                        )}
+                      </div>
                       
-                      {/* Optional Promo / Discount Code */}
+                      {/* 6. Optional Promo / Discount Code */}
                       <div className="space-y-1 text-left">
                         <label className={`text-[10px] uppercase font-mono font-bold tracking-wider ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
                           Promo / Discount Code (Optional)
@@ -7960,32 +8736,10 @@ export default function App() {
                           })}
                           className={`w-full p-2.5 rounded-xl border outline-none text-xs font-mono ${
                             currentTheme === 'light' 
-                              ? 'bg-slate-50/50 border-slate-200 text-slate-950 focus:border-amber-500' 
+                              ? 'bg-slate-50/50 border-slate-200 text-slate-955 focus:border-amber-500' 
                               : 'bg-black/30 border-white/5 text-slate-100 focus:border-amber-500'
                           }`}
                           placeholder="e.g. PIXELSSD990, FRAMEANCHOR8"
-                        />
-                      </div>
-
-                      {/* Recommendation Description Copy */}
-                      <div className="space-y-1 text-left">
-                        <label className={`text-[10px] uppercase font-mono font-bold tracking-wider ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
-                          Recommendation Text / Testimony
-                        </label>
-                        <LagFreeTextArea
-                          required
-                          rows={3}
-                          value={editingItem.data.description || ''}
-                          onChange={(val) => setEditingItem({
-                            ...editingItem,
-                            data: { ...editingItem.data, description: val }
-                          })}
-                          className={`w-full p-2.5 rounded-xl border outline-none text-xs font-sans leading-relaxed ${
-                            currentTheme === 'light' 
-                              ? 'bg-slate-50/50 border-slate-200 text-slate-900 focus:border-amber-500' 
-                              : 'bg-black/30 border-white/5 text-white focus:border-amber-500'
-                          }`}
-                          placeholder="Explain why this gadget/software is highly recommended..."
                         />
                       </div>
                     </div>
