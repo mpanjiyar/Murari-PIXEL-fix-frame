@@ -230,6 +230,7 @@ export default function CoverageMap({ currentTheme }: CoverageMapProps) {
               zoom={11}
               style={{ height: '100%', width: '100%' }}
               scrollWheelZoom={false}
+              attributionControl={false}
             >
               <TileLayer
                 attribution={tileLayerAttribution}

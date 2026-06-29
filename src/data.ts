@@ -30,7 +30,8 @@ export const INITIAL_IT_SERVICES: ServiceDetail[] = [
       'Network Auditing Range: 2.4GHz & 5.0GHz dual-band wireless networks',
       'Thermal Compounds Utilized: Noctua NT-H1, Arctic MX-4',
       'Standard Diagnostic TAT: Under 60 minutes on-site'
-    ]
+    ],
+    proTip: 'Slow computer? Open Task Manager (Ctrl+Shift+Esc) and disable high-impact apps under the Startup tab to instantly boost boot speeds.'
   },
   {
     title: 'OS Upgrades & Setup',
@@ -56,7 +57,8 @@ export const INITIAL_IT_SERVICES: ServiceDetail[] = [
       'Hardware Minimums Verified: 4GB RAM, 64GB SSD storage, 1GHz dual-core 64-bit CPU',
       'Driver Registry: Official vendor repositories (NVIDIA, AMD, Intel, Realtek)',
       'Windows Update State: Fully patched to latest stable biannual channel build'
-    ]
+    ],
+    proTip: 'Always verify UEFI Secure Boot and TPM 2.0 are enabled in your BIOS/UEFI settings to ensure robust hardware-level OS security.'
   },
   {
     title: 'Productivity Software Support',
@@ -82,7 +84,8 @@ export const INITIAL_IT_SERVICES: ServiceDetail[] = [
       'Scripting Environment: VBA (Visual Basic for Applications) debugging enabled',
       'PDF Standard: ISO 32000 compliant digital document containers',
       'Performance Profile: Tailored memory allocation for large data sheets'
-    ]
+    ],
+    proTip: 'If Microsoft Excel is laggy with large spreadsheets, disable hardware graphics acceleration under File > Options > Advanced.'
   }
 ];
 

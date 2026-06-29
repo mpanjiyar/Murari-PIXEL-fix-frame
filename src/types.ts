@@ -30,6 +30,7 @@ export interface ServiceDetail {
   features: string[];
   inclusions?: string[];
   technicalSpecs?: string[];
+  proTip?: string;
 }
 
 export interface ContactMessage {

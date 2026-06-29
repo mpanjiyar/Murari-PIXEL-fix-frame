@@ -120,6 +120,7 @@ export const ScrollReveal: React.FC<ScrollRevealProps> = ({
       viewport={{ once, margin: `-${threshold * 100}%` }}
       variants={getVariants()}
       className={className}
+      style={{ willChange: 'transform, opacity' }}
     >
       {children}
     </motion.div>
@@ -156,18 +157,14 @@ export const ScrollRevealText: React.FC<ScrollRevealTextProps> = ({
   const wordVariants = {
     hidden: {
       opacity: 0,
-      y: 15,
-      rotateX: 10,
+      y: 8,
     },
     visible: {
       opacity: 1,
       y: 0,
-      rotateX: 0,
       transition: {
-        type: 'spring',
-        stiffness: 120,
-        damping: 14,
-        duration: 0.45,
+        duration: 0.5,
+        ease: [0.25, 0.1, 0.25, 1],
       },
     },
   };
@@ -185,7 +182,11 @@ export const ScrollRevealText: React.FC<ScrollRevealTextProps> = ({
       >
         {words.map((word, index) => (
           <span key={index} className="inline-block overflow-hidden py-1">
-            <motion.span className="inline-block origin-bottom filter blur-none" variants={wordVariants}>
+            <motion.span 
+              className="inline-block origin-bottom filter blur-none" 
+              variants={wordVariants}
+              style={{ willChange: 'transform, opacity' }}
+            >
               {word === '' ? '\u00A0' : word}
             </motion.span>
           </span>

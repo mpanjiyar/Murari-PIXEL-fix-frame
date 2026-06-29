@@ -14,6 +14,8 @@ import {
   Upload,
   Image as ImageIcon,
   Cpu,
+  KeyRound,
+  Zap,
   Camera,
   CheckCircle2,
   Laptop,
@@ -22,6 +24,9 @@ import {
   Facebook,
   Youtube,
   ArrowUpRight,
+  ArrowRight,
+  Volume2,
+  VolumeX,
   Sliders,
   X,
   Menu,
@@ -70,6 +75,8 @@ import {
   Heart
 } from 'lucide-react';
 import { motion, AnimatePresence, Reorder } from 'motion/react';
+import { BIOS_BOOT_KEYS_DATABASE, BiosBootKeyInfo } from './biosData';
+import { BEEP_CODES_DATABASE, BeepCodeInfo } from './beepData';
 import {
   INITIAL_GALLERY_ITEMS,
   INITIAL_IT_SERVICES,
@@ -93,13 +100,14 @@ import { PixelFixBackground } from './components/PixelFixBackground';
 import SmpsCalculator from './components/SmpsCalculator';
 import CoverageMap from './components/CoverageMap';
 import PhotoResizer from './components/PhotoResizer';
+import { ReviewQRCode } from './components/ReviewQRCode';
 import { initAuth, googleSignIn, googleSignOut } from './lib/driveAuth';
 import { uploadBackupToDrive, listBackupsOnDrive, downloadBackupFromDrive, deleteBackupFromDrive, upsertLiveSyncBackup, getOrCreateFolder, uploadPhotoFileToDrive } from './lib/driveService';
 import type { DriveBackupFile } from './lib/driveService';
 import type { User as FirebaseUser } from 'firebase/auth';
 import { db, OperationType, handleFirestoreError } from './firebase';
 import { collection, doc, setDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
-import { HardDrive, Cloud, LogOut, AlertCircle, FolderOpen, Download, UploadCloud, GripVertical, MousePointerClick } from 'lucide-react';
+import { HardDrive, Cloud, LogOut, AlertCircle, FolderOpen, Download, UploadCloud, GripVertical, MousePointerClick, CornerDownRight, Home } from 'lucide-react';
 import {
   AreaChart,
   Area,
@@ -186,12 +194,20 @@ const LagFreeTextArea: React.FC<LagFreeTextAreaProps> = ({ value, onChange, debo
   );
 };
 
+let lastSortedAllItems: GalleryItem[] | null = null;
+let recentItemIdsSet = new Set<string>();
+
 export function getGalleryItemTags(item: GalleryItem, allItems: GalleryItem[]): ('Recent' | 'Featured' | 'Client Favorites')[] {
   const tags: ('Recent' | 'Featured' | 'Client Favorites')[] = [];
   
-  const sortedByDate = [...allItems].sort((a, b) => b.date.localeCompare(a.date));
-  const recentThresholdIndex = Math.max(5, Math.floor(allItems.length * 0.35));
-  const isRecentInList = sortedByDate.slice(0, recentThresholdIndex).some(r => r.id === item.id);
+  if (lastSortedAllItems !== allItems) {
+    lastSortedAllItems = allItems;
+    const sortedByDate = [...allItems].sort((a, b) => b.date.localeCompare(a.date));
+    const recentThresholdIndex = Math.max(5, Math.floor(allItems.length * 0.35));
+    recentItemIdsSet = new Set(sortedByDate.slice(0, recentThresholdIndex).map(r => r.id));
+  }
+  
+  const isRecentInList = recentItemIdsSet.has(item.id);
   
   if (isRecentInList || item.id.startsWith('g_')) {
     tags.push('Recent');
@@ -433,8 +449,10 @@ const getCategoryLabel = (category: string): string => {
 
 export default function App() {
   // Navigation & Primary Settings
-  const [activeTab, setActiveTab] = useState<'home' | 'about' | 'pixelfix' | 'pixelframe' | 'gallery' | 'contact' | 'dashboard' | 'affiliate'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'about' | 'pixelfix' | 'pixelframe' | 'gallery' | 'contact' | 'dashboard' | 'affiliate' | 'packages' | 'bios' | 'beep' | 'smps'>('home');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [hoveredTab, setHoveredTab] = useState<string | null>(null);
+  const [isDiagDropdownOpen, setIsDiagDropdownOpen] = useState(false);
   const [currentTheme, setCurrentTheme] = useState<'normal' | 'mono' | 'light'>(() => {
     const saved = localStorage.getItem('mp_portfolio_theme_v2');
     if (!saved) {
@@ -514,6 +532,7 @@ export default function App() {
 
   // Interactive dynamic quote generator state variables
   const [quoteType, setQuoteType] = useState<'pixelfix' | 'pixelframe'>('pixelfix');
+  const [calculatorFlash, setCalculatorFlash] = useState(false);
 
   // Editable services and texts on origin page (available for only Admin)
   const [itServices, setItServices] = useState<any[]>(() => {
@@ -566,6 +585,30 @@ export default function App() {
   const [instagramFetchError, setInstagramFetchError] = useState<string | null>(null);
   const [instaFilter, setInstaFilter] = useState<'all' | 'image' | 'video'>('all');
   const [instagramViewMode, setInstagramViewMode] = useState<'grid' | 'embed'>('grid');
+
+  // BIOS/Boot Key Lookup States
+  const [biosSearchQuery, setBiosSearchQuery] = useState<string>('');
+  const [selectedBiosType, setSelectedBiosType] = useState<'all' | 'laptop' | 'desktop' | 'motherboard'>('all');
+  const [selectedBiosBrand, setSelectedBiosBrand] = useState<string>('all');
+
+  // BIOS Motherboard Beep Lookup States
+  const [beepSearchQuery, setBeepSearchQuery] = useState<string>('');
+  const [selectedBeepBrand, setSelectedBeepBrand] = useState<string>('all');
+  const [selectedBeepComponent, setSelectedBeepComponent] = useState<string>('all');
+  const [selectedBeepSeverity, setSelectedBeepSeverity] = useState<string>('all');
+  const [activePlayingId, setActivePlayingId] = useState<string | null>(null);
+  const [customSequence, setCustomSequence] = useState<('S' | 'L' | 'P')[]>([]);
+  const [checkedSteps, setCheckedSteps] = useState<Record<string, boolean>>({});
+  const [activeBookingBeep, setActiveBookingBeep] = useState<any | null>(null);
+  const [beepBookingSuccess, setBeepBookingSuccess] = useState<boolean>(false);
+  const [beepBookingAddress, setBeepBookingAddress] = useState<string>('');
+  const [beepBookingDateTime, setBeepBookingDateTime] = useState<string>('');
+  const [beepVisibleCount, setBeepVisibleCount] = useState<number>(6);
+
+  // Automatically reset visible beep count when filters change to ensure lightning fast, lag-free rendering
+  useEffect(() => {
+    setBeepVisibleCount(6);
+  }, [selectedBeepBrand, selectedBeepComponent, selectedBeepSeverity, customSequence, beepSearchQuery]);
 
   // Google Drive Integration States
   const [driveUser, setDriveUser] = useState<FirebaseUser | null>(null);
@@ -679,6 +722,16 @@ export default function App() {
     } catch (err) {
       console.error("Error updating site config in Firestore: ", err);
       handleFirestoreError(err, OperationType.WRITE, 'site_config/homepage');
+    }
+  };
+
+  // Helper to save a client contact message/booking inquiry in Firestore
+  const saveContactMessage = async (newMsg: ContactMessage) => {
+    try {
+      await setDoc(doc(db, 'contact_messages', newMsg.id), newMsg);
+    } catch (err) {
+      console.error("Error saving contact message to Firestore: ", err);
+      handleFirestoreError(err, OperationType.WRITE, 'contact_messages/' + newMsg.id);
     }
   };
 
@@ -914,9 +967,23 @@ export default function App() {
       handleFirestoreError(error, OperationType.GET, 'affiliate_config/labels');
     });
 
+    const unsubMessages = onSnapshot(collection(db, 'contact_messages'), (snapshot) => {
+      const msgs: ContactMessage[] = [];
+      snapshot.forEach((doc) => {
+        msgs.push(doc.data() as ContactMessage);
+      });
+      // Sort descending by ID (chronological descending)
+      msgs.sort((a, b) => b.id.localeCompare(a.id));
+      setContactMessages(msgs);
+    }, (error) => {
+      console.error("Firestore onSnapshot error for contact_messages: ", error);
+      handleFirestoreError(error, OperationType.GET, 'contact_messages');
+    });
+
     return () => {
       unsubLinks();
       unsubConfig();
+      unsubMessages();
     };
   }, []);
 
@@ -947,6 +1014,7 @@ export default function App() {
         if (data.testimonials && Array.isArray(data.testimonials)) setTestimonials(data.testimonials);
         if (data.pixelFixReviews && Array.isArray(data.pixelFixReviews)) setPixelFixReviews(data.pixelFixReviews);
         if (data.instagramPosts && Array.isArray(data.instagramPosts)) setInstagramPosts(data.instagramPosts);
+        if (data.galleryItems && Array.isArray(data.galleryItems)) setGalleryItems(data.galleryItems);
       } else if (isInitialSite) {
         // Seed database instantly if config does not exist
         const initialConfig = {
@@ -969,7 +1037,8 @@ export default function App() {
           photoServices,
           testimonials,
           pixelFixReviews,
-          instagramPosts
+          instagramPosts,
+          galleryItems
         };
         setDoc(doc(db, 'site_config', 'homepage'), initialConfig).then(() => {
           // Seed initial affiliate links and social links at the exact same time
@@ -1111,54 +1180,80 @@ export default function App() {
 
     // Check local cache first (normalized lookup prioritizes fast hits)
     const normalizedUrl = urlToFetch.trim().toLowerCase().replace(/\/$/, "");
-    let cachedProduct = amazonCacheRef.current.get(urlToFetch);
+    let cachedEntry = amazonCacheRef.current.get(urlToFetch);
     
-    if (!cachedProduct) {
+    if (!cachedEntry) {
       for (const [key, val] of amazonCacheRef.current.entries()) {
         if (key.trim().toLowerCase().replace(/\/$/, "") === normalizedUrl) {
-          cachedProduct = val;
+          cachedEntry = val;
           break;
         }
       }
     }
 
-    if (cachedProduct) {
-      console.info(`[Auto-Fill] Cache hit (priority resolved) for URL: "${urlToFetch}"`, cachedProduct);
-      const { title, description, imageUrl, price, category } = cachedProduct;
-
-      let finalDescription = description;
-      if (price && description && !description.includes(price)) {
-        finalDescription = `Deal: ${price} | ${description}`;
-      } else if (price && !description) {
-        finalDescription = `Deal: ${price}`;
-      }
-
-      setEditingItem(prev => {
-        if (!prev) return null;
-        const shouldOverwrite = autoFillMode === 'overwrite';
-
-        const updatedTitle = (shouldOverwrite || !prev.data.title?.trim()) ? (cleanTitle(title) || prev.data.title || '') : (prev.data.title || cleanTitle(title) || '');
-        const updatedDescription = (shouldOverwrite || !prev.data.description?.trim()) ? (finalDescription || prev.data.description || '') : (prev.data.description || finalDescription || '');
-        const updatedImageUrl = (shouldOverwrite || !prev.data.imageUrl?.trim()) ? (imageUrl || prev.data.imageUrl || '') : (prev.data.imageUrl || imageUrl || '');
-        const updatedCategory = (shouldOverwrite || !prev.data.category?.trim() || prev.data.category === 'accessories') ? (category || prev.data.category || 'accessories') : (prev.data.category || category || 'accessories');
-        const updatedPrice = (shouldOverwrite || !prev.data.price?.trim()) ? (price || prev.data.price || '') : (prev.data.price || price || '');
-
-        return {
-          ...prev,
-          data: {
-            ...prev.data,
-            title: updatedTitle,
-            description: updatedDescription,
-            imageUrl: updatedImageUrl,
-            category: updatedCategory,
-            price: updatedPrice,
+    if (cachedEntry) {
+      const isLegacy = typeof cachedEntry.success === 'undefined';
+      
+      if (!isLegacy && cachedEntry.success === false) {
+        const NEGATIVE_CACHE_EXPIRATION = 60 * 1000; // 60 seconds short expiration
+        const elapsed = Date.now() - (cachedEntry.timestamp || 0);
+        if (elapsed < NEGATIVE_CACHE_EXPIRATION) {
+          console.info(`[Auto-Fill] Cache hit (negative) for URL: "${urlToFetch}". Error: "${cachedEntry.error}". Skipping API request.`);
+          setAmazonFetchError(cachedEntry.error || "Failed to auto-fetch product details.");
+          triggerToast(`Auto-fetch failed (cached): ${cachedEntry.error}`, "error");
+          setAutoFillStep(0);
+          return;
+        } else {
+          console.info(`[Auto-Fill] Cache expired (negative) for URL: "${urlToFetch}". Evicting from cache.`);
+          // Evict expired negative entry
+          amazonCacheRef.current.delete(urlToFetch);
+          for (const [key] of amazonCacheRef.current.entries()) {
+            if (key.trim().toLowerCase().replace(/\/$/, "") === normalizedUrl) {
+              amazonCacheRef.current.delete(key);
+            }
           }
-        };
-      });
-      triggerToast("Product details loaded from cache!", "success");
-      setAutoFillStep(5);
-      setTimeout(() => setAutoFillStep(0), 3000);
-      return;
+        }
+      } else {
+        const product = isLegacy ? cachedEntry : cachedEntry.product;
+        if (product) {
+          console.info(`[Auto-Fill] Cache hit (priority resolved) for URL: "${urlToFetch}"`, product);
+          const { title, description, imageUrl, price, category } = product;
+
+          let finalDescription = description;
+          if (price && description && !description.includes(price)) {
+            finalDescription = `Deal: ${price} | ${description}`;
+          } else if (price && !description) {
+            finalDescription = `Deal: ${price}`;
+          }
+
+          setEditingItem(prev => {
+            if (!prev) return null;
+            const shouldOverwrite = autoFillMode === 'overwrite';
+
+            const updatedTitle = (shouldOverwrite || !prev.data.title?.trim()) ? (cleanTitle(title) || prev.data.title || '') : (prev.data.title || cleanTitle(title) || '');
+            const updatedDescription = (shouldOverwrite || !prev.data.description?.trim()) ? (finalDescription || prev.data.description || '') : (prev.data.description || finalDescription || '');
+            const updatedImageUrl = (shouldOverwrite || !prev.data.imageUrl?.trim()) ? (imageUrl || prev.data.imageUrl || '') : (prev.data.imageUrl || imageUrl || '');
+            const updatedCategory = (shouldOverwrite || !prev.data.category?.trim() || prev.data.category === 'accessories') ? (category || prev.data.category || 'accessories') : (prev.data.category || category || 'accessories');
+            const updatedPrice = (shouldOverwrite || !prev.data.price?.trim()) ? (price || prev.data.price || '') : (prev.data.price || price || '');
+
+            return {
+              ...prev,
+              data: {
+                ...prev.data,
+                title: updatedTitle,
+                description: updatedDescription,
+                imageUrl: updatedImageUrl,
+                category: updatedCategory,
+                price: updatedPrice,
+              }
+            };
+          });
+          triggerToast("Product details loaded from cache!", "success");
+          setAutoFillStep(5);
+          setTimeout(() => setAutoFillStep(0), 3000);
+          return;
+        }
+      }
     }
 
     console.info(`[Auto-Fill] Initiating product metadata fetch for: "${urlToFetch}" (isManual: ${isManual})`);
@@ -1198,6 +1293,24 @@ export default function App() {
       const responseText = await response.text();
       console.info(`[Auto-Fill] Raw response body received. Length: ${responseText ? responseText.length : 0} characters`);
 
+      if (!response.ok) {
+        let errMessage = `HTTP error! status: ${response.status} (${response.statusText || "unknown"})`;
+        if (responseText && responseText.trim()) {
+          try {
+            const parsedErr = JSON.parse(responseText);
+            if (parsedErr?.error) {
+              errMessage = parsedErr.error;
+            }
+          } catch (e) {
+            // Use responseText as fallback if it's not JSON
+            if (responseText.length < 150) {
+              errMessage = responseText.trim();
+            }
+          }
+        }
+        throw new Error(errMessage);
+      }
+
       if (!responseText || !responseText.trim()) {
         console.warn("[Auto-Fill] Received empty response from metadata API endpoint.");
         throw new Error("Empty response body received from server metadata endpoint.");
@@ -1212,16 +1325,16 @@ export default function App() {
         throw new Error(`Failed to parse product data (JSON syntax error: ${jsonErr.message || "unknown"}).`);
       }
 
-      if (!response.ok) {
-        throw new Error(resData?.error || `HTTP error! status: ${response.status}`);
-      }
-
       if (resData && resData.success && resData.product) {
         const { title, description, imageUrl, price, category } = resData.product;
         console.info("[Auto-Fill] Successfully extracted product metadata:", { title, imageUrl, price, category });
         
         // Cache the product data for subsequent edits/views of this URL
-        amazonCacheRef.current.set(urlToFetch, resData.product);
+        amazonCacheRef.current.set(urlToFetch, {
+          success: true,
+          product: resData.product,
+          timestamp: Date.now()
+        });
 
         // Format description nicely to include the price if present
         let finalDescription = description;
@@ -1269,6 +1382,13 @@ export default function App() {
         : (err.message || "Failed to auto-fetch product details.");
 
       console.error(`[Auto-Fill] Error fetching product details for URL "${urlToFetch}":`, err);
+      
+      // Cache negative results for failed URLs with a short expiration period (60 seconds)
+      amazonCacheRef.current.set(urlToFetch, {
+        success: false,
+        error: errorMessage,
+        timestamp: Date.now()
+      });
       
       // Reset the tracking ref so that the user can retry pasting or triggering manually without being blocked by "same URL" cache check
       lastFetchedUrlRef.current = '';
@@ -1346,6 +1466,8 @@ export default function App() {
   const [previewMode, setPreviewMode] = useState<'finished' | 'comparison'>('finished');
   const [isSmpsCalculatorOpen, setIsSmpsCalculatorOpen] = useState(false);
   const [isPhotoResizerOpen, setIsPhotoResizerOpen] = useState(false);
+  const [packageSearchQuery, setPackageSearchQuery] = useState('');
+  const [packageCategoryFilter, setPackageCategoryFilter] = useState<'all' | 'it' | 'photo'>('all');
   const [activeGalleryFilter, setActiveGalleryFilter] = useState<string>('all');
   const [activeGalleryTagFilter, setActiveGalleryTagFilter] = useState<'all' | 'Recent' | 'Featured' | 'Client Favorites'>('all');
   const [activeAffiliateFilter, setActiveAffiliateFilter] = useState<string>('all');
@@ -1537,7 +1659,7 @@ export default function App() {
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash.replace('#', '') as any;
-      const validTabs = ['home', 'about', 'pixelfix', 'pixelframe', 'gallery', 'contact', 'dashboard', 'affiliate'];
+      const validTabs = ['home', 'about', 'pixelfix', 'pixelframe', 'gallery', 'contact', 'dashboard', 'affiliate', 'bios', 'packages', 'beep'];
       if (hash && validTabs.includes(hash)) {
         setActiveTab(hash);
       }
@@ -1585,6 +1707,18 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('mp_instagram_access_token', instagramAccessToken);
   }, [instagramAccessToken]);
+
+  // Lock scroll when mobile side menu is open
+  useEffect(() => {
+    if (isMobileMenuOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isMobileMenuOpen]);
 
   const syncInstagram = async (tokenInput?: string) => {
     const token = tokenInput !== undefined ? tokenInput : instagramAccessToken;
@@ -2162,6 +2296,7 @@ export default function App() {
       status: 'unread'
     };
     setContactMessages(prev => [newMsg, ...prev]);
+    saveContactMessage(newMsg);
     triggerToast('Estimate proposal generated! Forwarding to WhatsApp support...', 'success');
 
     // Clean states & redirect
@@ -2184,6 +2319,7 @@ export default function App() {
       status: 'unread'
     };
     setContactMessages(prev => [newMsg, ...prev]);
+    saveContactMessage(newMsg);
     triggerToast('Photography custom quote compiled! Connecting with WhatsApp optics desk...', 'success');
 
     window.open(`https://wa.me/919864361940?text=${encodeURIComponent(textMessage)}`, '_blank');
@@ -2195,6 +2331,29 @@ export default function App() {
     const text = encodeURIComponent(customText);
     triggerToast('Preparing direct WhatsApp routing...', 'info');
     window.open(`https://wa.me/${number}?text=${text}`, '_blank');
+  };
+  
+  // Dedicated helper to handle estimate cost redirections and automatic scrolling to the interactive calculator
+  const handleEstimateCostRedirect = (type: 'pixelfix' | 'pixelframe', customNotes?: string) => {
+    setQuoteType(type);
+    if (customNotes) {
+      setBookingNotes(customNotes);
+    }
+    setBookingName('');
+    setActiveTab('home');
+    
+    // Highlight effect state
+    setCalculatorFlash(true);
+    setTimeout(() => {
+      setCalculatorFlash(false);
+    }, 2500);
+
+    setTimeout(() => {
+      const element = document.getElementById('interactive-calculator-widget');
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 150);
   };
 
   const handleAdminVerify = (e: React.FormEvent) => {
@@ -2251,7 +2410,7 @@ export default function App() {
     }
   };
 
-  const handleCreateGalleryItem = (e: React.FormEvent) => {
+  const handleCreateGalleryItem = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newImageBase64) {
       triggerToast('Please select or drag an image showcase file to publish first!', 'error');
@@ -2267,17 +2426,29 @@ export default function App() {
       cameraInfo: newImageCamera,
       date: new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' })
     };
-    setGalleryItems(prev => [newItem, ...prev]);
+    const updated = [newItem, ...galleryItems];
+    setGalleryItems(updated);
     setNewImageTitle('');
     setNewImageBase64('');
     setNewImageBeforeUrl('');
-    triggerToast('Successfully added custom portfolio picture into showcase!', 'success');
+    try {
+      await updateSiteConfig({ galleryItems: updated });
+      triggerToast('Successfully added custom portfolio picture into showcase!', 'success');
+    } catch (err) {
+      console.error('Failed to create gallery item:', err);
+    }
   };
 
-  const handleDeleteGalleryItem = (id: string) => {
+  const handleDeleteGalleryItem = async (id: string) => {
     if (confirm('Are you sure you want to delete this portfolio photo from the live website?')) {
-      setGalleryItems(prev => prev.filter(item => item.id !== id));
-      triggerToast('Portfolio image successfully deleted from database.', 'info');
+      const updated = galleryItems.filter(item => item.id !== id);
+      setGalleryItems(updated);
+      try {
+        await updateSiteConfig({ galleryItems: updated });
+        triggerToast('Portfolio image successfully deleted from database.', 'info');
+      } catch (err) {
+        console.error('Failed to delete gallery item:', err);
+      }
     }
   };
 
@@ -2333,6 +2504,226 @@ export default function App() {
     
     return items;
   }, [galleryItems, activeGalleryFilter, activeGalleryTagFilter]);
+
+  const filteredInstagramPosts = useMemo(() => {
+    const isVideoPost = (post: any) => post.mediaType === 'VIDEO' || !!post.videoUrl;
+    return instagramPosts.filter(p => {
+      if (instaFilter === 'image') return !isVideoPost(p);
+      if (instaFilter === 'video') return isVideoPost(p);
+      return true;
+    }).slice(0, 6);
+  }, [instagramPosts, instaFilter]);
+
+  const filteredAffiliateLinks = useMemo(() => {
+    return affiliateLinksToRender.filter(item => {
+      const matchesFilter = activeAffiliateFilter === 'all' || (item.category || '').split(',').map(c => c.trim()).includes(activeAffiliateFilter);
+      if (!matchesFilter) return false;
+      if (!affiliateSearchQuery.trim()) return true;
+      const q = affiliateSearchQuery.toLowerCase();
+      return (
+        (item.title || '').toLowerCase().includes(q) ||
+        (item.description || '').toLowerCase().includes(q) ||
+        (item.category || '').toLowerCase().includes(q) ||
+        (item.discountCode || '').toLowerCase().includes(q)
+      );
+    });
+  }, [affiliateLinksToRender, activeAffiliateFilter, affiliateSearchQuery]);
+
+  const filteredPackages = useMemo(() => {
+    const mergedList = [
+      ...itServices.map(srv => ({ ...srv, type: 'it' })),
+      ...photoServices.map(srv => ({ ...srv, type: 'photography' }))
+    ];
+
+    return mergedList.filter(srv => {
+      // Category match
+      if (packageCategoryFilter !== 'all' && srv.type !== packageCategoryFilter) {
+        return false;
+      }
+      // Search query match
+      if (packageSearchQuery) {
+        const q = packageSearchQuery.toLowerCase();
+        const titleMatch = srv.title?.toLowerCase().includes(q);
+        const descMatch = srv.description?.toLowerCase().includes(q);
+        const featuresMatch = srv.features?.some((f: string) => f.toLowerCase().includes(q));
+        return titleMatch || descMatch || featuresMatch;
+      }
+      return true;
+    });
+  }, [itServices, photoServices, packageCategoryFilter, packageSearchQuery]);
+
+  const filteredBiosKeys = useMemo(() => {
+    return BIOS_BOOT_KEYS_DATABASE.filter(item => {
+      // 1. Device Type Filter (laptop, desktop, motherboard)
+      if (selectedBiosType !== 'all') {
+        if (selectedBiosType === 'laptop' && item.type !== 'laptop' && item.type !== 'all') return false;
+        if (selectedBiosType === 'motherboard' && item.type !== 'motherboard') return false;
+        if (selectedBiosType === 'desktop' && item.type !== 'desktop' && item.type !== 'all') return false;
+      }
+
+      // 2. Brand Filter
+      if (selectedBiosBrand !== 'all') {
+        if (item.brand.toLowerCase() !== selectedBiosBrand.toLowerCase()) return false;
+      }
+
+      // 3. Search Query Filter (brand, model, name, keys)
+      if (biosSearchQuery.trim()) {
+        const q = biosSearchQuery.toLowerCase().trim();
+        const matchesBrand = item.brand.toLowerCase().includes(q);
+        const matchesName = item.name.toLowerCase().includes(q);
+        const matchesNotes = item.notes.toLowerCase().includes(q);
+        const matchesModels = item.popularModels?.some(m => m.toLowerCase().includes(q));
+        const matchesKeys = 
+          item.biosKeyNew.toLowerCase().includes(q) ||
+          item.biosKeyOld.toLowerCase().includes(q) ||
+          item.bootMenuNew.toLowerCase().includes(q) ||
+          item.bootMenuOld.toLowerCase().includes(q);
+
+        return matchesBrand || matchesName || matchesNotes || !!matchesModels || matchesKeys;
+      }
+
+      return true;
+    });
+  }, [selectedBiosType, selectedBiosBrand, biosSearchQuery]);
+
+  const filteredBeepKeys = useMemo(() => {
+    let result = BEEP_CODES_DATABASE;
+
+    // Filter by Brand/OEM
+    if (selectedBeepBrand !== 'all') {
+      result = result.filter(item => item.biosBrand.toLowerCase() === selectedBeepBrand.toLowerCase());
+    }
+
+    // Filter by Component
+    if (selectedBeepComponent !== 'all') {
+      const compMap: Record<string, string> = {
+        'ram': 'ram',
+        'cpu': 'cpu',
+        'gpu/video': 'gpu/video',
+        'motherboard/chipset': 'motherboard/chipset',
+        'bios/cmos': 'bios/cmos',
+        'thermal': 'thermal',
+        'keyboard': 'keyboard',
+        'display': 'display'
+      };
+      const filterComp = compMap[selectedBeepComponent.toLowerCase()] || selectedBeepComponent.toLowerCase();
+      result = result.filter(item => item.affectedComponent.toLowerCase() === filterComp);
+    }
+
+    // Filter by Severity
+    if (selectedBeepSeverity !== 'all') {
+      result = result.filter(item => item.severity.toLowerCase() === selectedBeepSeverity.toLowerCase());
+    }
+
+    // Filter by general search query (Exact matching only)
+    if (beepSearchQuery.trim()) {
+      const q = beepSearchQuery.toLowerCase().trim();
+      
+      result = result.filter(item => {
+        const patternLower = item.pattern.toLowerCase();
+        const brandLower = item.biosBrand.toLowerCase();
+        const componentLower = item.affectedComponent.toLowerCase();
+        const causeLower = item.possibleCause.toLowerCase();
+        
+        // Match 1: Search query matches pattern title directly (e.g., "1 short", "3 short beeps", "4 long")
+        if (patternLower.includes(q) || item.patternDescription.includes(q)) {
+          return true;
+        }
+
+        // Match 2: Exact brand filter matching via text
+        if (brandLower === q || (brandLower.includes(q) && q.length >= 3)) {
+          return true;
+        }
+
+        // Match 3: Exact component filter matching via text
+        if (componentLower === q || (componentLower.includes(q) && q.length >= 3)) {
+          return true;
+        }
+
+        // Match 4: Specific primary technical keywords (e.g. CMOS, RAM, CPU, GPU, Fan, BIOS, Battery)
+        // If they enter a short specific technical term, we only match items belonging directly to that component/system
+        const specificKeywords = ["cmos", "rtc", "battery", "cpu", "ram", "gpu", "video", "fan", "overheating", "thermal", "keyboard", "display"];
+        if (specificKeywords.includes(q)) {
+          if (componentLower.includes(q) || patternLower.includes(q) || (causeLower.includes(q) && item.affectedComponent.toLowerCase().includes(q))) {
+            return true;
+          }
+        }
+
+        return false;
+      });
+    }
+
+    // Filter by custom sequence built by user
+    if (customSequence.length > 0) {
+      result = result.filter(item => {
+        const cleanCustom = customSequence.filter(x => x !== 'P');
+        const cleanItem = item.beepBeats.filter(x => x !== 'P');
+        // Match sequence prefix strictly
+        return cleanCustom.every((beat, idx) => cleanItem[idx] === beat);
+      });
+    }
+
+    return result;
+  }, [selectedBeepBrand, selectedBeepComponent, selectedBeepSeverity, customSequence, beepSearchQuery]);
+
+  const playBeepPattern = (itemId: string, beats: ('S' | 'L' | 'P')[]) => {
+    try {
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContextClass) return;
+      
+      setActivePlayingId(itemId);
+      const ctx = new AudioContextClass();
+      let currentTime = ctx.currentTime;
+      let totalDuration = 0;
+
+      beats.forEach((beat) => {
+        if (beat === 'S') {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.value = 850;
+          
+          gain.gain.setValueAtTime(0.12, currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, currentTime + 0.12);
+          
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          
+          osc.start(currentTime);
+          osc.stop(currentTime + 0.12);
+          currentTime += 0.18;
+          totalDuration = currentTime;
+        } else if (beat === 'L') {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.value = 850;
+          
+          gain.gain.setValueAtTime(0.12, currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, currentTime + 0.45);
+          
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          
+          osc.start(currentTime);
+          osc.stop(currentTime + 0.45);
+          currentTime += 0.55;
+          totalDuration = currentTime;
+        } else if (beat === 'P') {
+          currentTime += 0.25;
+          totalDuration = currentTime;
+        }
+      });
+
+      setTimeout(() => {
+        setActivePlayingId(null);
+      }, totalDuration * 1000 + 80);
+
+    } catch (err) {
+      console.error("Audio synthesis failed:", err);
+      setActivePlayingId(null);
+    }
+  };
 
   return (
     <div className={`min-h-screen w-full overflow-x-hidden ${s.bg} transition-colors duration-300 relative selection:bg-[#FF5500] selection:text-white pb-12`}>
@@ -2475,19 +2866,22 @@ export default function App() {
             </div>
           </div>
 
-          {/* Navigation and Advanced settings, adapts on mobile vs desktop */}
-          <div className={`${isMobileMenuOpen ? 'flex' : 'hidden'} md:flex flex-col md:flex-row items-stretch md:items-center gap-4 w-full md:w-auto transition-all duration-300`}>
+          {/* Desktop-only Navigation and Advanced settings, hidden on mobile */}
+          <div className="hidden md:flex flex-row items-center gap-4 w-auto">
             
-            {/* Desktop and Mobile Tabs Container */}
-            <div className={`flex flex-col md:flex-row gap-1 p-1 rounded-lg border ${
-              currentTheme === 'light' ? 'bg-slate-100 border-slate-200/60' : 'bg-black/20 border-white/5'
+            {/* Desktop Tabs Container */}
+            <div className={`flex flex-row gap-1 p-1 rounded-full border shadow-sm backdrop-blur-md transition-all ${
+              currentTheme === 'light' 
+                ? 'bg-slate-100/90 border-slate-200/80 shadow-slate-100/50' 
+                : currentTheme === 'mono'
+                  ? 'bg-zinc-950/90 border-zinc-800 shadow-black'
+                  : 'bg-[#121212]/90 border-white/5 shadow-black/20'
             }`}>
               {[
                 { id: 'home', label: 'Home' },
                 { id: 'pixelfix', label: 'Pixel Fix (IT)' },
                 { id: 'pixelframe', label: 'Pixel Frame (Photo)' },
                 { id: 'gallery', label: 'Live Gallery' },
-                { id: 'about', label: 'Origin' },
                 { id: 'contact', label: 'Direct Booking' }
               ].map(tab => (
                 <button
@@ -2496,19 +2890,48 @@ export default function App() {
                     setActiveTab(tab.id as any);
                     setIsMobileMenuOpen(false);
                   }}
-                  className={`relative px-3 py-2 md:py-1.5 rounded-md text-xs uppercase tracking-wider font-extrabold transition-all duration-200 outline-none cursor-pointer text-left md:text-center ${
+                  onMouseEnter={() => setHoveredTab(tab.id)}
+                  onMouseLeave={() => setHoveredTab(null)}
+                  className={`relative px-4 py-2 rounded-full text-xs uppercase tracking-wider font-extrabold transition-all duration-300 outline-none cursor-pointer text-center select-none ${
                     activeTab === tab.id
-                      ? 'text-white bg-[#FF5500] md:bg-transparent'
+                      ? currentTheme === 'mono'
+                        ? 'text-black'
+                        : 'text-white'
                       : currentTheme === 'light'
-                        ? 'text-slate-600 hover:text-[#FF5500] hover:bg-slate-200/30'
-                        : 'text-slate-400 hover:text-white hover:bg-white/5'
+                        ? 'text-slate-600 hover:text-slate-900'
+                        : 'text-slate-400 hover:text-white'
                   }`}
                 >
+                  {/* Hover Backdrop Overlay */}
+                  <AnimatePresence>
+                    {hoveredTab === tab.id && activeTab !== tab.id && (
+                      <motion.span
+                        layoutId="hoverTabIndicator"
+                        className={`absolute inset-0 rounded-full -z-10 ${
+                          currentTheme === 'light'
+                            ? 'bg-slate-200/70'
+                            : currentTheme === 'mono'
+                              ? 'bg-zinc-800/65'
+                              : 'bg-white/5'
+                        }`}
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        transition={{ type: "spring", stiffness: 450, damping: 25 }}
+                      />
+                    )}
+                  </AnimatePresence>
+
+                  {/* Active Backdrop Indicator */}
                   {activeTab === tab.id && (
                     <motion.span
                       layoutId="activeTabIndicator"
-                      className="absolute inset-0 rounded-md -z-10 bg-[#FF5500] hidden md:block"
-                      transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                      className={`absolute inset-0 rounded-full -z-10 shadow-sm ${
+                        currentTheme === 'mono'
+                          ? 'bg-white'
+                          : 'bg-[#FF5500]'
+                      }`}
+                      transition={{ type: "spring", stiffness: 380, damping: 28 }}
                     />
                   )}
                   <span className="relative z-10">{tab.label}</span>
@@ -2516,8 +2939,8 @@ export default function App() {
               ))}
             </div>
 
-            {/* EYE MATCHING DUAL CONTROL MATRIX (Hidden on Mobile, handled in top-bar) */}
-            <div className="hidden md:flex items-center gap-2">
+            {/* EYE MATCHING DUAL CONTROL MATRIX */}
+            <div className="flex items-center gap-2">
               <span className="text-[9px] uppercase font-bold tracking-widest text-slate-500 hidden lg:inline">Theme Profile:</span>
               <div className={`flex items-center rounded-full p-1 self-stretch border ${
                 currentTheme === 'light' ? 'bg-slate-100 border-slate-200' : 'bg-black/40 border-white/5'
@@ -2580,32 +3003,288 @@ export default function App() {
               </button>
             </div>
 
-            {/* Mobile Admin panel portal access */}
-            <div className="md:hidden pt-3 border-t border-dashed border-slate-200/50 dark:border-white/5 flex items-center justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                Dashboard Portal
-              </span>
-              <button
-                onClick={() => {
-                  setActiveTab('dashboard');
-                  setIsMobileMenuOpen(false);
-                }}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-extrabold uppercase tracking-wide transition-all ${
-                  activeTab === 'dashboard'
-                    ? 'bg-[#FF5500] text-white'
-                    : currentTheme === 'light'
-                      ? 'bg-slate-200 text-slate-700'
-                      : 'bg-white/5 text-zinc-300'
-                }`}
-              >
-                <Sliders size={12} />
-                <span>Admin Panel</span>
-              </button>
-            </div>
-
           </div>
         </div>
       </header>
+
+      {/* MOBILE PREMIUM SLIDE-OUT DRAWER OVERLAY */}
+      <AnimatePresence>
+        {isMobileMenuOpen && (
+          <div className="fixed inset-0 z-50 md:hidden">
+            {/* Backdrop Overlay */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="fixed inset-0 bg-black/65 backdrop-blur-md"
+            />
+
+            {/* Sliding Panel */}
+            <motion.div
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 220 }}
+              className={`fixed top-0 right-0 bottom-0 w-[85%] max-w-sm h-full shadow-2xl flex flex-col p-6 z-50 border-l ${
+                currentTheme === 'light'
+                  ? 'bg-[#FAF9F5] border-slate-200 text-slate-800'
+                  : currentTheme === 'mono'
+                    ? 'bg-zinc-950 border-zinc-800 text-zinc-100 font-mono'
+                    : 'bg-[#121212] border-white/5 text-slate-100'
+              }`}
+            >
+              {/* Drawer Header */}
+              <div className="flex items-center justify-between pb-6 border-b border-dashed border-slate-200/50 dark:border-white/5">
+                {/* Logo Brand Identity */}
+                <div className="flex items-center space-x-2" onClick={() => { setActiveTab('home'); setIsMobileMenuOpen(false); }}>
+                  <PFLogo className={currentTheme === 'mono' ? 'text-zinc-300' : 'text-[#FF5500]'} />
+                  <div>
+                    <span className={`font-black text-xs uppercase leading-none block ${
+                      currentTheme === 'light' ? 'text-slate-900' : 'text-white'
+                    }`}>
+                      {logoText} <span className="text-[#FF5500] font-mono">.</span>
+                    </span>
+                    <span className={`text-[8px] uppercase tracking-wider font-extrabold block leading-none mt-1 ${
+                      currentTheme === 'mono' ? 'text-zinc-500' : 'text-[#FF5500]'
+                    }`}>
+                      {logoSubtext}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Close Button */}
+                <button
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className={`p-2 rounded-lg border transition-all cursor-pointer ${
+                    currentTheme === 'light'
+                      ? 'border-slate-200 hover:bg-slate-100 text-slate-700'
+                      : 'border-white/5 hover:bg-white/5 text-slate-300'
+                  }`}
+                  aria-label="Close Navigation Menu"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              {/* Drawer Navigation Links */}
+              <motion.div 
+                className="flex-1 py-8 overflow-y-auto space-y-3"
+                initial="hidden"
+                animate="visible"
+                variants={{
+                  hidden: { opacity: 0 },
+                  visible: {
+                    opacity: 1,
+                    transition: {
+                      staggerChildren: 0.08,
+                    }
+                  }
+                }}
+              >
+                {[
+                  { id: 'home', label: 'Home', icon: Home },
+                  { id: 'pixelfix', label: 'Pixel Fix (IT)', icon: Sliders },
+                  { id: 'pixelframe', label: 'Pixel Frame (Photo)', icon: Camera },
+                  { id: 'gallery', label: 'Live Gallery', icon: FolderOpen },
+                  { id: 'contact', label: 'Direct Booking', icon: Phone }
+                ].map(tab => {
+                  const TabIcon = tab.icon;
+                  return (
+                    <motion.button
+                      key={tab.id}
+                      variants={{
+                        hidden: { opacity: 0, x: 25 },
+                        visible: { 
+                          opacity: 1, 
+                          x: 0,
+                          transition: { type: 'spring', stiffness: 220, damping: 20 }
+                        }
+                      }}
+                      whileTap={{ scale: 0.97 }}
+                      onClick={() => {
+                        setActiveTab(tab.id as any);
+                        setIsMobileMenuOpen(false);
+                      }}
+                      className={`w-full flex items-center justify-between transition-all duration-300 cursor-pointer px-4 py-3 rounded-2xl text-xs uppercase tracking-wider font-extrabold border ${
+                        activeTab === tab.id
+                          ? currentTheme === 'mono'
+                            ? 'text-black bg-white border-white shadow-md'
+                            : 'text-white bg-[#FF5500] border-[#FF5500] shadow-md shadow-[#FF5500]/10'
+                          : currentTheme === 'light'
+                            ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 border-transparent'
+                            : 'text-slate-400 hover:text-white hover:bg-white/5 border-transparent'
+                      }`}
+                    >
+                      <span className="flex items-center gap-3">
+                        <span className={`p-1.5 rounded-xl transition-all ${
+                          activeTab === tab.id
+                            ? currentTheme === 'mono'
+                              ? 'bg-zinc-100 text-black'
+                              : 'bg-white/20 text-white'
+                            : currentTheme === 'light'
+                              ? 'bg-slate-100 text-slate-500'
+                              : 'bg-white/5 text-slate-400'
+                        }`}>
+                          {TabIcon && <TabIcon size={14} className="shrink-0" />}
+                        </span>
+                        <span>{tab.label}</span>
+                      </span>
+                      <ArrowUpRight size={14} className={activeTab === tab.id ? (currentTheme === 'mono' ? 'text-black' : 'text-white') : 'text-slate-500'} />
+                    </motion.button>
+                  );
+                })}
+              </motion.div>
+
+              {/* Drawer Footer Actions */}
+              <div className="pt-6 border-t border-dashed border-slate-200/50 dark:border-white/5 space-y-6">
+                {/* Theme Selection */}
+                <div className="space-y-2">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 block">
+                    Theme Profile
+                  </span>
+                  <div className={`grid grid-cols-3 gap-1 rounded-xl p-1 border ${
+                    currentTheme === 'light' ? 'bg-slate-100 border-slate-200' : 'bg-black/40 border-white/5'
+                  }`}>
+                    <button
+                      onClick={() => setCurrentTheme('normal')}
+                      className={`py-2 rounded-lg text-xs font-bold uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                        currentTheme === 'normal'
+                          ? 'bg-[#FF5500] text-white shadow-sm'
+                          : 'text-slate-500 hover:text-slate-300'
+                      }`}
+                    >
+                      <Sparkles size={11} />
+                      <span>Cyber</span>
+                    </button>
+                    <button
+                      onClick={() => setCurrentTheme('mono')}
+                      className={`py-2 rounded-lg text-xs font-bold uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                        currentTheme === 'mono'
+                          ? currentTheme === 'light' ? 'bg-slate-900 text-white' : 'bg-white text-black font-black'
+                          : 'text-slate-500 hover:text-slate-300'
+                      }`}
+                    >
+                      <Hash size={11} />
+                      <span>Noir</span>
+                    </button>
+                    <button
+                      onClick={() => setCurrentTheme('light')}
+                      className={`py-2 rounded-lg text-xs font-bold uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                        currentTheme === 'light'
+                          ? 'bg-slate-900 text-white shadow-sm'
+                          : 'text-slate-500 hover:text-slate-300'
+                      }`}
+                    >
+                      <SunIcon size={11} />
+                      <span>Light</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Dashboard Access */}
+                <div className="space-y-2">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 block">
+                    Dashboard Portal
+                  </span>
+                  <button
+                    onClick={() => {
+                      setActiveTab('dashboard');
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-extrabold uppercase tracking-widest transition-all cursor-pointer ${
+                      activeTab === 'dashboard'
+                        ? 'bg-[#FF5500] text-white'
+                        : currentTheme === 'light'
+                          ? 'bg-slate-200 hover:bg-slate-300 text-slate-700'
+                          : 'bg-white/5 hover:bg-white/10 text-zinc-300'
+                    }`}
+                  >
+                    <Sliders size={12} />
+                    <span>Admin Panel</span>
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* PERSISTENT DIAGNOSTIC UTILITY COMPANION BAR (100% Offline-capable) - Visible on selected diagnostic pages */}
+      {(activeTab === 'bios' || activeTab === 'beep' || activeTab === 'smps') && (
+        <div className={`border-b backdrop-blur-md transition-all duration-300 relative z-20 ${
+          currentTheme === 'light' 
+            ? 'bg-gradient-to-r from-slate-50 via-white to-slate-50 border-slate-200/80 shadow-xs' 
+            : 'bg-gradient-to-r from-zinc-950 via-zinc-900/60 to-zinc-950 border-white/5 shadow-lg'
+        }`}>
+          {/* Subtle bottom decorative gradient accent line */}
+          <div className="absolute bottom-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-[#FF5500]/30 to-transparent" />
+          
+          <div className="max-w-7xl mx-auto px-4 lg:px-8 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 overflow-x-auto scrollbar-none">
+            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest shrink-0 font-mono transition-all duration-200 ${
+              currentTheme === 'light' 
+                ? 'bg-slate-100 text-slate-700 border border-slate-200/60' 
+                : 'bg-zinc-900 text-zinc-300 border border-white/5'
+            }`}>
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#FF5500] animate-pulse" />
+              <span>Guwahati Diagnostics Toolbox</span>
+              <span className="text-[9px] opacity-60 font-medium px-1 bg-[#FF5500]/10 text-[#FF5500] rounded">100% Offline</span>
+            </div>
+            <div className="flex items-center gap-2.5 shrink-0">
+              <div className={`flex items-center gap-1.5 sm:gap-2 p-1.5 rounded-2xl border transition-all duration-300 ${
+                currentTheme === 'light'
+                  ? 'bg-gradient-to-br from-slate-100/60 via-slate-50/40 to-slate-100/30 border-slate-200/50 shadow-inner'
+                  : 'bg-gradient-to-br from-zinc-900/40 via-zinc-950/20 to-zinc-900/30 border-white/5 shadow-inner'
+              }`}>
+                {[
+                  { id: 'bios', label: 'BIOS Keys Finder', icon: KeyRound, desc: 'Motherboard startup key mappings' },
+                  { id: 'beep', label: 'Beep Diagnostician', icon: Volume2, desc: 'Motherboard acoustic POST translator' },
+                  { id: 'smps', label: 'PSU Wattage Calculator', icon: Zap, desc: 'Precision Power Supply load calculator' }
+                ].map(tool => {
+                  const Icon = tool.icon;
+                  const active = activeTab === tool.id;
+                  return (
+                    <button
+                      id={`quick-tool-btn-${tool.id}`}
+                      key={tool.id}
+                      onClick={() => {
+                        setActiveTab(tool.id as any);
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      className={`group flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all duration-250 border cursor-pointer ${
+                        active 
+                          ? 'bg-gradient-to-r from-[#FF5500] to-[#FF6A1A] border-transparent text-white shadow-md shadow-[#FF5500]/20 scale-102' 
+                          : currentTheme === 'light'
+                            ? 'bg-white border-slate-200 text-slate-700 hover:text-[#FF5500] hover:border-[#FF5500]/30 hover:bg-slate-50 hover:shadow-xs'
+                            : 'bg-zinc-900/80 border-white/5 text-zinc-300 hover:text-white hover:border-white/10 hover:bg-zinc-850'
+                      }`}
+                      title={`${tool.label} - ${tool.desc}`}
+                    >
+                      <Icon size={12} className={`transition-transform duration-350 ${active ? 'text-white' : 'text-[#FF5500] group-hover:scale-125 group-hover:rotate-12 group-hover:animate-pulse'}`} />
+                      <span>{tool.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Minimalist iFixit PC & Laptop repair resource link containing only a very small laptop icon */}
+              <a
+                href="https://www.ifixit.com/Device/PC_Laptop"
+                target="_blank"
+                rel="noopener noreferrer"
+                title="iFixit PC & Laptop repair guide"
+                className={`group flex items-center justify-center p-2 rounded-xl border cursor-pointer transition-all duration-200 hover:scale-110 active:scale-95 shrink-0 ${
+                  currentTheme === 'light'
+                    ? 'bg-white border-slate-200 text-slate-500 hover:text-[#FF5500] hover:border-[#FF5500]/30 shadow-xs hover:shadow-sm'
+                    : 'bg-zinc-900/80 border-white/5 text-zinc-400 hover:text-white hover:border-white/10'
+                }`}
+              >
+                <Laptop size={13} className="transition-transform duration-300 group-hover:scale-115 group-hover:-rotate-12" />
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* CORE FRAME ROUTING VIEWS */}
       <main className="max-w-7xl mx-auto px-4 lg:px-8 py-8">
@@ -2665,9 +3344,7 @@ export default function App() {
                   <div className="flex flex-col sm:flex-row gap-3 pt-2">
                     <button
                       onClick={() => {
-                        setQuoteType('pixelfix');
-                        const element = document.getElementById('interactive-calculator-widget');
-                        if (element) {element.scrollIntoView({ behavior: 'smooth' });}
+                        handleEstimateCostRedirect('pixelfix');
                       }}
                       className="bg-[#FF5500] hover:bg-[#FF4400] text-white px-6 py-3.5 rounded-xl font-extrabold text-sm uppercase tracking-wider flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 cursor-pointer"
                     >
@@ -2676,9 +3353,7 @@ export default function App() {
                     </button>
                     <button
                       onClick={() => {
-                        setQuoteType('pixelframe');
-                        const element = document.getElementById('interactive-calculator-widget');
-                        if (element) {element.scrollIntoView({ behavior: 'smooth' });}
+                        handleEstimateCostRedirect('pixelframe');
                       }}
                       className={`border px-6 py-3.5 rounded-xl font-extrabold text-sm uppercase tracking-wider flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 cursor-pointer ${
                         currentTheme === 'light'
@@ -2843,7 +3518,7 @@ export default function App() {
                         if (exploreButtonLink.startsWith('#')) {
                           e.preventDefault();
                           const targetTab = exploreButtonLink.replace('#', '');
-                          const validTabs = ['home', 'pixelfix', 'pixelframe', 'gallery', 'about', 'affiliate', 'contact', 'dashboard'];
+                          const validTabs = ['home', 'pixelfix', 'pixelframe', 'gallery', 'about', 'affiliate', 'contact', 'dashboard', 'bios', 'packages', 'beep'];
                           if (validTabs.includes(targetTab)) {
                             setActiveTab(targetTab as any);
                             window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -3000,7 +3675,14 @@ export default function App() {
             </motion.section>
 
             {/* DYNAMIC WHATSAPP INTERACTIVE CALCULATOR (The Core Feature of Client Request) */}
-            <section id="interactive-calculator-widget" className={`p-6 md:p-8 rounded-3xl border ${s.card} relative overflow-hidden text-left`}>
+            <section
+              id="interactive-calculator-widget"
+              className={`p-6 md:p-8 rounded-3xl border ${s.card} relative overflow-hidden text-left transition-all duration-700 ${
+                calculatorFlash
+                  ? 'ring-4 ring-[#FF5500] shadow-[0_0_40px_rgba(255,85,0,0.6)] scale-[1.02]'
+                  : ''
+              }`}
+            >
               <div className="absolute inset-0 bg-gradient-to-br from-[#FF5500]/5 via-transparent to-transparent pointer-events-none" />
               
               <div className="relative z-10 space-y-6">
@@ -3433,7 +4115,7 @@ export default function App() {
              {/* SOCIAL MEDIA HANDLES SECTION */}
             <section className="space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-                <div className="text-left">
+                <ScrollReveal variant="fade-up" delay={0.15} className="text-left">
                   <span className={`text-[10px] uppercase tracking-[0.2em] font-bold block mb-1 ${s.tagline}`}>
                     CONNECT WITH MURARI PANJIYAR
                   </span>
@@ -3443,7 +4125,7 @@ export default function App() {
                   <p className="text-slate-400 text-xs mt-1">
                     Connect instantly via digital streams or directly through dedicated WhatsApp communication nodes.
                   </p>
-                </div>
+                </ScrollReveal>
                 {isAuthorized && (
                   <button
                     onClick={() => setEditingItem({
@@ -3742,124 +4424,149 @@ export default function App() {
               <div className="pt-2 flex flex-wrap justify-center gap-3">
                 <button
                   onClick={() => triggerQuickBooking('it_fix', 'Hi Murari, I want to book doorstep PC support!')}
-                  className="bg-green-600 hover:bg-green-700 text-white text-xs uppercase font-extrabold px-5 py-2.5 rounded-lg flex items-center gap-1.5"
+                  className="bg-green-600 hover:bg-green-700 text-white text-xs uppercase font-extrabold px-5 py-2.5 rounded-lg flex items-center gap-1.5 cursor-pointer transition-all duration-200"
                 >
                   <WhatsAppIcon size={14} /> Send WhatsApp Support Ticket
                 </button>
                 <a
                   href={`tel:${contactPhoneIt}`}
-                  className="bg-white hover:bg-zinc-200 text-black text-xs uppercase font-extrabold px-5 py-2.5 rounded-lg flex items-center gap-1.5"
+                  className="bg-white hover:bg-zinc-200 text-black text-xs uppercase font-extrabold px-5 py-2.5 rounded-lg flex items-center gap-1.5 transition-all duration-200"
                 >
                   <Phone size={14} /> Call Support Now
                 </a>
               </div>
             </div>
 
-            {/* List offerings */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {itServices.map((srv, index) => (
-                <ScrollReveal
-                  key={index}
-                  variant="slide-in-up"
-                  delay={index * 0.1}
-                  className={`p-6 rounded-3xl border ${s.card} flex flex-col justify-between hover:border-[#FF5500]/70 cursor-pointer group transition-all duration-300 hover:scale-[1.01]`}
-                  onClick={() => setActiveDetailService({ ...srv, type: 'it' })}
-                >
-                  <div>
-                    <div className="w-12 h-12 bg-orange-500/10 rounded-xl flex items-center justify-center text-[#FF5500] mb-4">
-                      {index === 0 ? <Laptop size={22} /> : index === 1 ? <Cpu size={22} /> : <CheckCircle size={22} />}
-                    </div>
-                    <div className="flex items-center justify-between gap-2 mb-2">
-                      <span className="text-[10px] uppercase text-slate-500 font-bold block">SERVICE PACKAGE {index+1}</span>
-                      {isAuthorized && (
-                        <button
-                          type="button"
-                          onClick={(ev) => {
-                            ev.stopPropagation();
-                            setEditingItem({
-                              type: 'it_service',
-                              index,
-                              data: { ...srv }
-                            });
-                          }}
-                          className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold uppercase text-[9px] tracking-wider px-2 py-1 rounded flex items-center gap-1 shadow cursor-pointer transition-colors"
-                        >
-                          <Sliders size={8} /> Edit
-                        </button>
-                      )}
-                    </div>
-                    <h3 className={`text-xl font-black mt-1 ${currentTheme === 'light' ? 'text-slate-950 font-black' : 'text-white font-black'}`}>{srv.title}</h3>
-                    <p className={`text-xs mt-2 leading-relaxed ${currentTheme === 'light' ? 'text-slate-600' : 'text-slate-400'}`}>{srv.description}</p>
-                    
-                    <div className="mt-3">
-                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#FF5500] inline-flex items-center gap-1 group-hover:underline">
-                        View Details & Specs <ArrowUpRight size={10} className="transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-                      </span>
-                    </div>
+            {/* Service Packages Section */}
+            <div className="space-y-6">
+              <ScrollReveal variant="fade-up" delay={0.1} className="text-left space-y-2 max-w-2xl">
+                <div className="inline-flex items-center gap-1.5 bg-[#FF5500]/10 border border-[#FF5500]/20 rounded-full px-3 py-0.5 text-[9px] text-[#FF5500] font-extrabold tracking-widest uppercase font-mono">
+                  <SlidersHorizontal size={10} className="animate-pulse" />
+                  <span>TRANSPARENT VALUE-DRIVEN RATES</span>
+                </div>
+                <h2 className={`text-2xl md:text-3xl font-black uppercase tracking-tight ${
+                  currentTheme === 'light' ? 'text-slate-950' : 'text-white'
+                }`}>
+                  Doorstep IT Service Packages
+                </h2>
+                <p className={`text-xs md:text-sm ${
+                  currentTheme === 'light' ? 'text-slate-650 font-medium' : 'text-slate-400'
+                }`}>
+                  Choose a support tier that matches your computer speed or license configuration needs. All doorstep configurations are guided directly by certified engineers.
+                </p>
+              </ScrollReveal>
 
-                    <ul className="space-y-2 mt-4">
-                      {srv.features.map((f, fIdx) => (
-                        <li key={fIdx} className={`flex gap-2 text-xs ${currentTheme === 'light' ? 'text-slate-700' : 'text-slate-300'}`}>
-                          <Check size={14} className="text-[#FF5500] shrink-0 mt-0.5" />
-                          <span>{f}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  <div className={`pt-6 border-t mt-6 flex items-center justify-between ${s.divider}`}>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                {itServices.map((srv, index) => (
+                  <ScrollReveal
+                    key={index}
+                    variant="slide-in-up"
+                    delay={index * 0.1}
+                    className={`p-6 rounded-3xl border ${s.card} flex flex-col justify-between hover:border-[#FF5500]/70 cursor-pointer group transition-all duration-300 hover:scale-[1.01]`}
+                    onClick={() => setActiveDetailService({ ...srv, type: 'it' })}
+                  >
                     <div>
-                      <span className="text-[10px] text-slate-500 block">Baseline starting rate</span>
-                      <span className="text-base font-extrabold text-[#FF5500]">{srv.price}</span>
+                      <div className="w-12 h-12 bg-orange-500/10 rounded-xl flex items-center justify-center text-[#FF5500] mb-4">
+                        {index === 0 ? <Laptop size={22} /> : index === 1 ? <Cpu size={22} /> : <CheckCircle size={22} />}
+                      </div>
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <span className="text-[10px] uppercase text-slate-500 font-bold block">SERVICE PACKAGE {index+1}</span>
+                        {isAuthorized && (
+                          <button
+                            type="button"
+                            onClick={(ev) => {
+                              ev.stopPropagation();
+                              setEditingItem({
+                                type: 'it_service',
+                                index,
+                                data: { ...srv }
+                              });
+                            }}
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold uppercase text-[9px] tracking-wider px-2 py-1 rounded flex items-center gap-1 shadow cursor-pointer transition-colors"
+                          >
+                            <Sliders size={8} /> Edit
+                          </button>
+                        )}
+                      </div>
+                      <h3 className={`text-xl font-black mt-1 ${currentTheme === 'light' ? 'text-slate-950 font-black' : 'text-white font-black'}`}>{srv.title}</h3>
+                      <p className={`text-xs mt-2 leading-relaxed ${currentTheme === 'light' ? 'text-slate-650' : 'text-slate-400'}`}>{srv.description}</p>
+                      
+                      <div className="mt-3">
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#FF5500] inline-flex items-center gap-1 group-hover:underline">
+                          View Details & Specs <ArrowUpRight size={10} className="transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                        </span>
+                      </div>
+
+                      <ul className="space-y-2 mt-4">
+                        {srv.features.map((f, fIdx) => (
+                          <li key={fIdx} className={`flex gap-2 text-xs ${currentTheme === 'light' ? 'text-slate-700' : 'text-slate-300'}`}>
+                            <Check size={14} className="text-[#FF5500] shrink-0 mt-0.5" />
+                            <span>{f}</span>
+                          </li>
+                        ))}
+                      </ul>
                     </div>
 
-                    <button
-                      onClick={(ev) => {
-                        ev.stopPropagation();
-                        setBookingName('');
-                        setBookingNotes(`Interested in standard package: ${srv.title}. please call.`);
-                        setQuoteType('pixelfix');
-                        const element = document.getElementById('interactive-calculator-widget');
-                        if (element) {element.scrollIntoView({ behavior: 'smooth' });}
-                      }}
-                      className={`text-xs font-bold px-3 py-1.5 rounded transition-all cursor-pointer ${
-                        currentTheme === 'light' 
-                          ? 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200/80 font-semibold' 
-                          : 'bg-white/5 hover:bg-white/10 text-white'
-                      }`}
-                    >
-                      Configure Estimate
-                    </button>
-                  </div>
-                </ScrollReveal>
-              ))}
+                    <div className={`pt-6 border-t mt-6 flex items-center justify-between ${s.divider}`}>
+                      <div>
+                        <span className="text-[10px] text-slate-500 block">Baseline starting rate</span>
+                        <span className="text-base font-extrabold text-[#FF5500]">{srv.price}</span>
+                      </div>
+
+                      <button
+                        onClick={(ev) => {
+                          ev.stopPropagation();
+                          handleEstimateCostRedirect('pixelfix', `Interested in standard package: ${srv.title}. please call.`);
+                        }}
+                        className={`text-xs font-bold px-3 py-1.5 rounded transition-all cursor-pointer ${
+                          currentTheme === 'light' 
+                            ? 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200/80 font-semibold' 
+                            : 'bg-white/5 hover:bg-white/10 text-white font-extrabold'
+                        }`}
+                      >
+                        Configure Estimate
+                      </button>
+                    </div>
+                  </ScrollReveal>
+                ))}
+              </div>
             </div>
 
-            {/* Interactive Hardware SMPS/Power Calculator */}
-            <ScrollReveal variant="slide-in-up" delay={0.1}>
-              <div className={`p-6 md:p-8 rounded-3xl border ${s.card} flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden`}>
-                <div className="absolute top-0 right-0 w-32 h-32 bg-[#FF5500]/5 rounded-full blur-2xl pointer-events-none" />
-                <div className="text-left space-y-2 max-w-xl">
-                  <div className="flex items-center gap-1.5 font-mono text-[9px] tracking-widest uppercase font-extrabold text-[#FF5500]">
-                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#FF5500] animate-pulse" />
-                    <span>PC Wattage Diagnostician</span>
-                  </div>
-                  <h3 className={`text-xl md:text-2xl font-black uppercase tracking-tight ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
-                    Precision SMPS PSU Calculator
-                  </h3>
-                  <p className={`text-xs leading-relaxed ${currentTheme === 'light' ? 'text-slate-600' : 'text-slate-400'}`}>
-                    Select your CPU, GPU, memory, and accessories to dynamically estimate peak continuous wattage draw. Optimize system safety margins and verify precise power requirements for secure doorstep diagnostic operating setups in Guwahati.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setIsSmpsCalculatorOpen(true)}
-                  className="bg-[#FF5500] hover:bg-[#FF4400] text-zinc-100 font-extrabold uppercase text-xs tracking-wider px-6 py-3.5 rounded-xl shadow-lg hover:shadow-orange-500/20 active:scale-95 transition-all duration-200 cursor-pointer flex items-center gap-2 shrink-0 self-center md:self-auto"
-                >
-                  <Cpu size={14} /> Open PSU Calculator
-                </button>
-              </div>
-            </ScrollReveal>
+            {/* Minimalist Icon-only diagnostic shortcuts */}
+            <div className="flex flex-wrap justify-center items-center gap-3 md:gap-4 py-4">
+              <span className={`w-full text-center text-xs font-black uppercase tracking-widest ${currentTheme === 'light' ? 'text-slate-850' : 'text-slate-200'} font-mono mb-2 block`}>
+                ⚡ Diagnostics Toolbox
+              </span>
+              {[
+                { id: 'bios', title: 'BIOS Keys Finder', icon: KeyRound },
+                { id: 'beep', title: 'Beep Diagnostician', icon: Volume2 },
+                { id: 'smps', title: 'PSU Wattage Calculator', icon: Zap }
+              ].map(tool => {
+                const ToolIcon = tool.icon;
+                const isActive = activeTab === tool.id;
+                return (
+                  <button
+                    key={tool.id}
+                    onClick={() => {
+                      setActiveTab(tool.id as any);
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                    title={tool.title}
+                    className={`group px-4 py-2.5 rounded-xl border transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer flex items-center gap-2 text-xs font-black uppercase tracking-wider ${
+                      isActive
+                        ? 'bg-[#FF5500] border-transparent text-white shadow-lg shadow-[#FF5500]/20'
+                        : currentTheme === 'light'
+                          ? 'bg-white border-slate-200 text-slate-700 hover:text-[#FF5500] hover:border-[#FF5500]/30 hover:bg-slate-50'
+                          : 'bg-zinc-900 border-white/5 text-zinc-300 hover:text-white hover:border-white/10'
+                    }`}
+                    aria-label={tool.title}
+                  >
+                    <ToolIcon size={14} className={`transition-transform duration-350 ${isActive ? 'text-white' : 'text-[#FF5500] group-hover:scale-125 group-hover:rotate-12 group-hover:animate-pulse'}`} />
+                    <span>{tool.title}</span>
+                  </button>
+                );
+              })}
+            </div>
 
             {/* Tech FAQs panels */}
             <div className={`p-6 md:p-8 rounded-3xl border ${s.card} space-y-4`}>
@@ -3879,7 +4586,7 @@ export default function App() {
             {/* Assam-Based Client Reviews */}
             <div className="space-y-6 pt-4">
               <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-                <div className="text-left">
+                <ScrollReveal variant="fade-up" delay={0.1} className="text-left">
                   <span className="text-[#FF5500] text-[10px] uppercase tracking-[0.2em] font-bold block mb-1">CUSTOMER ACCLAIM</span>
                   <h2 className={`text-2xl font-black ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
                     Assam Doorstep IT Client Reviews
@@ -3887,7 +4594,7 @@ export default function App() {
                   <p className="text-slate-400 text-xs mt-1">
                     See how local businesses and homeowners across Assam evaluate our on-demand operating setups and speed diagnostics.
                   </p>
-                </div>
+                </ScrollReveal>
                 {isAuthorized && (
                   <button
                     type="button"
@@ -3927,9 +4634,15 @@ export default function App() {
                               </button>
                               <button
                                 type="button"
-                                onClick={() => {
+                                onClick={async () => {
                                   if (confirm('Delete this IT review?')) {
-                                    setPixelFixReviews(pixelFixReviews.filter((_, idx) => idx !== index));
+                                    const updated = pixelFixReviews.filter((_, idx) => idx !== index);
+                                    setPixelFixReviews(updated);
+                                    try {
+                                      await updateSiteConfig({ pixelFixReviews: updated });
+                                    } catch (err) {
+                                      console.error('Failed to update reviews in Firestore:', err);
+                                    }
                                   }
                                 }}
                                 className="bg-rose-600 hover:bg-rose-700 text-white font-extrabold uppercase text-[8px] px-1.5 py-0.5 rounded flex items-center gap-0.5 cursor-pointer"
@@ -3965,6 +4678,13 @@ export default function App() {
                   </div>
                 ))}
               </div>
+
+              {/* Verified Google Places Feedback QR Code */}
+              <ScrollReveal variant="fade-up" delay={0.25}>
+                <div className="pt-6 border-t border-slate-200/10">
+                  <ReviewQRCode currentTheme={currentTheme} triggerToast={triggerToast} />
+                </div>
+              </ScrollReveal>
             </div>
             </div>
           </motion.div>
@@ -4022,82 +4742,97 @@ export default function App() {
               </div>
             </div>
 
-            {/* Matrix of services */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              {photoServices.map((srv, index) => (
-                <ScrollReveal
-                  key={index}
-                  variant="slide-in-up"
-                  delay={index * 0.08}
-                  className={`p-5 rounded-2xl border ${s.card} flex flex-col justify-between hover:border-[#FF5500]/60 cursor-pointer group transition-all duration-300 hover:scale-[1.01]`}
-                  onClick={() => setActiveDetailService({ ...srv, type: 'photography' })}
-                >
-                  <div>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[9px] uppercase font-mono text-[#FF5500] bg-[#FF5500]/10 px-2.5 py-0.5 rounded-full inline-block font-extrabold">
-                        {srv.price}
-                      </span>
-                      {isAuthorized && (
-                        <button
-                          type="button"
-                          onClick={(ev) => {
-                            ev.stopPropagation();
-                            setEditingItem({
-                              type: 'photo_service',
-                              index,
-                              data: { ...srv }
-                            });
-                          }}
-                          className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold uppercase text-[9px] tracking-wider px-2 py-0.5 rounded flex items-center gap-1 shadow cursor-pointer transition-colors"
-                        >
-                          <Sliders size={8} /> Edit
-                        </button>
-                      )}
-                    </div>
-                    <h3 className={`text-lg font-black mt-3 truncate ${
-                      currentTheme === 'light' ? 'text-slate-950' : 'text-white'
-                    }`}>{srv.title}</h3>
-                    <p className={`text-xs mt-2 leading-relaxed ${
-                      currentTheme === 'light' ? 'text-slate-600' : 'text-slate-400'
-                    }`}>{srv.description}</p>
-                    
-                    <div className="mt-3">
-                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#FF5500] inline-flex items-center gap-1 group-hover:underline">
-                        View Details & Specs <ArrowUpRight size={10} className="transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-                      </span>
-                    </div>
+            {/* Service Packages Section */}
+            <div className="space-y-6">
+              <ScrollReveal variant="fade-up" delay={0.1} className="text-left space-y-2 max-w-2xl">
+                <div className="inline-flex items-center gap-1.5 bg-[#FF5500]/10 border border-[#FF5500]/20 rounded-full px-3 py-0.5 text-[9px] text-[#FF5500] font-extrabold tracking-widest uppercase font-mono">
+                  <Camera size={10} className="animate-pulse" />
+                  <span>PRECISE CINEMATIC RATES</span>
+                </div>
+                <h2 className={`text-2xl md:text-3xl font-black uppercase tracking-tight ${
+                  currentTheme === 'light' ? 'text-slate-950' : 'text-white'
+                }`}>
+                  Creative &amp; Event Packages
+                </h2>
+                <p className={`text-xs md:text-sm ${
+                  currentTheme === 'light' ? 'text-slate-650' : 'text-slate-400'
+                }`}>
+                  Select a tailored photography or cinematic coverage tier. Fully transparent pricing models designed to bring world-class frames to your special occasions.
+                </p>
+              </ScrollReveal>
 
-                    <ul className={`space-y-1.5 mt-4 text-[11px] ${
-                      currentTheme === 'light' ? 'text-slate-700' : 'text-slate-300'
-                    }`}>
-                      {srv.features.slice(0, 3).map((f, fIdx) => (
-                        <li key={fIdx} className="flex gap-1.5">
-                          <CheckCircle2 size={12} className="text-[#FF5500] shrink-0 mt-0.5" />
-                          <span>{f}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  <button
-                    onClick={(ev) => {
-                      ev.stopPropagation();
-                      setBookingName('');
-                      setBookingNotes(`Inquiring about photography category: ${srv.title}. please coordinate dates.`);
-                      setQuoteType('pixelframe');
-                      const element = document.getElementById('interactive-calculator-widget');
-                      if (element) {element.scrollIntoView({ behavior: 'smooth' });}
-                    }}
-                    className={`mt-6 w-full py-2 text-xs font-extrabold uppercase rounded-lg transition-all ${
-                      currentTheme === 'light'
-                        ? 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200'
-                        : 'bg-white/5 hover:bg-white/10 text-white font-extrabold'
-                    }`}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                {photoServices.map((srv, index) => (
+                  <ScrollReveal
+                    key={index}
+                    variant="slide-in-up"
+                    delay={index * 0.08}
+                    className={`p-5 rounded-2xl border ${s.card} flex flex-col justify-between hover:border-[#FF5500]/60 cursor-pointer group transition-all duration-300 hover:scale-[1.01]`}
+                    onClick={() => setActiveDetailService({ ...srv, type: 'photography' })}
                   >
-                    Estimate Cost
-                  </button>
-                </ScrollReveal>
-              ))}
+                    <div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[9px] uppercase font-mono text-[#FF5500] bg-[#FF5500]/10 px-2.5 py-0.5 rounded-full inline-block font-extrabold">
+                          {srv.price}
+                        </span>
+                        {isAuthorized && (
+                          <button
+                            type="button"
+                            onClick={(ev) => {
+                              ev.stopPropagation();
+                              setEditingItem({
+                                type: 'photo_service',
+                                index,
+                                data: { ...srv }
+                              });
+                            }}
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold uppercase text-[9px] tracking-wider px-2 py-0.5 rounded flex items-center gap-1 shadow cursor-pointer transition-colors"
+                          >
+                            <Sliders size={8} /> Edit
+                          </button>
+                        )}
+                      </div>
+                      <h3 className={`text-lg font-black mt-3 truncate ${
+                        currentTheme === 'light' ? 'text-slate-950' : 'text-white'
+                      }`}>{srv.title}</h3>
+                      <p className={`text-xs mt-2 leading-relaxed ${
+                        currentTheme === 'light' ? 'text-slate-650' : 'text-slate-400'
+                      }`}>{srv.description}</p>
+                      
+                      <div className="mt-3">
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#FF5500] inline-flex items-center gap-1 group-hover:underline">
+                          View Details & Specs <ArrowUpRight size={10} className="transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                        </span>
+                      </div>
+
+                      <ul className={`space-y-1.5 mt-4 text-[11px] ${
+                        currentTheme === 'light' ? 'text-slate-700' : 'text-slate-300'
+                      }`}>
+                        {srv.features.slice(0, 3).map((f, fIdx) => (
+                          <li key={fIdx} className="flex gap-1.5">
+                            <CheckCircle2 size={12} className="text-[#FF5500] shrink-0 mt-0.5" />
+                            <span>{f}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    <button
+                      onClick={(ev) => {
+                        ev.stopPropagation();
+                        handleEstimateCostRedirect('pixelframe', `Inquiring about photography category: ${srv.title}. please coordinate dates.`);
+                      }}
+                      className={`mt-6 w-full py-2 text-xs font-extrabold uppercase rounded-lg transition-all ${
+                        currentTheme === 'light'
+                          ? 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200'
+                          : 'bg-white/5 hover:bg-white/10 text-white font-extrabold'
+                      }`}
+                    >
+                      Estimate Cost
+                    </button>
+                  </ScrollReveal>
+                ))}
+              </div>
             </div>
 
             {/* Photo Resizer & Compressor Tool Section (Expandable) */}
@@ -4145,7 +4880,7 @@ export default function App() {
 
             {/* Testimonials list */}
             <section className="space-y-6">
-              <div className="flex items-center justify-between gap-4">
+              <ScrollReveal variant="fade-up" delay={0.1} className="flex items-center justify-between gap-4">
                 <h3 className={`text-xl font-extrabold ${
                   currentTheme === 'light' ? 'text-slate-900' : 'text-white'
                 }`}>Client Reviews</h3>
@@ -4161,7 +4896,7 @@ export default function App() {
                     <Plus size={12} /> Add Review
                   </button>
                 )}
-              </div>
+              </ScrollReveal>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {testimonials.map((t, index) => (
                   <motion.div
@@ -4190,9 +4925,15 @@ export default function App() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => {
+                            onClick={async () => {
                               if (confirm('Delete this testimonial review?')) {
-                                setTestimonials(testimonials.filter((_, idx) => idx !== index));
+                                const updated = testimonials.filter((_, idx) => idx !== index);
+                                setTestimonials(updated);
+                                try {
+                                  await updateSiteConfig({ testimonials: updated });
+                                } catch (err) {
+                                    console.error('Failed to update testimonials in Firestore:', err);
+                                }
                               }
                             }}
                             className="bg-rose-600 hover:bg-rose-700 text-white font-extrabold uppercase text-[10px] px-1.5 py-0.5 rounded flex items-center gap-1 cursor-pointer"
@@ -4227,6 +4968,13 @@ export default function App() {
                 ))}
               </div>
             </section>
+
+            {/* Verified Google Places Feedback QR Code */}
+            <ScrollReveal variant="fade-up" delay={0.25}>
+              <div className="pt-6 border-t border-slate-200/10">
+                <ReviewQRCode currentTheme={currentTheme} triggerToast={triggerToast} />
+              </div>
+            </ScrollReveal>
 
             </div>
           </motion.div>
@@ -4359,15 +5107,29 @@ export default function App() {
                 )}
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              <motion.div
+                key={`${activeGalleryFilter}-${activeGalleryTagFilter}`}
+                variants={{
+                  hidden: { opacity: 0 },
+                  show: {
+                    opacity: 1,
+                    transition: {
+                      staggerChildren: 0.04
+                    }
+                  }
+                }}
+                initial="hidden"
+                animate="show"
+                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
+              >
                 {filteredItems.map((item, index) => (
                   <motion.div
                     key={item.id}
                     onClick={() => setPreviewImage(item)}
-                    initial={{ opacity: 0, y: 15 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true, margin: "-20px" }}
-                    transition={{ duration: 0.4, delay: Math.min(index * 0.05, 0.3) }}
+                    variants={{
+                      hidden: { opacity: 0, y: 15 },
+                      show: { opacity: 1, y: 0, transition: { duration: 0.45, ease: "easeOut" } }
+                    }}
                     whileHover={{ y: -6, scale: 1.02, transition: { type: "spring", stiffness: 400, damping: 22 } }}
                     className={`group rounded-2xl overflow-hidden border ${s.card} flex flex-col justify-between aspect-square relative cursor-pointer shadow-sm hover:shadow-lg hover:border-[#FF5500]/30 transition-all duration-300`}
                   >
@@ -4386,9 +5148,16 @@ export default function App() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => {
+                          onClick={async () => {
                             if (confirm('Delete this gallery item?')) {
-                              setGalleryItems(galleryItems.filter(g => g.id !== item.id));
+                              const updated = galleryItems.filter(g => g.id !== item.id);
+                              setGalleryItems(updated);
+                              try {
+                                await updateSiteConfig({ galleryItems: updated });
+                                triggerToast('Portfolio image successfully deleted.', 'info');
+                              } catch (err) {
+                                console.error('Failed to delete gallery item:', err);
+                              }
                             }
                           }}
                           className="bg-rose-600 hover:bg-rose-700 text-white font-extrabold uppercase text-[10px] tracking-wider px-2 py-0.5 rounded shadow flex items-center gap-1 cursor-pointer"
@@ -4417,9 +5186,6 @@ export default function App() {
                           {tag}
                         </span>
                       ))}
-                      <span className="text-[8px] sm:text-[9px] uppercase font-mono font-extrabold tracking-wider px-2 py-0.5 rounded backdrop-blur-md shadow-md border flex items-center gap-1 bg-amber-950/85 text-amber-300 border-amber-500/40 animate-pulse">
-                        <span>⚡ SLIDER</span>
-                      </span>
                     </div>
 
                     <LazyImage
@@ -4469,7 +5235,7 @@ export default function App() {
                     <span className="text-[10px] font-black uppercase text-center block">Add New Showcase</span>
                   </div>
                 )}
-              </div>
+              </motion.div>
             )}
           </motion.div>
         )}
@@ -4719,18 +5485,40 @@ export default function App() {
               {isFetchingInstagram && instagramPosts.length === 0 ? (
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   {[1, 2, 3, 4, 5, 6].map((n) => (
-                    <div key={n} className="animate-pulse rounded-2xl aspect-square bg-slate-100 dark:bg-white/5 border border-dashed border-slate-200 dark:border-white/5" />
+                    <div
+                      key={n}
+                      className={`relative rounded-2xl overflow-hidden aspect-square border animate-pulse flex flex-col justify-between p-3 sm:p-4 ${
+                        currentTheme === 'light'
+                          ? 'bg-slate-50 border-slate-200/60'
+                          : 'bg-zinc-950 border-white/5'
+                      }`}
+                    >
+                      {/* Top Corner Icon Placeholder */}
+                      <div className="flex justify-between items-center">
+                        <div className={`w-3 h-3 rounded-full ${currentTheme === 'light' ? 'bg-slate-200' : 'bg-white/5'}`} />
+                        <div className={`w-8 h-3 rounded ${currentTheme === 'light' ? 'bg-slate-200' : 'bg-white/5'}`} />
+                      </div>
+
+                      {/* Center Camera Icon Overlay */}
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <div className={`p-2.5 rounded-full ${currentTheme === 'light' ? 'bg-slate-200/40' : 'bg-white/5'}`}>
+                          <div className={`w-5 h-5 border-2 border-dashed rounded ${currentTheme === 'light' ? 'border-slate-300' : 'border-white/10'}`} />
+                        </div>
+                      </div>
+
+                      {/* Bottom caption / stats placeholder */}
+                      <div className="space-y-2 relative z-10">
+                        <div className={`h-2.5 rounded w-5/6 ${currentTheme === 'light' ? 'bg-slate-200' : 'bg-white/5'}`} />
+                        <div className={`h-2 rounded w-1/2 ${currentTheme === 'light' ? 'bg-slate-200' : 'bg-white/5'}`} />
+                      </div>
+                    </div>
                   ))}
                 </div>
               ) : (
                 <div className="space-y-6">
                   {(() => {
                     const isVideoPost = (post: any) => post.mediaType === 'VIDEO' || !!post.videoUrl;
-                    const filtered = instagramPosts.filter(p => {
-                      if (instaFilter === 'image') return !isVideoPost(p);
-                      if (instaFilter === 'video') return isVideoPost(p);
-                      return true;
-                    }).slice(0, 6);
+                    const filtered = filteredInstagramPosts;
 
                     if (filtered.length === 0) {
                       return (
@@ -4964,17 +5752,47 @@ export default function App() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {isFetchingYoutube && youtubeVideos.length === 0 ? (
                   Array.from({ length: 3 }).map((_, idx) => (
-                    <div key={idx} className="space-y-2 animate-pulse">
-                      <div className={`aspect-video rounded-xl w-full ${
-                        currentTheme === 'light' ? 'bg-slate-150' : 'bg-zinc-900/80'
-                      }`} />
-                      <div className="space-y-1.5">
-                        <div className={`h-3 rounded w-3/4 ${
-                          currentTheme === 'light' ? 'bg-slate-150' : 'bg-zinc-900/80'
-                        }`} />
-                        <div className={`h-2.5 rounded w-1/2 ${
-                          currentTheme === 'light' ? 'bg-slate-150' : 'bg-zinc-900/80'
-                        }`} />
+                    <div
+                      key={idx}
+                      className={`p-2.5 rounded-xl border flex flex-col justify-between animate-pulse ${
+                        currentTheme === 'light'
+                          ? 'bg-white/40 border-slate-200/85 shadow-sm'
+                          : 'bg-zinc-900/30 border-white/5'
+                      }`}
+                    >
+                      {/* Thumbnail Skeleton */}
+                      <div className={`aspect-video w-full rounded-lg relative overflow-hidden ${
+                        currentTheme === 'light' ? 'bg-slate-200/80' : 'bg-white/5'
+                      }`}>
+                        {/* Play overlay skeleton */}
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                            currentTheme === 'light' ? 'bg-slate-300' : 'bg-white/10'
+                          }`} />
+                        </div>
+                      </div>
+
+                      {/* Metadata Skeleton */}
+                      <div className="pt-2.5 pb-0.5 px-0.5 flex-1 flex flex-col justify-between">
+                        <div className="space-y-1.5 mt-1">
+                          <div className={`h-3 rounded w-11/12 ${
+                            currentTheme === 'light' ? 'bg-slate-200/80' : 'bg-white/5'
+                          }`} />
+                          <div className={`h-3 rounded w-2/3 ${
+                            currentTheme === 'light' ? 'bg-slate-200/80' : 'bg-white/5'
+                          }`} />
+                        </div>
+
+                        <div className={`flex items-center justify-between mt-5 pt-2.5 border-t ${
+                          currentTheme === 'light' ? 'border-slate-100' : 'border-white/5'
+                        }`}>
+                          <div className={`h-2.5 rounded w-12 ${
+                            currentTheme === 'light' ? 'bg-slate-200/80' : 'bg-white/5'
+                          }`} />
+                          <div className={`h-2.5 rounded w-12 ${
+                            currentTheme === 'light' ? 'bg-slate-200/80' : 'bg-white/5'
+                          }`} />
+                        </div>
                       </div>
                     </div>
                   ))
@@ -5464,19 +6282,7 @@ export default function App() {
               animate="show"
               className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
             >
-              {affiliateLinksToRender
-                .filter(item => {
-                  const matchesFilter = activeAffiliateFilter === 'all' || (item.category || '').split(',').map(c => c.trim()).includes(activeAffiliateFilter);
-                  if (!matchesFilter) return false;
-                  if (!affiliateSearchQuery.trim()) return true;
-                  const q = affiliateSearchQuery.toLowerCase();
-                  return (
-                    (item.title || '').toLowerCase().includes(q) ||
-                    (item.description || '').toLowerCase().includes(q) ||
-                    (item.category || '').toLowerCase().includes(q) ||
-                    (item.discountCode || '').toLowerCase().includes(q)
-                  );
-                })
+              {filteredAffiliateLinks
                 .map((item, index) => {
                   const categoryBadgeColor = (cat: string) => {
                     switch (cat) {
@@ -5695,18 +6501,7 @@ export default function App() {
             </motion.div>
 
             {/* Zero State empty placeholder */}
-            {affiliateLinksToRender.filter(item => {
-              const matchesFilter = activeAffiliateFilter === 'all' || (item.category || '').split(',').map(c => c.trim()).includes(activeAffiliateFilter);
-              if (!matchesFilter) return false;
-              if (!affiliateSearchQuery.trim()) return true;
-              const q = affiliateSearchQuery.toLowerCase();
-              return (
-                (item.title || '').toLowerCase().includes(q) ||
-                (item.description || '').toLowerCase().includes(q) ||
-                (item.category || '').toLowerCase().includes(q) ||
-                (item.discountCode || '').toLowerCase().includes(q)
-              );
-            }).length === 0 && (
+            {filteredAffiliateLinks.length === 0 && (
               <div className={`p-12 rounded-3xl border text-center space-y-3 ${
                 currentTheme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-white/5 border-white/5'
               }`}>
@@ -5748,6 +6543,244 @@ export default function App() {
             )}
           </motion.div>
           </>
+        )}
+
+        {/* ALL SERVICE PACKAGES OVERVIEW AND HUB */}
+        {activeTab === 'packages' && (
+          <motion.div
+            key="packages"
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            transition={{ type: "spring", stiffness: 180, damping: 20 }}
+            className="space-y-12 text-left max-w-6xl mx-auto"
+          >
+            {/* Header branding */}
+            <div className="text-center space-y-4 max-w-3xl mx-auto">
+              <span className="inline-block bg-[#FF5500]/10 text-[#FF5500] text-xs font-bold uppercase tracking-widest px-4 py-1 rounded-full border border-[#FF5500]/20 font-mono">
+                SERVICE DIRECTORY &amp; RATES
+              </span>
+              <ScrollRevealText
+                tag="h1"
+                className={`text-3xl md:text-4xl lg:text-5xl font-black uppercase tracking-tight ${
+                  currentTheme === 'light' ? 'text-slate-900' : 'text-white'
+                }`}
+                text="Explore All Service Packages"
+              />
+              <ScrollReveal variant="fade-up" delay={0.15}>
+                <p className={`text-sm md:text-base ${
+                  currentTheme === 'light' ? 'text-slate-650 font-medium' : 'text-slate-300'
+                }`}>
+                  Compare professional doorstep IT support diagnostics, custom computer builds, and high-speed photography solutions for weddings, events, and family moments. Select any package to configure custom estimates or book instantly on WhatsApp.
+                </p>
+              </ScrollReveal>
+            </div>
+
+            {/* Controls Bar: Category Filter & Search Box */}
+            <ScrollReveal variant="slide-in-up" delay={0.1}>
+              <div className={`p-4 rounded-2xl border ${
+                currentTheme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-white/5 border-white/5'
+              } flex flex-col md:flex-row items-center justify-between gap-4`}>
+                
+                {/* Category filters */}
+                <div className="flex flex-wrap items-center gap-1.5 w-full md:w-auto">
+                  {[
+                    { id: 'all', label: 'All Packages', icon: <Sparkles size={13} /> },
+                    { id: 'it', label: 'Pixel Fix (IT)', icon: <Laptop size={13} /> },
+                    { id: 'photo', label: 'Pixel Frame (Photo)', icon: <Camera size={13} /> }
+                  ].map(cat => (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => setPackageCategoryFilter(cat.id as any)}
+                      className={`px-4 py-2 rounded-xl text-xs uppercase tracking-wider font-extrabold flex items-center gap-2 transition-all cursor-pointer ${
+                        packageCategoryFilter === cat.id
+                          ? 'bg-[#FF5500] text-white shadow-lg shadow-[#FF5500]/20 scale-105'
+                          : currentTheme === 'light'
+                            ? 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                            : 'bg-white/5 text-slate-300 hover:bg-white/10'
+                      }`}
+                    >
+                      {cat.icon}
+                      <span>{cat.label}</span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Search input field */}
+                <div className="relative w-full md:w-80">
+                  <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-500 pointer-events-none">
+                    <Search size={14} />
+                  </span>
+                  <input
+                    type="text"
+                    value={packageSearchQuery}
+                    onChange={(e) => setPackageSearchQuery(e.target.value)}
+                    placeholder="Search package details..."
+                    className={`w-full py-2.5 pl-9 pr-4 text-xs rounded-xl outline-none border transition-all ${
+                      currentTheme === 'light'
+                        ? 'bg-white border-slate-200 text-slate-800 placeholder-slate-400 focus:border-[#FF5500] focus:ring-1 focus:ring-[#FF5500]'
+                        : 'bg-black/30 border-white/10 text-white placeholder-slate-500 focus:border-[#FF5500] focus:ring-1 focus:ring-[#FF5500]'
+                    }`}
+                  />
+                  {packageSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setPackageSearchQuery('')}
+                      className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-500 hover:text-slate-300 cursor-pointer"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+
+              </div>
+            </ScrollReveal>
+
+            {/* Merged Interactive list of Packages */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredPackages.length === 0 ? (
+                <div className={`col-span-full py-16 text-center border border-dashed rounded-3xl ${
+                  currentTheme === 'light' ? 'border-slate-200' : 'border-white/5'
+                }`}>
+                  <HelpCircle size={40} className="mx-auto text-slate-500 mb-3 animate-bounce" />
+                  <h3 className={`text-sm font-extrabold uppercase ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>No matching service packages</h3>
+                  <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">Try refining your search text or switching the filter categories above.</p>
+                </div>
+              ) : (
+                filteredPackages.map((srv, idx) => (
+                  <ScrollReveal
+                    key={`${srv.type}_${idx}`}
+                    variant="slide-in-up"
+                    delay={idx * 0.05}
+                    className={`p-6 rounded-2xl border ${s.card} flex flex-col justify-between hover:border-[#FF5500]/60 cursor-pointer group transition-all duration-300 hover:scale-[1.01]`}
+                    onClick={() => setActiveDetailService(srv)}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-4">
+                        <span className={`text-[10px] uppercase font-mono px-2.5 py-0.5 rounded-full font-black ${
+                          srv.type === 'it'
+                            ? 'bg-orange-500/10 text-[#FF5500]'
+                            : 'bg-indigo-500/10 text-indigo-400'
+                        }`}>
+                          {srv.type === 'it' ? 'Pixel Fix (IT)' : 'Pixel Frame (Photo)'}
+                        </span>
+                        <span className="text-xs font-black text-[#FF5500]">{srv.price}</span>
+                      </div>
+
+                      <h3 className={`text-lg font-black leading-snug ${
+                        currentTheme === 'light' ? 'text-slate-950' : 'text-white'
+                      }`}>{srv.title}</h3>
+                      
+                      <p className={`text-xs mt-2 leading-relaxed line-clamp-3 ${
+                        currentTheme === 'light' ? 'text-slate-600' : 'text-slate-400'
+                      }`}>{srv.description}</p>
+
+                      {srv.type === 'it' && srv.proTip && (
+                        <div className={`mt-3.5 p-3 rounded-xl border flex items-start gap-2 text-[11px] leading-relaxed transition-all duration-300 ${
+                          currentTheme === 'light'
+                            ? 'bg-orange-50/70 border-orange-200/50 text-slate-700'
+                            : 'bg-[#FF5500]/5 border-[#FF5500]/10 text-slate-300'
+                        }`}>
+                          <Sparkles size={12} className="text-[#FF5500] shrink-0 mt-0.5 animate-pulse" />
+                          <div>
+                            <span className="font-extrabold text-[#FF5500] mr-1">PRO-TIP:</span>
+                            {srv.proTip}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="mt-3">
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#FF5500] inline-flex items-center gap-1 group-hover:underline">
+                          View Inclusions &amp; Specs <ArrowUpRight size={10} className="transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                        </span>
+                      </div>
+
+                      {/* Top 3 key features checklist */}
+                      <ul className={`space-y-1.5 mt-5 pt-4 border-t ${s.divider} text-[11px] ${
+                        currentTheme === 'light' ? 'text-slate-700' : 'text-slate-300'
+                      }`}>
+                        {srv.features?.slice(0, 3).map((f: string, fIdx: number) => (
+                          <li key={fIdx} className="flex gap-1.5 items-start">
+                            <Check size={12} className="text-[#FF5500] shrink-0 mt-0.5" />
+                            <span className="line-clamp-2">{f}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    <div className="mt-6 pt-4 border-t border-slate-100/60 dark:border-white/5 flex flex-col gap-2">
+                      <button
+                        type="button"
+                        onClick={(ev) => {
+                          ev.stopPropagation();
+                          handleEstimateCostRedirect(
+                            srv.type === 'it' ? 'pixelfix' : 'pixelframe',
+                            srv.type === 'it'
+                              ? `Interested in package: ${srv.title}. please call.`
+                              : `Inquiring about photography category: ${srv.title}. please coordinate dates.`
+                          );
+                        }}
+                        className={`w-full py-2.5 rounded-xl text-xs font-black uppercase tracking-wider cursor-pointer text-center transition-all ${
+                          currentTheme === 'light'
+                            ? 'bg-slate-100 hover:bg-[#FF5500] hover:text-white text-slate-800'
+                            : 'bg-white/5 hover:bg-[#FF5500] hover:text-white text-white'
+                        }`}
+                      >
+                        Estimate Package Rate
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={(ev) => {
+                          ev.stopPropagation();
+                          const message = srv.type === 'it'
+                            ? `Hi Murari, I want to book the Pixel Fix IT package: ${srv.title} (${srv.price})`
+                            : `Hi Murari, I want to inquire about the Pixel Frame Photography package: ${srv.title}`;
+                          triggerQuickBooking(srv.type === 'it' ? 'it_fix' : 'photography', message);
+                        }}
+                        className="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded-xl text-[10px] font-extrabold uppercase tracking-widest flex items-center justify-center gap-1.5 cursor-pointer shadow-md"
+                      >
+                        <WhatsAppIcon size={12} /> WhatsApp Inquiry
+                      </button>
+                    </div>
+                  </ScrollReveal>
+                ))
+              )}
+            </div>
+
+            {/* Dynamic Interactive Estimate Reminder Widget Banner */}
+            <ScrollReveal variant="slide-in-up" delay={0.1}>
+              <div className={`p-6 md:p-8 rounded-3xl border border-dashed border-[#FF5500]/30 bg-[#FF5500]/5 text-center space-y-4`}>
+                <div className="w-12 h-12 bg-[#FF5500]/10 rounded-full flex items-center justify-center text-[#FF5500] mx-auto">
+                  <Sparkles size={22} className="animate-pulse" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className={`text-lg font-black uppercase tracking-tight ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
+                    Need a fully customized package solution?
+                  </h3>
+                  <p className="text-xs text-slate-500 max-w-lg mx-auto">
+                    We offer tailored solutions for high-scale enterprise network configurations, office maintenance contracts, or multi-day destination event photography packages.
+                  </p>
+                </div>
+                <div className="pt-2 flex flex-wrap justify-center gap-3">
+                  <button
+                    onClick={() => handleEstimateCostRedirect('pixelfix', 'Inquiring about fully customized package solutions.')}
+                    className="bg-[#FF5500] hover:bg-[#FF4400] text-white px-5 py-2.5 rounded-xl font-extrabold text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-md hover:shadow-[#FF5500]/20 active:scale-95 transition-all cursor-pointer"
+                  >
+                    Configure Custom Quote
+                  </button>
+                  <button
+                    onClick={() => triggerQuickBooking('it_fix', 'Hello Murari, I have a custom project requirement. Please consult with me.')}
+                    className="bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-xl font-extrabold text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-md active:scale-95 transition-all cursor-pointer"
+                  >
+                    <WhatsAppIcon size={14} /> WhatsApp Custom Consult
+                  </button>
+                </div>
+              </div>
+            </ScrollReveal>
+
+          </motion.div>
         )}
 
         {/* RAPID WHATSAPP DIRECT BOOKING */}
@@ -5870,6 +6903,11 @@ export default function App() {
 
             </div>
 
+            {/* Verified Google Places Feedback QR Code */}
+            <ScrollReveal variant="fade-up" delay={0.2}>
+              <ReviewQRCode currentTheme={currentTheme} triggerToast={triggerToast} />
+            </ScrollReveal>
+
             {/* INTERACTIVE GEOGRAPHIC DISPATCH SERVICE AREA MAP */}
             <ScrollReveal variant="fade-up" delay={0.25}>
               <div className={`p-6 md:p-8 rounded-[32px] border ${s.card} space-y-6 text-left relative overflow-hidden`}>
@@ -5887,6 +6925,1056 @@ export default function App() {
               </div>
             </ScrollReveal>
 
+          </motion.div>
+        )}
+
+        {/* BIOS & BOOT MENU KEY FINDER SEPARATE PAGE */}
+        {activeTab === 'bios' && (
+          <motion.div
+            key="bios"
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            transition={{ type: "spring", stiffness: 180, damping: 20 }}
+            className="space-y-8 text-left max-w-4xl mx-auto"
+          >
+            {/* Navigation back and header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-dashed border-slate-200 dark:border-white/10">
+              <div className="space-y-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab('pixelfix');
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  className="text-xs font-bold text-[#FF5500] hover:underline flex items-center gap-1 cursor-pointer mb-2"
+                >
+                  ← Back to IT Services
+                </button>
+                <span className="inline-block bg-[#FF5500]/10 text-[#FF5500] text-[10px] font-bold uppercase tracking-widest px-2.5 py-0.5 rounded-full border border-[#FF5500]/20 font-mono">
+                  Diagnostics Database
+                </span>
+                <h1 className={`text-2xl md:text-3xl font-black uppercase tracking-tight ${
+                  currentTheme === 'light' ? 'text-slate-900' : 'text-white'
+                }`}>
+                  Motherboard Startup Hotkeys
+                </h1>
+                <p className={`text-xs ${currentTheme === 'light' ? 'text-slate-650' : 'text-slate-400'}`}>
+                  Dynamic BIOS and Boot Menu key maps for all major computer manufacturers.
+                </p>
+              </div>
+
+              <div className="flex flex-col items-end gap-1 shrink-0">
+                <span className={`text-[10px] font-mono uppercase font-bold tracking-wider px-3 py-1 rounded-full border ${s.badge}`}>
+                  {BIOS_BOOT_KEYS_DATABASE.length} Manufacturers Cached
+                </span>
+                <span className="text-[10px] text-emerald-500 font-bold flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Offline Access Ready
+                </span>
+              </div>
+            </div>
+
+            {/* BIOS/UEFI & Boot Menu Key Finder Tool Content */}
+            <div className={`p-5 md:p-6 rounded-2xl border ${s.card} shadow-md`} id="bios-key-finder-section">
+              <div className="space-y-4">
+                {/* Filters container */}
+                <div className="flex flex-col md:flex-row gap-2 max-w-4xl mx-auto">
+                  {/* Search Input Box */}
+                  <div className="flex-1 relative">
+                    <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      id="bios-search-input"
+                      type="text"
+                      value={biosSearchQuery}
+                      onChange={(e) => {
+                        setBiosSearchQuery(e.target.value);
+                        if (selectedBiosBrand !== 'all') {
+                          setSelectedBiosBrand('all'); // Reset specific brand select to let search match anything
+                        }
+                      }}
+                      placeholder="Search motherboard keys (e.g. Zebronics, Enter, HP, Dell, F12)..."
+                      className={`w-full pl-9 pr-14 py-2 rounded-lg text-xs outline-none transition-all duration-200 border ${s.input}`}
+                    />
+                    {biosSearchQuery && (
+                      <button
+                        onClick={() => setBiosSearchQuery('')}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-450 hover:text-[#FF5500] text-[10px] font-black uppercase tracking-wider animate-fade-in"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Device Form Factor selector (Compact) */}
+                  <div className="w-full md:w-48">
+                    <select
+                      value={selectedBiosType}
+                      onChange={(e: any) => setSelectedBiosType(e.target.value)}
+                      className={`w-full px-2 py-2 rounded-lg text-xs outline-none transition-all duration-200 border cursor-pointer ${s.input}`}
+                    >
+                      <option value="all">All Form Factors</option>
+                      <option value="laptop">Laptops Only</option>
+                      <option value="desktop">Desktops Only</option>
+                      <option value="motherboard">DIY Motherboards</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Popular Brand Fast-Pills */}
+                <div className="flex flex-wrap items-center justify-center gap-1.5 py-1">
+                  {['HP', 'Dell', 'ASUS', 'Lenovo', 'Acer', 'MSI', 'Zebronics', 'Enter', 'Apple'].map(bName => {
+                    const isActive = selectedBiosBrand.toLowerCase() === bName.toLowerCase();
+                    return (
+                      <button
+                        key={bName}
+                        type="button"
+                        onClick={() => {
+                          setSelectedBiosBrand(isActive ? 'all' : bName);
+                          setBiosSearchQuery('');
+                        }}
+                        className={`px-2.5 py-1 rounded-md text-[10px] uppercase tracking-wider font-extrabold transition-all duration-200 cursor-pointer ${
+                          isActive
+                            ? 'bg-[#FF5500] text-white shadow-sm shadow-[#FF5500]/25'
+                            : currentTheme === 'light'
+                              ? 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                              : 'bg-white/5 hover:bg-white/10 text-slate-300'
+                        }`}
+                      >
+                        {bName}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Compact Interactive Brand Grid or Results with Smooth Animation */}
+                <AnimatePresence mode="wait">
+                  {!biosSearchQuery.trim() && selectedBiosBrand === 'all' ? (
+                    <motion.div
+                      key="all-brands"
+                      initial={{ opacity: 0, y: 12 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -12 }}
+                      transition={{ duration: 0.25, ease: "easeOut" }}
+                      className="space-y-3 pt-1 border-t border-dashed border-slate-200 dark:border-white/10"
+                    >
+                      <p className={`text-[10px] font-mono uppercase tracking-wider font-bold text-center ${
+                        currentTheme === 'light' ? 'text-slate-400' : 'text-slate-500'
+                      }`}>
+                        — OR TAP A BRAND BELOW TO DISCOVER KEYS —
+                      </p>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2 max-w-4xl mx-auto">
+                        {Array.from(new Set(BIOS_BOOT_KEYS_DATABASE.map(item => item.brand)))
+                          .sort()
+                          .map(bName => (
+                            <button
+                              key={bName}
+                              type="button"
+                              onClick={() => {
+                                setSelectedBiosBrand(bName);
+                                setBiosSearchQuery('');
+                              }}
+                              className={`px-3 py-2 rounded-xl border text-xs font-extrabold text-center transition-all duration-200 cursor-pointer ${
+                                currentTheme === 'light'
+                                  ? 'bg-slate-50 hover:bg-slate-100/70 border-slate-200/80 text-slate-700 hover:border-[#FF5500]/30'
+                                  : 'bg-white/[0.02] hover:bg-white/[0.06] border-white/5 text-slate-300 hover:border-[#FF5500]/30'
+                              }`}
+                            >
+                              {bName}
+                            </button>
+                          ))
+                        }
+                      </div>
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key={`filtered-${selectedBiosBrand}-${biosSearchQuery}-${selectedBiosType}`}
+                      initial={{ opacity: 0, y: 12 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -12 }}
+                      transition={{ duration: 0.25, ease: "easeOut" }}
+                      className="space-y-3 pt-2 border-t border-dashed border-slate-200 dark:border-white/10"
+                    >
+                      {/* Active filter label & Reset button */}
+                      <div className="flex items-center justify-between text-[11px] uppercase font-bold tracking-wider">
+                        <span className="text-slate-400">
+                          Showing: <span className="text-[#FF5500] font-black">{biosSearchQuery.trim() || selectedBiosBrand}</span>
+                        </span>
+                        <button
+                          onClick={() => {
+                            setBiosSearchQuery('');
+                            setSelectedBiosBrand('all');
+                            setSelectedBiosType('all');
+                          }}
+                          className="text-[#FF5500] hover:underline flex items-center gap-1 cursor-pointer"
+                        >
+                          ← Show All Brands
+                        </button>
+                      </div>
+
+                      {/* Compact Filtered Grid */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-4xl mx-auto">
+                        {filteredBiosKeys.length === 0 ? (
+                          <div className={`col-span-full py-8 text-center border border-dashed rounded-xl ${
+                            currentTheme === 'light' ? 'border-slate-200' : 'border-white/5'
+                          }`}>
+                            <HelpCircle size={28} className="mx-auto text-slate-400 mb-2 animate-bounce" />
+                            <h4 className="text-xs font-black uppercase text-[#FF5500]">No matches found for "{biosSearchQuery || selectedBiosBrand}"</h4>
+                            <p className={`text-[10px] mt-1 max-w-xs mx-auto ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
+                              Need help? Tap below to send a quick WhatsApp support ticket.
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => triggerQuickBooking('it_fix', `Hi Murari, I am looking for BIOS/Boot key assistance for my computer.`)}
+                              className="mt-3 bg-[#FF5500] hover:bg-orange-600 text-white text-[9px] uppercase font-black px-3 py-1.5 rounded-lg cursor-pointer transition-all duration-250"
+                            >
+                              Request Doorstep Support
+                            </button>
+                          </div>
+                        ) : (
+                          filteredBiosKeys.map((item) => (
+                            <div
+                              key={item.id}
+                              className={`p-3.5 rounded-xl border transition-all duration-300 hover:border-[#FF5500]/30 ${
+                                currentTheme === 'light'
+                                  ? 'bg-slate-50/50 border-slate-200/80 shadow-xs'
+                                  : 'bg-zinc-950/50 border-white/5'
+                              }`}
+                            >
+                              <div className="flex items-start justify-between gap-2 mb-2">
+                                <div>
+                                  <h3 className="text-xs font-black uppercase tracking-tight text-[#FF5500]">
+                                    {item.brand}
+                                  </h3>
+                                  <p className={`text-[10px] font-medium leading-tight ${currentTheme === 'light' ? 'text-slate-650' : 'text-slate-400'}`}>
+                                    {item.name}
+                                  </p>
+                                </div>
+                                <span className={`text-[8px] font-mono font-extrabold uppercase tracking-widest px-1.5 py-0.5 rounded border ${s.badge}`}>
+                                  {item.type === 'all' ? 'All Formats' : item.type}
+                                </span>
+                              </div>
+
+                              {/* Keys Cap Section */}
+                              <div className="grid grid-cols-2 gap-2 py-2 border-t border-b border-dashed border-slate-200 dark:border-white/10">
+                                {/* BIOS SETUP KEY */}
+                                <div className="flex flex-col justify-center items-center p-1.5 rounded-lg bg-black/5 dark:bg-white/[0.02]">
+                                  <span className="text-[8px] text-slate-400 uppercase font-bold tracking-wider mb-1">BIOS Setup</span>
+                                  <div className="flex gap-1 flex-wrap justify-center">
+                                    {item.biosKeyNew.split(' or ').map((keyCap, kIdx) => (
+                                      <kbd
+                                        key={kIdx}
+                                        className={`px-1.5 py-0.5 text-[9px] font-mono font-bold rounded border ${
+                                          currentTheme === 'light'
+                                            ? 'bg-white border-slate-300 text-slate-800'
+                                            : 'bg-zinc-900 border-white/10 text-white'
+                                        } shadow-xs`}
+                                      >
+                                        {keyCap}
+                                      </kbd>
+                                    ))}
+                                  </div>
+                                  {item.biosKeyOld && item.biosKeyOld !== item.biosKeyNew && (
+                                    <span className="text-[8px] text-slate-500 block mt-0.5">Old: {item.biosKeyOld}</span>
+                                  )}
+                                </div>
+
+                                {/* BOOT MENU KEY */}
+                                <div className="flex flex-col justify-center items-center p-1.5 rounded-lg bg-[#FF5500]/5 border border-[#FF5500]/10">
+                                  <span className="text-[8px] text-[#FF5500]/70 uppercase font-bold tracking-wider mb-1">Boot Menu</span>
+                                  <div className="flex gap-1 flex-wrap justify-center">
+                                    {item.bootMenuNew.split(' or ').map((keyCap, kIdx) => (
+                                      <kbd
+                                        key={kIdx}
+                                        className="px-1.5 py-0.5 text-[9px] font-mono font-bold rounded border bg-[#FF5500]/10 border-[#FF5500]/30 text-[#FF5500] shadow-xs"
+                                      >
+                                        {keyCap}
+                                      </kbd>
+                                    ))}
+                                  </div>
+                                  {item.bootMenuOld && item.bootMenuOld !== item.bootMenuNew && (
+                                    <span className="text-[8px] text-slate-550 block mt-0.5">Old: {item.bootMenuOld}</span>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Popular models tags */}
+                              {item.popularModels && item.popularModels.length > 0 && (
+                                <div className="mt-2 flex flex-wrap gap-1">
+                                  {item.popularModels.slice(0, 4).map((modelName, mIdx) => (
+                                    <span
+                                      key={mIdx}
+                                      className={`text-[8px] font-semibold px-1.5 py-0.5 rounded ${
+                                        currentTheme === 'light'
+                                          ? 'bg-slate-200/50 text-slate-700'
+                                          : 'bg-white/5 text-slate-400'
+                                      }`}
+                                    >
+                                      {modelName}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+
+                              {/* Pro Tip notes */}
+                              <div className="mt-2 text-[9px] leading-normal flex items-start gap-1">
+                                <Sparkles size={10} className="text-[#FF5500] shrink-0 mt-0.5" />
+                                <p className={currentTheme === 'light' ? 'text-slate-550' : 'text-slate-400'}>
+                                  {item.notes}
+                                </p>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* BIOS MOTHERBOARD BEEP CODE DIAGNOSTICIAN SEPARATE PAGE */}
+        {activeTab === 'beep' && (
+          <motion.div
+            key="beep"
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            transition={{ type: "spring", stiffness: 180, damping: 20 }}
+            className="space-y-8 text-left max-w-5xl mx-auto"
+          >
+            {/* Header Area */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-dashed border-slate-200 dark:border-white/10">
+              <div className="space-y-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab('pixelfix');
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  className="group flex items-center gap-1.5 text-xs font-black uppercase text-[#FF5500] hover:text-orange-600 cursor-pointer transition-colors duration-200 mb-2"
+                >
+                  <ArrowRight size={12} className="rotate-180 transition-transform duration-200 group-hover:-translate-x-0.5" />
+                  <span>Back to IT Services</span>
+                </button>
+                <h1 className={`text-2xl md:text-4xl font-black uppercase tracking-tight ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
+                  BIOS Beep Diagnostician
+                </h1>
+                <p className={`text-xs ${currentTheme === 'light' ? 'text-slate-650' : 'text-slate-400'}`}>
+                  Instant audio replication, technical fault localization, and troubleshooting guidelines for hardware issues.
+                </p>
+              </div>
+
+              {/* Offline-Ready Status & Reset Controls */}
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2 bg-emerald-500/10 text-emerald-500 px-3.5 py-2 rounded-full text-[10px] font-mono uppercase tracking-widest font-black border border-emerald-500/20 shadow-xs">
+                  <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                  <span>100% Offline-Capable Console</span>
+                </div>
+
+                {(beepSearchQuery || selectedBeepBrand !== 'all' || selectedBeepComponent !== 'all' || selectedBeepSeverity !== 'all' || customSequence.length > 0) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBeepSearchQuery('');
+                      setSelectedBeepBrand('all');
+                      setSelectedBeepComponent('all');
+                      setSelectedBeepSeverity('all');
+                      setCustomSequence([]);
+                    }}
+                    className="text-[10px] font-black uppercase border border-red-500/20 text-red-500 hover:bg-red-500/10 px-3 py-2 rounded-full cursor-pointer transition-colors duration-200"
+                  >
+                    Reset Workspace
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Main Workstation Workspace */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+              
+              {/* Left Column: Interactive Synthesizer & Tactile Filter Board */}
+              <div className="lg:col-span-5 space-y-6">
+                {(() => {
+                  // Calculate dynamic statistics based on other active filters to enable faceted counts
+                  const brands: Record<string, number> = { 'ami bios': 0, 'award bios': 0, 'phoenix bios': 0, 'dell': 0, 'hp': 0, 'lenovo': 0, 'asus / gigabyte / msi': 0 };
+                  const components: Record<string, number> = { 'ram': 0, 'cpu': 0, 'gpu/video': 0, 'motherboard/chipset': 0, 'bios/cmos': 0, 'thermal': 0, 'keyboard': 0, 'display': 0 };
+                  const severities: Record<string, number> = { 'critical': 0, 'high': 0, 'medium': 0, 'low': 0 };
+
+                  BEEP_CODES_DATABASE.forEach(item => {
+                    const bKey = item.biosBrand.toLowerCase();
+                    const cKey = item.affectedComponent.toLowerCase();
+                    const sKey = item.severity.toLowerCase();
+
+                    // Count brand distribution for items matching other currently active filters
+                    const brandMatchesOthers = (selectedBeepComponent === 'all' || cKey === selectedBeepComponent.toLowerCase()) &&
+                                               (selectedBeepSeverity === 'all' || sKey === selectedBeepSeverity.toLowerCase()) &&
+                                               (!beepSearchQuery || item.pattern.toLowerCase().includes(beepSearchQuery.toLowerCase()) || item.possibleCause.toLowerCase().includes(beepSearchQuery.toLowerCase()));
+
+                    // Count component distribution for items matching other currently active filters
+                    const componentMatchesOthers = (selectedBeepBrand === 'all' || bKey === selectedBeepBrand.toLowerCase()) &&
+                                                   (selectedBeepSeverity === 'all' || sKey === selectedBeepSeverity.toLowerCase()) &&
+                                                   (!beepSearchQuery || item.pattern.toLowerCase().includes(beepSearchQuery.toLowerCase()) || item.possibleCause.toLowerCase().includes(beepSearchQuery.toLowerCase()));
+
+                    // Count severity distribution for items matching other currently active filters
+                    const severityMatchesOthers = (selectedBeepBrand === 'all' || bKey === selectedBeepBrand.toLowerCase()) &&
+                                                  (selectedBeepComponent === 'all' || cKey === selectedBeepComponent.toLowerCase()) &&
+                                                  (!beepSearchQuery || item.pattern.toLowerCase().includes(beepSearchQuery.toLowerCase()) || item.possibleCause.toLowerCase().includes(beepSearchQuery.toLowerCase()));
+
+                    if (brandMatchesOthers) {
+                      if (bKey in brands) {
+                        brands[bKey]++;
+                      } else if (bKey.includes('asus') || bKey.includes('gigabyte') || bKey.includes('msi')) {
+                        brands['asus / gigabyte / msi']++;
+                      }
+                    }
+
+                    if (componentMatchesOthers) {
+                      if (cKey in components) {
+                        components[cKey]++;
+                      }
+                    }
+
+                    if (severityMatchesOthers) {
+                      if (sKey in severities) {
+                        severities[sKey]++;
+                      }
+                    }
+                  });
+
+                  return (
+                    <div className="space-y-6">
+                      {/* Modern Waveform Audio Synthesizer */}
+                      <div className={`p-6 rounded-3xl border ${s.card} relative overflow-hidden flex flex-col justify-between shadow-xs border-slate-200/60 dark:border-white/5`}>
+                        <div className="space-y-4">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] uppercase font-black tracking-widest text-[#FF5500] font-mono flex items-center gap-1.5">
+                              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                              Acoustic Tone Synthesizer
+                            </span>
+                            <span className="text-[9px] font-mono bg-zinc-950 dark:bg-black text-[#FF5500] border border-[#FF5500]/20 px-2 py-0.5 rounded-md font-bold shadow-xs">
+                              Oscilloscope v2.0
+                            </span>
+                          </div>
+
+                          <p className={`text-[11px] leading-relaxed ${currentTheme === 'light' ? 'text-slate-600' : 'text-slate-400'}`}>
+                            Build a motherboard beep pattern. Tap pads below to sequence tones and trigger audio replication.
+                          </p>
+                          
+                          {/* Modern Waveform visualizer */}
+                          <div className="h-24 rounded-2xl relative flex items-center justify-center overflow-hidden border bg-zinc-950 border-emerald-500/25 shadow-inner">
+                            {/* Grid Lines */}
+                            <div className="absolute inset-0 bg-[linear-gradient(rgba(16,185,129,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(16,185,129,0.05)_1px,transparent_1px)] bg-[size:12px_12px] opacity-80 pointer-events-none" />
+                            <div className="absolute left-1/2 top-0 bottom-0 w-px bg-emerald-500/10 pointer-events-none" />
+                            <div className="absolute top-1/2 left-0 right-0 h-px bg-emerald-500/10 pointer-events-none" />
+
+                            {/* Animated SVG Wave */}
+                            <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 40" preserveAspectRatio="none">
+                              {activePlayingId ? (
+                                <>
+                                  <path
+                                    d="M 0 20 Q 15 5, 30 35 T 60 5 T 90 35 T 100 20"
+                                    fill="none"
+                                    stroke="#10b981"
+                                    strokeWidth="3"
+                                    className="opacity-30 blur-xs"
+                                  />
+                                  <path
+                                    d="M 0 20 Q 15 5, 30 35 T 60 5 T 90 35 T 100 20"
+                                    fill="none"
+                                    stroke="#34d399"
+                                    strokeWidth="1.5"
+                                    strokeDasharray="200"
+                                    strokeDashoffset="0"
+                                    className="animate-[dash_1.5s_linear_infinite]"
+                                  />
+                                </>
+                              ) : (
+                                <path
+                                  d="M 0 20 Q 5 19.5, 10 20.5 T 20 20 T 30 20.2 T 40 19.8 T 50 20 T 60 20.1 T 70 19.9 T 80 20 T 90 19.8 T 100 20"
+                                  fill="none"
+                                  stroke="#10b981"
+                                  strokeWidth="1"
+                                  className="opacity-70"
+                                />
+                              )}
+                            </svg>
+                            
+                            {/* Technical readouts */}
+                            <div className="absolute top-2 left-3 flex gap-4 text-[7px] font-mono text-emerald-500/50 uppercase select-none pointer-events-none">
+                              <span>CH1: {activePlayingId ? '850 Hz' : '0.00 Hz'}</span>
+                              <span>AMP: {activePlayingId ? '12.0%' : '0.0%'}</span>
+                            </div>
+                            
+                            <div className="z-10 text-center space-y-2 mt-4">
+                              {customSequence.length === 0 ? (
+                                <p className="text-[10px] text-zinc-500 font-mono italic">Acoustic track empty. Click pads below.</p>
+                              ) : (
+                                <div className="flex flex-col items-center gap-1.5">
+                                  <div className="flex items-center gap-1 flex-wrap justify-center max-w-[240px]">
+                                    {customSequence.map((beat, idx) => (
+                                      <button
+                                        key={idx}
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setCustomSequence(prev => prev.filter((_, i) => i !== idx));
+                                        }}
+                                        title="Click to remove"
+                                        className={`px-1.5 py-0.5 rounded text-[8px] font-mono font-black border transition-colors cursor-pointer hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-400 group ${
+                                          beat === 'S'
+                                            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                            : 'bg-[#FF5500]/10 text-[#FF5500] border-[#FF5500]/20'
+                                        }`}
+                                      >
+                                        <span className="group-hover:hidden">{beat === 'S' ? '• S' : '▬ L'}</span>
+                                        <span className="hidden group-hover:inline">×</span>
+                                      </button>
+                                    ))}
+                                  </div>
+                                  <span className="text-[8px] font-mono text-emerald-400 uppercase tracking-widest font-black animate-pulse">
+                                    {activePlayingId === 'custom-built' ? 'Synthesizer Active' : 'Sequence Loaded'}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Tactical Sound Pads */}
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCustomSequence([...customSequence, 'S']);
+                                playBeepPattern('quick-s', ['S']);
+                              }}
+                              className={`py-3 rounded-2xl border font-mono text-xs font-bold cursor-pointer transition-all duration-150 flex flex-col items-center justify-center gap-1 ${
+                                currentTheme === 'light'
+                                  ? 'bg-slate-50 hover:bg-slate-100 border-slate-200 hover:border-slate-350 text-slate-800'
+                                  : 'bg-[#1C1C24] hover:bg-white/5 border-white/5 hover:border-white/10 text-zinc-200'
+                              }`}
+                            >
+                              <span className="text-sm text-emerald-500 font-black">•</span>
+                              <span className="text-[10px] uppercase font-black tracking-wider text-emerald-500">Short Beep</span>
+                              <span className="text-[8px] text-slate-400 font-normal">850Hz • 120ms</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCustomSequence([...customSequence, 'L']);
+                                playBeepPattern('quick-l', ['L']);
+                              }}
+                              className={`py-3 rounded-2xl border font-mono text-xs font-bold cursor-pointer transition-all duration-150 flex flex-col items-center justify-center gap-1 ${
+                                currentTheme === 'light'
+                                  ? 'bg-slate-50 hover:bg-slate-100 border-slate-200 hover:border-slate-350 text-slate-800'
+                                  : 'bg-[#1C1C24] hover:bg-white/5 border-white/5 hover:border-white/10 text-zinc-200'
+                              }`}
+                            >
+                              <span className="text-sm text-[#FF5500] font-black">▬▬</span>
+                              <span className="text-[10px] uppercase font-black tracking-wider text-[#FF5500]">Long Beep</span>
+                              <span className="text-[8px] text-slate-400 font-normal">850Hz • 450ms</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {customSequence.length > 0 && (
+                          <div className="flex items-center gap-2 mt-4 pt-4 border-t border-dashed border-slate-200 dark:border-white/5">
+                            <button
+                              type="button"
+                              onClick={() => playBeepPattern('custom-built', customSequence)}
+                              disabled={activePlayingId !== null}
+                              className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                                activePlayingId === 'custom-built'
+                                  ? 'bg-emerald-500 text-white shadow-xs'
+                                  : 'bg-[#FF5500] hover:bg-orange-600 text-white shadow-xs'
+                              }`}
+                            >
+                              <Volume2 size={12} className={activePlayingId === 'custom-built' ? 'animate-bounce' : ''} />
+                              <span>{activePlayingId === 'custom-built' ? 'Transmitting...' : 'Simulate Custom'}</span>
+                            </button>
+                            
+                            <button
+                              type="button"
+                              onClick={() => setCustomSequence([])}
+                              className="px-3 py-2.5 rounded-xl border border-red-500/10 hover:bg-red-500/5 text-red-500 transition-colors cursor-pointer text-[10px] uppercase tracking-wider font-extrabold font-mono"
+                            >
+                              Reset
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Tactile Pill Filter Panels with Dynamic Faceted Counts */}
+                      <div className={`p-6 rounded-3xl border ${s.card} space-y-6 shadow-xs border-slate-200/60 dark:border-white/5`}>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] uppercase font-black tracking-widest text-[#FF5500] font-mono">Control Board Filters</span>
+                          <Sliders size={12} className="text-[#FF5500]" />
+                        </div>
+
+                        {/* BIOS Manufacturer Selector */}
+                        <div className="space-y-2">
+                          <span className="block text-[9px] uppercase font-black tracking-wider text-slate-400 font-mono">BIOS Brand / OEM</span>
+                          <div className="flex flex-wrap gap-1.5">
+                            {[
+                              { id: 'all', label: 'All BIOS', count: BEEP_CODES_DATABASE.length },
+                              { id: 'ami bios', label: 'AMI', count: brands['ami bios'] },
+                              { id: 'award bios', label: 'Award', count: brands['award bios'] },
+                              { id: 'phoenix bios', label: 'Phoenix', count: brands['phoenix bios'] },
+                              { id: 'dell', label: 'Dell', count: brands['dell'] },
+                              { id: 'hp', label: 'HP', count: brands['hp'] },
+                              { id: 'lenovo', label: 'Lenovo', count: brands['lenovo'] },
+                              { id: 'asus / gigabyte / msi', label: 'ASUS/MSI/Gigabyte', count: brands['asus / gigabyte / msi'] },
+                            ].map((brand) => {
+                              const active = selectedBeepBrand.toLowerCase() === brand.id.toLowerCase();
+                              const isDisabled = brand.count === 0 && !active;
+                              return (
+                                <button
+                                  key={brand.id}
+                                  type="button"
+                                  disabled={isDisabled}
+                                  onClick={() => setSelectedBeepBrand(brand.id)}
+                                  className={`px-2.5 py-1 rounded-xl text-[11px] font-semibold cursor-pointer transition-all border flex items-center gap-1 ${
+                                    active
+                                      ? 'bg-[#FF5500] text-white border-[#FF5500] shadow-xs'
+                                      : isDisabled
+                                      ? 'opacity-35 cursor-not-allowed border-slate-100 text-slate-400 bg-transparent'
+                                      : currentTheme === 'light'
+                                      ? 'bg-slate-50 border-slate-200 text-slate-650 hover:border-slate-350 hover:bg-white'
+                                      : 'bg-[#1C1C24] border-white/5 text-slate-350 hover:border-white/15'
+                                  }`}
+                                >
+                                  <span>{brand.label}</span>
+                                  <span className={`text-[8px] font-mono px-1 rounded ${active ? 'bg-white/20' : 'bg-slate-500/10'}`}>
+                                    {brand.count}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Hardware Subsystem Component */}
+                        <div className="space-y-2">
+                          <span className="block text-[9px] uppercase font-black tracking-wider text-slate-400 font-mono">Hardware Subsystem</span>
+                          <div className="flex flex-wrap gap-1.5">
+                            {[
+                              { id: 'all', label: 'All Components', count: BEEP_CODES_DATABASE.length },
+                              { id: 'ram', label: 'RAM', count: components['ram'] },
+                              { id: 'cpu', label: 'CPU', count: components['cpu'] },
+                              { id: 'gpu/video', label: 'GPU', count: components['gpu/video'] },
+                              { id: 'motherboard/chipset', label: 'Motherboard', count: components['motherboard/chipset'] },
+                              { id: 'bios/cmos', label: 'CMOS/Battery', count: components['bios/cmos'] },
+                              { id: 'thermal', label: 'Thermal/Cooling', count: components['thermal'] },
+                              { id: 'keyboard', label: 'Keyboard', count: components['keyboard'] },
+                              { id: 'display', label: 'Display', count: components['display'] },
+                            ].map((comp) => {
+                              const active = selectedBeepComponent.toLowerCase() === comp.id.toLowerCase();
+                              const isDisabled = comp.count === 0 && !active;
+                              return (
+                                <button
+                                  key={comp.id}
+                                  type="button"
+                                  disabled={isDisabled}
+                                  onClick={() => setSelectedBeepComponent(comp.id)}
+                                  className={`px-2.5 py-1 rounded-xl text-[11px] font-semibold cursor-pointer transition-all border flex items-center gap-1 ${
+                                    active
+                                      ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-950 border-slate-900 dark:border-white shadow-xs'
+                                      : isDisabled
+                                      ? 'opacity-35 cursor-not-allowed border-slate-100 text-slate-400 bg-transparent'
+                                      : currentTheme === 'light'
+                                      ? 'bg-slate-50 border-slate-200 text-slate-650 hover:border-slate-350 hover:bg-white'
+                                      : 'bg-[#1C1C24] border-white/5 text-slate-350 hover:border-white/15'
+                                  }`}
+                                >
+                                  <span>{comp.label}</span>
+                                  <span className={`text-[8px] font-mono px-1 rounded ${active ? 'bg-white/10 dark:bg-black/10' : 'bg-slate-500/10'}`}>
+                                    {comp.count}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Severity Threshold Level */}
+                        <div className="space-y-2">
+                          <span className="block text-[9px] uppercase font-black tracking-wider text-slate-400 font-mono">Severity Level</span>
+                          <div className="flex flex-wrap gap-1.5">
+                            {[
+                              { id: 'all', label: 'All Severities', count: BEEP_CODES_DATABASE.length },
+                              { id: 'critical', label: 'Critical', count: severities['critical'] },
+                              { id: 'high', label: 'High', count: severities['high'] },
+                              { id: 'medium', label: 'Medium', count: severities['medium'] },
+                              { id: 'low', label: 'Low Info', count: severities['low'] },
+                            ].map((sev) => {
+                              const active = selectedBeepSeverity.toLowerCase() === sev.id.toLowerCase();
+                              const isDisabled = sev.count === 0 && !active;
+                              const colors: Record<string, string> = {
+                                critical: 'bg-red-500 text-white border-red-500',
+                                high: 'bg-orange-500 text-white border-orange-500',
+                                medium: 'bg-amber-500 text-white border-amber-500',
+                                low: 'bg-emerald-500 text-white border-emerald-500',
+                              };
+                              return (
+                                <button
+                                  key={sev.id}
+                                  type="button"
+                                  disabled={isDisabled}
+                                  onClick={() => setSelectedBeepSeverity(sev.id)}
+                                  className={`px-2.5 py-1 rounded-xl text-[11px] font-semibold cursor-pointer transition-all border flex items-center gap-1 ${
+                                    active
+                                      ? colors[sev.id] || 'bg-slate-900 text-white border-slate-900 shadow-xs'
+                                      : isDisabled
+                                      ? 'opacity-35 cursor-not-allowed border-slate-100 text-slate-400 bg-transparent'
+                                      : currentTheme === 'light'
+                                      ? 'bg-slate-50 border-slate-200 text-slate-650 hover:border-slate-350 hover:bg-white'
+                                      : 'bg-[#1C1C24] border-white/5 text-slate-350 hover:border-white/15'
+                                  }`}
+                                >
+                                  <span>{sev.label}</span>
+                                  <span className={`text-[8px] font-mono px-1 rounded ${active ? 'bg-white/20' : 'bg-slate-500/10'}`}>
+                                    {sev.count}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Helpful Instruction Tip */}
+                      <div className={`p-4 rounded-2xl border text-[11px] leading-relaxed ${
+                        currentTheme === 'light' ? 'bg-sky-50/50 border-sky-100 text-slate-750' : 'bg-[#FF5500]/5 border-[#FF5500]/10 text-slate-400'
+                      }`}>
+                        <h4 className="font-extrabold uppercase mb-1 flex items-center gap-1 text-[#FF5500] font-mono text-[10px]">
+                          <Sparkles size={11} />
+                          <span>Acoustic Guidelines</span>
+                        </h4>
+                        <p>
+                          Duration of tones: a short tone is a <strong>Short Beep</strong> (•), while a sustained tone of ~450ms is a <strong>Long Beep</strong> (▬). Pauses (P) isolate sequences. Perfect for offline field verification.
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* Right Column: Search Box & High-Precision Results */}
+              <div className="lg:col-span-7 space-y-6">
+                {(() => {
+                  // Highlighting utility for search term matches
+                  const highlightText = (text: string, search: string) => {
+                    if (!search.trim()) return text;
+                    const regex = new RegExp(`(${search.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')})`, 'gi');
+                    const parts = text.split(regex);
+                    return (
+                      <>
+                        {parts.map((part, i) => 
+                          regex.test(part) ? (
+                            <mark key={i} className="bg-orange-500/20 text-[#FF5500] dark:bg-[#FF5500]/30 rounded px-1 py-0.5 font-bold transition-all">
+                              {part}
+                            </mark>
+                          ) : (
+                            part
+                          )
+                        )}
+                      </>
+                    );
+                  };
+
+                  return (
+                    <div className="space-y-6">
+                      {/* Premium High-Precision Search Box */}
+                      <div className={`p-6 rounded-3xl border ${s.card} space-y-4 shadow-xs border-slate-200/60 dark:border-white/5`}>
+                        <span className="block text-[10px] uppercase font-black tracking-widest text-[#FF5500] font-mono">Refined Fault Signature Search</span>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={beepSearchQuery}
+                            onChange={(e) => setBeepSearchQuery(e.target.value)}
+                            placeholder="Type exact code (e.g. '3 short', '1 long', 'CMOS', 'RAM')..."
+                            className={`w-full py-3.5 pl-11 pr-11 rounded-2xl text-xs border ${s.input} font-sans transition-all duration-200 outline-none shadow-xs`}
+                          />
+                          <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#FF5500]" />
+                          {beepSearchQuery && (
+                            <button
+                              type="button"
+                              onClick={() => setBeepSearchQuery('')}
+                              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-450 hover:text-slate-700 cursor-pointer transition-colors"
+                            >
+                              <X size={14} />
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Interactive Fast Tags */}
+                        <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-400">
+                          <span className="font-mono text-[9px] uppercase tracking-wider text-slate-500">Exact Presets:</span>
+                          {[
+                            { label: '3 Short Beeps (RAM)', q: '3 short' },
+                            { label: '5 Short Beeps (CPU)', q: '5 short' },
+                            { label: '1 Long + 2 Short (GPU)', q: '1 long + 2 short' },
+                            { label: 'CMOS battery', q: 'cmos' },
+                          ].map((tag, tIdx) => (
+                            <button
+                              key={tIdx}
+                              type="button"
+                              onClick={() => setBeepSearchQuery(tag.q)}
+                              className={`px-2 py-0.5 rounded text-[9px] font-mono cursor-pointer border hover:border-[#FF5500]/40 hover:text-[#FF5500] transition-colors ${
+                                beepSearchQuery === tag.q 
+                                  ? 'bg-[#FF5500]/10 text-[#FF5500] border-[#FF5500]/30 font-bold' 
+                                  : currentTheme === 'light' ? 'bg-slate-50 text-slate-650 border-slate-200' : 'bg-white/5 text-slate-400 border-white/5'
+                              }`}
+                            >
+                              {tag.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Exact Diagnostic Matches Header */}
+                      <div className="flex items-center justify-between">
+                        <h2 className={`text-xs font-black uppercase tracking-widest ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'} font-mono`}>
+                          Exact Matches ({filteredBeepKeys.length})
+                        </h2>
+                        <span className="font-mono text-[10px] text-slate-400">
+                          Showing {Math.min(beepVisibleCount, filteredBeepKeys.length)} of {filteredBeepKeys.length} Profiles
+                        </span>
+                      </div>
+
+                      {/* Diagnostics Feed (Paginated list rendering to guarantee lag-free updates) */}
+                      <div className="space-y-5">
+                        {filteredBeepKeys.length === 0 ? (
+                          <div className={`py-16 text-center border border-dashed rounded-3xl ${
+                            currentTheme === 'light' ? 'border-slate-200 bg-slate-50/50' : 'border-white/5 bg-black/10'
+                          }`}>
+                            <HelpCircle size={32} className="mx-auto text-slate-400 mb-3" />
+                            <h4 className="text-xs font-black uppercase text-[#FF5500] tracking-wider font-mono">No Exact Matches Located</h4>
+                            <p className={`text-xs mt-2 max-w-xs mx-auto leading-relaxed ${currentTheme === 'light' ? 'text-slate-600' : 'text-slate-400'}`}>
+                              The search query filter is strict to avoid unrelated profiles. Try choosing a component chip above, or clearing search text.
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setBeepSearchQuery('');
+                                setSelectedBeepBrand('all');
+                                setSelectedBeepComponent('all');
+                                setSelectedBeepSeverity('all');
+                                setCustomSequence([]);
+                              }}
+                              className="mt-4 bg-[#FF5500] hover:bg-orange-600 text-white text-[10px] font-black uppercase tracking-wider px-4 py-2 rounded-xl cursor-pointer transition-all duration-200"
+                            >
+                              Reset Workspace
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            {filteredBeepKeys.slice(0, beepVisibleCount).map((item) => {
+                              const isPlaying = activePlayingId === item.id;
+                              
+                              const severityColors = {
+                                Critical: 'bg-red-500/10 text-red-500 border-red-500/20',
+                                High: 'bg-orange-500/10 text-orange-500 border-orange-500/20',
+                                Medium: 'bg-amber-500/10 text-amber-500 border-amber-500/20',
+                                Low: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
+                              }[item.severity] || 'bg-slate-500/10 text-slate-500 border-slate-500/20';
+
+                              return (
+                                <div
+                                  key={item.id}
+                                  className={`p-5 md:p-6 rounded-3xl border transition-all duration-200 ${
+                                    isPlaying
+                                      ? 'border-[#FF5500] shadow-sm shadow-[#FF5500]/5 bg-[#FF5500]/5'
+                                      : currentTheme === 'light'
+                                      ? 'border-slate-200 bg-white hover:border-slate-300 shadow-xs'
+                                      : 'border-white/5 bg-[#18181F] hover:border-white/10'
+                                  }`}
+                                >
+                                  {/* Card Meta & Header */}
+                                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                                    <div className="space-y-2 text-left">
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        {/* BIOS Brand Badge */}
+                                        <span className={`text-[9px] font-mono tracking-widest uppercase font-black px-2 py-0.5 rounded ${
+                                          currentTheme === 'light' ? 'bg-slate-100 text-slate-700' : 'bg-white/5 text-slate-400'
+                                        }`}>
+                                          {item.biosBrand}
+                                        </span>
+                                        
+                                        {/* Component Badge */}
+                                        <span className={`text-[9px] font-mono tracking-widest uppercase font-black px-2 py-0.5 rounded ${
+                                          item.affectedComponent === 'RAM' ? 'bg-blue-500/10 text-blue-500' :
+                                          item.affectedComponent === 'CPU' ? 'bg-red-500/10 text-red-500' :
+                                          item.affectedComponent === 'GPU/Video' ? 'bg-purple-500/10 text-purple-500' :
+                                          item.affectedComponent === 'Thermal' ? 'bg-orange-500/10 text-orange-500' :
+                                          'bg-emerald-500/10 text-emerald-500'
+                                        }`}>
+                                          {item.affectedComponent}
+                                        </span>
+
+                                        {/* Severity Badge */}
+                                        <span className={`text-[9px] font-mono tracking-widest uppercase font-black px-2 py-0.5 rounded border ${severityColors}`}>
+                                          {item.severity}
+                                        </span>
+
+                                        {/* Exact Match Indicator */}
+                                        <span className="bg-emerald-500/10 text-emerald-500 border border-emerald-500/10 text-[8px] px-1.5 py-0.5 rounded font-mono font-black uppercase tracking-wider">
+                                          Precise Profile
+                                        </span>
+                                      </div>
+
+                                      {/* Title / Pattern */}
+                                      <h3 className={`text-base md:text-lg font-black uppercase tracking-tight mt-1 flex items-center gap-2 ${
+                                        currentTheme === 'light' ? 'text-slate-900' : 'text-white'
+                                      }`}>
+                                        {highlightText(item.pattern, beepSearchQuery)}
+                                      </h3>
+                                    </div>
+
+                                    {/* Simulate Sound trigger button */}
+                                    <button
+                                      type="button"
+                                      onClick={() => playBeepPattern(item.id, item.beepBeats)}
+                                      disabled={activePlayingId !== null}
+                                      className={`self-start sm:self-auto px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-wider flex items-center gap-2 cursor-pointer transition-all duration-200 shrink-0 ${
+                                        isPlaying
+                                          ? 'bg-emerald-500 text-white shadow-xs'
+                                          : 'bg-[#FF5500]/10 hover:bg-[#FF5500] text-[#FF5500] hover:text-white border border-[#FF5500]/15 hover:border-transparent'
+                                      }`}
+                                    >
+                                      <Volume2 size={12} className={isPlaying ? 'animate-bounce' : ''} />
+                                      <span>{isPlaying ? 'Emulating...' : 'Simulate Beep'}</span>
+                                    </button>
+                                  </div>
+
+                                  {/* Pattern Description timeline with visual animation */}
+                                  <div className={`mt-3 p-3.5 rounded-2xl flex items-center justify-between border ${
+                                    currentTheme === 'light' ? 'bg-slate-50 border-slate-100' : 'bg-black/20 border-white/5'
+                                  }`}>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 font-mono">Acoustic Signature:</span>
+                                      <span className="text-sm font-black text-[#FF5500] tracking-widest font-mono">{highlightText(item.patternDescription, beepSearchQuery)}</span>
+                                    </div>
+                                    {isPlaying && (
+                                      <div className="flex items-center gap-0.5 shrink-0">
+                                        <span className="w-0.5 h-3.5 bg-[#FF5500] rounded-full animate-[pulse_0.6s_infinite_0s]" />
+                                        <span className="w-0.5 h-5 bg-[#FF5500] rounded-full animate-[pulse_0.6s_infinite_0.15s]" />
+                                        <span className="w-0.5 h-2.5 bg-[#FF5500] rounded-full animate-[pulse_0.6s_infinite_0.3s]" />
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Cause & Troubleshooting combined under Possible Root Cause */}
+                                  <div className="mt-4 space-y-3.5 text-left">
+                                    <div className="space-y-1">
+                                      <h4 className="text-[10px] uppercase font-black tracking-widest text-[#FF5500] font-mono">Possible Root Cause</h4>
+                                      <p className={`text-xs leading-relaxed font-medium ${currentTheme === 'light' ? 'text-slate-800' : 'text-slate-200'}`}>
+                                        {highlightText(item.possibleCause, beepSearchQuery)}
+                                      </p>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 gap-1.5">
+                                      {item.troubleshooting.map((step, sIdx) => {
+                                        const stepKey = `${item.id}-${sIdx}`;
+                                        const isChecked = !!checkedSteps[stepKey];
+                                        return (
+                                          <button
+                                            key={sIdx}
+                                            type="button"
+                                            onClick={() => setCheckedSteps(prev => ({ ...prev, [stepKey]: !isChecked }))}
+                                            className={`flex items-start gap-2.5 p-2.5 rounded-xl border text-left cursor-pointer transition-all duration-150 ${
+                                              isChecked
+                                                ? 'bg-emerald-500/5 border-emerald-500/10 text-slate-400 dark:text-zinc-500 line-through'
+                                                : currentTheme === 'light'
+                                                ? 'bg-slate-50/40 hover:bg-slate-50 border-slate-100 hover:border-slate-200 text-slate-650'
+                                                : 'bg-zinc-900/40 hover:bg-zinc-900 border-white/5 hover:border-white/10 text-zinc-400'
+                                            }`}
+                                          >
+                                            <div className={`mt-0.5 h-3.5 w-3.5 rounded-md border flex items-center justify-center shrink-0 transition-colors ${
+                                              isChecked 
+                                                ? 'bg-emerald-500 border-emerald-500 text-white' 
+                                                : 'border-slate-300 dark:border-zinc-700'
+                                            }`}>
+                                              {isChecked && <Check size={8} className="stroke-[3]" />}
+                                            </div>
+                                            <span className="text-[11px] leading-relaxed font-sans">{highlightText(step, beepSearchQuery)}</span>
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+
+
+
+                                </div>
+                              );
+                            })}
+
+                            {/* Show More Pagination Controller to completely eliminate browser lag */}
+                            {filteredBeepKeys.length > beepVisibleCount && (
+                              <button
+                                type="button"
+                                onClick={() => setBeepVisibleCount(prev => prev + 6)}
+                                className={`w-full py-3.5 rounded-2xl border text-xs font-black uppercase tracking-widest cursor-pointer transition-all duration-200 flex items-center justify-center gap-2 ${
+                                  currentTheme === 'light'
+                                    ? 'bg-white hover:bg-slate-50 border-slate-200 text-slate-800 hover:text-[#FF5500]'
+                                    : 'bg-zinc-900/60 hover:bg-zinc-900 border-white/5 hover:border-white/10 text-zinc-350 hover:text-white'
+                                }`}
+                              >
+                                <span>Show More Diagnostics (+{filteredBeepKeys.length - beepVisibleCount} remaining)</span>
+                                <ChevronDown size={14} className="animate-bounce" />
+                              </button>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+
+            </div>
+          </motion.div>
+        )}
+
+        {/* PRECISION SMPS PSU CALCULATOR SEPARATE PAGE */}
+        {activeTab === 'smps' && (
+          <motion.div
+            key="smps"
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            transition={{ type: "spring", stiffness: 180, damping: 20 }}
+            className="space-y-8 text-left max-w-5xl mx-auto"
+          >
+            {/* Header Area */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-dashed border-slate-200 dark:border-white/10">
+              <div className="space-y-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab('pixelfix');
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  className="group flex items-center gap-1.5 text-xs font-black uppercase text-[#FF5500] hover:text-orange-600 cursor-pointer transition-colors duration-200 mb-2"
+                >
+                  <ArrowRight size={12} className="rotate-180 transition-transform duration-200 group-hover:-translate-x-0.5" />
+                  <span>Back to IT Services</span>
+                </button>
+                <h1 className={`text-2xl md:text-3xl font-black uppercase tracking-tight ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
+                  Precision SMPS PSU Calculator
+                </h1>
+                <p className={`text-xs ${currentTheme === 'light' ? 'text-slate-650' : 'text-slate-400'}`}>
+                  Select your CPU, GPU, memory, and components to dynamically estimate peak wattage draw and verify precise power supply recommendations (100% offline-capable database).
+                </p>
+              </div>
+            </div>
+
+            {/* SmpsCalculator component wrapper */}
+            <div className={`p-1 sm:p-2 md:p-4 rounded-3xl border ${s.card} shadow-lg relative overflow-hidden`}>
+              <SmpsCalculator currentTheme={currentTheme} />
+            </div>
           </motion.div>
         )}
 
@@ -6381,9 +8469,14 @@ export default function App() {
                               currentTheme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-black/40 border-white/5'
                             }`}>
                               <button
-                                onClick={() => {
+                                onClick={async () => {
                                   if (confirm('Delete inquiry entry?')) {
                                     setContactMessages(prev => prev.filter(c => c.id !== msg.id));
+                                    try {
+                                      await deleteDoc(doc(db, 'contact_messages', msg.id));
+                                    } catch (err) {
+                                      console.error("Failed to delete message from Firestore: ", err);
+                                    }
                                   }
                                 }}
                                 className="absolute top-3 right-3 text-slate-500 hover:text-rose-400 cursor-pointer"
@@ -7366,49 +9459,17 @@ export default function App() {
                 <span className="text-[10px] uppercase font-mono font-bold text-[#FF5500] tracking-wider px-2.5 py-0.5 bg-[#FF5500]/10 rounded border border-[#FF5500]/20 inline-block">
                   {getCategoryLabel(previewImage.category).toUpperCase()}
                 </span>
-                
-                {/* Dynamic Before/After Comparison Tab Selector */}
-                <div className="flex p-0.5 rounded-lg bg-black/40 border border-white/5 shadow-inner">
-                  <button
-                    onClick={() => setPreviewMode('finished')}
-                    className={`px-3 py-1 rounded-md text-[9px] font-mono font-bold tracking-wider transition-all cursor-pointer flex items-center gap-1 ${
-                      previewMode === 'finished'
-                        ? 'bg-amber-500 text-white shadow-sm'
-                        : 'text-zinc-400 hover:text-white'
-                    }`}
-                  >
-                    🎨 FINISHED PHOTO
-                  </button>
-                  <button
-                    onClick={() => setPreviewMode('comparison')}
-                    className={`px-3 py-1 rounded-md text-[9px] font-mono font-bold tracking-wider transition-all cursor-pointer flex items-center gap-1 ${
-                      previewMode === 'comparison'
-                        ? 'bg-amber-500 text-white shadow-sm'
-                        : 'text-zinc-400 hover:text-white'
-                    }`}
-                  >
-                    ⚡ BEFORE / AFTER SLIDER
-                  </button>
-                </div>
               </div>
 
               <div className={`aspect-video w-full rounded-2xl overflow-hidden relative border ${
                 currentTheme === 'light' ? 'bg-slate-100 border-slate-200' : 'bg-black border-white/5'
               }`}>
-                {previewMode === 'comparison' ? (
-                  <BeforeAfterSlider
-                    beforeImage={previewImage.beforeImageUrl || previewImage.imageUrl}
-                    afterImage={previewImage.imageUrl}
-                    currentTheme={currentTheme}
-                  />
-                ) : (
-                  <LazyImage
-                    src={previewImage.imageUrl}
-                    alt={previewImage.altText}
-                    className="w-full h-full object-contain"
-                    placeholderClassName="absolute inset-0 z-0"
-                  />
-                )}
+                <LazyImage
+                  src={previewImage.imageUrl}
+                  alt={previewImage.altText}
+                  className="w-full h-full object-contain"
+                  placeholderClassName="absolute inset-0 z-0"
+                />
               </div>
 
               <div className="space-y-2 text-left">
@@ -7481,6 +9542,306 @@ export default function App() {
                 <X size={18} />
               </button>
               <SmpsCalculator currentTheme={currentTheme} />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* DIRECT MOTHERBOARD DIAGNOSTICS BOOKING MODAL */}
+      <AnimatePresence>
+        {activeBookingBeep && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => {
+              setActiveBookingBeep(null);
+              setBeepBookingSuccess(false);
+            }}
+            className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 overflow-y-auto"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 15 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 15 }}
+              onClick={(e) => e.stopPropagation()}
+              className={`relative w-full max-w-xl max-h-[92vh] overflow-y-auto rounded-3xl border p-6 sm:p-8 shadow-2xl ${s.card}`}
+            >
+              {/* Close Button */}
+              <button
+                onClick={() => {
+                  setActiveBookingBeep(null);
+                  setBeepBookingSuccess(false);
+                }}
+                className={`absolute top-4 right-4 p-2 rounded-full cursor-pointer z-50 transition-colors ${
+                  currentTheme === 'light' 
+                    ? 'text-slate-500 hover:text-slate-900 bg-slate-100 hover:bg-slate-200' 
+                    : 'text-slate-400 hover:text-white bg-black/60 hover:bg-black/80 border border-white/5'
+                }`}
+                aria-label="Close Booking"
+              >
+                <X size={16} />
+              </button>
+
+              {!beepBookingSuccess ? (
+                <div className="space-y-6">
+                  {/* Modal Header */}
+                  <div className="space-y-1.5 pr-8">
+                    <span className="text-[10px] uppercase tracking-widest font-black text-[#FF5500] font-mono flex items-center gap-1">
+                      <Sparkles size={12} />
+                      Doorstep Service Dispatch
+                    </span>
+                    <h2 className="text-xl font-black uppercase tracking-tight">
+                      Motherboard Diagnostics Booking
+                    </h2>
+                    <p className="text-xs text-slate-400 leading-relaxed">
+                      Secure certified motherboard repairs in Guwahati. Fill details below to register the diagnostic request.
+                    </p>
+                  </div>
+
+                  {/* Diagnosed Ticket Summary */}
+                  <div className={`p-4 rounded-2xl border ${
+                    currentTheme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-black/40 border-white/5'
+                  } space-y-3`}>
+                    <div className="flex items-center justify-between border-b border-dashed border-slate-200 dark:border-white/10 pb-2">
+                      <span className="text-[10px] uppercase font-bold text-slate-400 font-mono">BIOS Platform</span>
+                      <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-[#FF5500]/10 text-[#FF5500] font-mono">
+                        {activeBookingBeep.biosBrand}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between border-b border-dashed border-slate-200 dark:border-white/10 pb-2">
+                      <span className="text-[10px] uppercase font-bold text-slate-400 font-mono">Detected Pattern</span>
+                      <span className="text-xs font-black text-[#FF5500] font-mono">
+                        {activeBookingBeep.pattern} ({activeBookingBeep.patternDescription})
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between border-b border-dashed border-slate-200 dark:border-white/10 pb-2">
+                      <span className="text-[10px] uppercase font-bold text-slate-400 font-mono">Suspected Component</span>
+                      <span className="text-[10px] font-bold text-blue-500 bg-blue-500/10 px-2 py-0.5 rounded font-mono">
+                        {activeBookingBeep.affectedComponent}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] uppercase font-bold text-slate-400 font-mono">Severity Level</span>
+                      <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded border font-mono ${
+                        activeBookingBeep.severity === 'Critical' ? 'bg-red-500/10 text-red-500 border-red-500/20' :
+                        activeBookingBeep.severity === 'High' ? 'bg-orange-500/10 text-orange-500 border-orange-500/20' :
+                        'bg-amber-500/10 text-amber-500 border-amber-500/20'
+                      }`}>
+                        {activeBookingBeep.severity}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Form fields */}
+                  <form onSubmit={(e) => {
+                    e.preventDefault();
+                    if (!bookingName || !bookingPhone) {
+                      triggerToast('Please complete Name and Phone fields!', 'error');
+                      return;
+                    }
+
+                    // Create log message
+                    const newMsg: ContactMessage = {
+                      id: 'beep_booking_' + Date.now(),
+                      name: bookingName,
+                      email: 'Via BIOS Beep Diagnostician',
+                      phone: bookingPhone,
+                      serviceType: 'it_fix',
+                      message: `[Doorstep Motherboard Repair Request]\n` +
+                               `BIOS Brand: ${activeBookingBeep.biosBrand}\n` +
+                               `Acoustic Code: ${activeBookingBeep.pattern}\n` +
+                               `Detected Fault: ${activeBookingBeep.affectedComponent} (${activeBookingBeep.severity})\n` +
+                               `Schedule Date: ${beepBookingDateTime || 'As soon as possible'}\n` +
+                               `Guwahati Doorstep Address: ${beepBookingAddress || 'Not specified'}\n` +
+                               `Client Additional Notes: ${bookingNotes || 'None'}`,
+                      timestamp: new Date().toLocaleTimeString() + ' ' + new Date().toLocaleDateString(),
+                      status: 'unread'
+                    };
+
+                    setContactMessages(prev => [newMsg, ...prev]);
+                    saveContactMessage(newMsg);
+                    setBeepBookingSuccess(true);
+                    triggerToast('Motherboard diagnostics request registered successfully!', 'success');
+                  }} className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Name */}
+                      <div className="space-y-1.5 text-left">
+                        <label className="text-[11px] font-extrabold uppercase text-slate-400 font-mono block">Your Full Name <span className="text-red-500">*</span></label>
+                        <input
+                          type="text"
+                          required
+                          value={bookingName}
+                          onChange={(e) => setBookingName(e.target.value)}
+                          placeholder="e.g. Joydeep Saikia"
+                          className={`w-full px-4 py-2.5 rounded-2xl text-xs border outline-none transition-all ${s.input}`}
+                        />
+                      </div>
+
+                      {/* Phone */}
+                      <div className="space-y-1.5 text-left">
+                        <label className="text-[11px] font-extrabold uppercase text-slate-400 font-mono block">Contact / WhatsApp <span className="text-red-500">*</span></label>
+                        <input
+                          type="tel"
+                          required
+                          value={bookingPhone}
+                          onChange={(e) => setBookingPhone(e.target.value)}
+                          placeholder="e.g. +91 98643 61940"
+                          className={`w-full px-4 py-2.5 rounded-2xl text-xs border outline-none transition-all ${s.input}`}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Preferred Date & Time Slot */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-1.5 text-left">
+                        <label className="text-[11px] font-extrabold uppercase text-slate-400 font-mono block">Preferred Slot</label>
+                        <input
+                          type="datetime-local"
+                          value={beepBookingDateTime}
+                          onChange={(e) => setBeepBookingDateTime(e.target.value)}
+                          className={`w-full px-4 py-2.5 rounded-2xl text-xs border outline-none transition-all ${s.input}`}
+                        />
+                      </div>
+
+                      {/* Guwahati Location/Landmark */}
+                      <div className="space-y-1.5 text-left">
+                        <label className="text-[11px] font-extrabold uppercase text-slate-400 font-mono block">Guwahati Doorstep Area / Landmark</label>
+                        <input
+                          type="text"
+                          value={beepBookingAddress}
+                          onChange={(e) => setBeepBookingAddress(e.target.value)}
+                          placeholder="e.g. Beltola, Christian Basti, Dispur"
+                          className={`w-full px-4 py-2.5 rounded-2xl text-xs border outline-none transition-all ${s.input}`}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Additional Notes */}
+                    <div className="space-y-1.5 text-left">
+                      <label className="text-[11px] font-extrabold uppercase text-slate-400 font-mono block">Custom Issue Details / Symptoms</label>
+                      <textarea
+                        value={bookingNotes}
+                        rows={2}
+                        onChange={(e) => setBookingNotes(e.target.value)}
+                        placeholder="My computer won't display anything on screen..."
+                        className={`w-full px-4 py-2.5 rounded-2xl text-xs border outline-none transition-all ${s.input}`}
+                      />
+                    </div>
+
+                    {/* Submit Actions */}
+                    <div className="pt-4 flex flex-col sm:flex-row items-center gap-3 text-left">
+                      <button
+                        type="submit"
+                        className="w-full sm:flex-1 bg-[#FF5500] hover:bg-orange-600 text-white py-3 rounded-2xl text-xs font-black uppercase tracking-wider transition-all duration-200 cursor-pointer shadow-xs"
+                      >
+                        Confirm &amp; Log Doorstep Request
+                      </button>
+                      
+                      {/* direct raw whatsapp bypass as anchor tag for safety! */}
+                      <a
+                        href={`https://wa.me/918638875231?text=${encodeURIComponent(
+                          `Hi Murari, need motherboard diagnostic doorstep repair in Guwahati.\n` +
+                          `- Device Beep Code: "${activeBookingBeep.pattern}" (${activeBookingBeep.biosBrand})\n` +
+                          `- Suspected Component: ${activeBookingBeep.affectedComponent}\n` +
+                          `- Client: ${bookingName || 'Prospective client'}\n` +
+                          `- Contact: ${bookingPhone || 'N/A'}\n` +
+                          `- Area: ${beepBookingAddress || 'Guwahati'}`
+                        )}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`w-full sm:w-auto px-5 py-3 rounded-2xl border text-xs font-extrabold uppercase tracking-wide transition-all text-center flex items-center justify-center gap-2 cursor-pointer ${
+                          currentTheme === 'light'
+                            ? 'bg-emerald-50 hover:bg-emerald-100 border-emerald-200 text-emerald-700'
+                            : 'bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/20 text-emerald-400'
+                        }`}
+                      >
+                        <WhatsAppIcon size={14} />
+                        <span>Direct WhatsApp</span>
+                      </a>
+                    </div>
+                  </form>
+                </div>
+              ) : (
+                /* Success Screen */
+                <div className="text-center py-6 space-y-6">
+                  {/* Success check animation */}
+                  <div className="mx-auto h-16 w-16 bg-emerald-500/10 border border-emerald-500/20 rounded-full flex items-center justify-center text-emerald-500 animate-bounce">
+                    <Check size={32} className="stroke-[3]" />
+                  </div>
+
+                  <div className="space-y-2">
+                    <span className="text-[10px] font-mono uppercase bg-emerald-500/10 text-emerald-500 px-2.5 py-1 rounded-full font-black tracking-widest">
+                      Booking Confirmed (TICKET: MP-BEEP-{Date.now().toString().slice(-4)})
+                    </span>
+                    <h3 className="text-xl font-black uppercase tracking-tight">
+                      Diagnostics Ticket Opened!
+                    </h3>
+                    <p className="text-xs text-slate-400 leading-relaxed max-w-sm mx-auto">
+                      Your Motherboard Troubleshooting request is logged to Murari's priority queue. He will review your acoustic signatures and reach out!
+                    </p>
+                  </div>
+
+                  {/* Summary card */}
+                  <div className={`p-4 rounded-2xl border text-left text-xs ${
+                    currentTheme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-black/40 border-white/5'
+                  } space-y-2`}>
+                    <div className="flex justify-between font-mono text-[10px] text-slate-400">
+                      <span>CLIENT:</span>
+                      <span className={`font-bold ${currentTheme === 'light' ? 'text-slate-800' : 'text-slate-200'}`}>{bookingName}</span>
+                    </div>
+                    <div className="flex justify-between font-mono text-[10px] text-slate-400">
+                      <span>PHONE:</span>
+                      <span className={`font-bold ${currentTheme === 'light' ? 'text-slate-800' : 'text-slate-200'}`}>{bookingPhone}</span>
+                    </div>
+                    <div className="flex justify-between font-mono text-[10px] text-slate-400">
+                      <span>FAULT CATEGORY:</span>
+                      <span className={`font-bold ${currentTheme === 'light' ? 'text-slate-800' : 'text-slate-200'}`}>{activeBookingBeep.affectedComponent} ({activeBookingBeep.biosBrand})</span>
+                    </div>
+                    <div className="flex justify-between font-mono text-[10px] text-slate-400">
+                      <span>DOORSTEP ADDRESS:</span>
+                      <span className={`font-bold ${currentTheme === 'light' ? 'text-slate-800' : 'text-slate-200'} truncate max-w-[200px]`}>{beepBookingAddress || 'Guwahati'}</span>
+                    </div>
+                  </div>
+
+                  {/* Dual route buttons on success */}
+                  <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
+                    <a
+                      href={`https://wa.me/918638875231?text=${encodeURIComponent(
+                        `Hi Murari, I just registered a motherboard diagnostics ticket on your portfolio!\n` +
+                        `- Ticket ID: MP-BEEP-${Date.now().toString().slice(-4)}\n` +
+                        `- Fault: ${activeBookingBeep.pattern} [${activeBookingBeep.biosBrand}]\n` +
+                        `- Target: ${activeBookingBeep.affectedComponent}\n` +
+                        `- Client Name: ${bookingName}\n` +
+                        `- Location: ${beepBookingAddress || 'Guwahati'}`
+                      )}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full sm:flex-1 bg-emerald-500 hover:bg-emerald-600 text-white py-3 rounded-2xl text-xs font-black uppercase tracking-wider transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer shadow-xs"
+                    >
+                      <WhatsAppIcon size={14} />
+                      <span>Speed Up via WhatsApp Dispatch</span>
+                    </a>
+
+                    <button
+                      onClick={() => {
+                        setActiveBookingBeep(null);
+                        setBeepBookingSuccess(false);
+                      }}
+                      className={`w-full sm:w-auto px-5 py-3 rounded-2xl text-xs font-extrabold uppercase tracking-wide transition-colors cursor-pointer ${
+                        currentTheme === 'light'
+                          ? 'bg-slate-100 hover:bg-slate-200 text-slate-800'
+                          : 'bg-white/5 hover:bg-white/10 text-white'
+                      }`}
+                    >
+                      Close Window
+                    </button>
+                  </div>
+                </div>
+              )}
             </motion.div>
           </motion.div>
         )}
@@ -7633,6 +9994,20 @@ export default function App() {
                   }`}>
                     {activeDetailService.description}
                   </p>
+
+                  {activeDetailService.type === 'it' && activeDetailService.proTip && (
+                    <div className={`mt-4 p-3.5 rounded-xl border flex items-start gap-2 text-xs leading-relaxed transition-all duration-300 ${
+                      currentTheme === 'light'
+                        ? 'bg-orange-50/70 border-orange-200/50 text-slate-700'
+                        : 'bg-[#FF5500]/5 border-[#FF5500]/10 text-slate-300'
+                    }`}>
+                      <Sparkles size={14} className="text-[#FF5500] shrink-0 mt-0.5 animate-pulse" />
+                      <div>
+                        <span className="font-extrabold text-[#FF5500] mr-1">PRO-TIP:</span>
+                        {activeDetailService.proTip}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Grid of Inclusions & Specifications */}
@@ -7700,19 +10075,12 @@ export default function App() {
                     <button
                       type="button"
                       onClick={() => {
-                        setBookingName('');
-                        if (activeDetailService.type === 'it') {
-                          setBookingNotes(`Interested in package: ${activeDetailService.title}. please call.`);
-                          setQuoteType('pixelfix');
-                        } else {
-                          setBookingNotes(`Inquiring about photography category: ${activeDetailService.title}. please coordinate dates.`);
-                          setQuoteType('pixelframe');
-                        }
+                        const type = activeDetailService.type === 'it' ? 'pixelfix' : 'pixelframe';
+                        const notes = activeDetailService.type === 'it'
+                          ? `Interested in package: ${activeDetailService.title}. please call.`
+                          : `Inquiring about photography category: ${activeDetailService.title}. please coordinate dates.`;
                         setActiveDetailService(null);
-                        const element = document.getElementById('interactive-calculator-widget');
-                        if (element) {
-                          element.scrollIntoView({ behavior: 'smooth' });
-                        }
+                        handleEstimateCostRedirect(type, notes);
                       }}
                       className="bg-[#FF5500] hover:bg-[#FF5500]/90 text-white text-xs uppercase font-extrabold px-5 py-2.5 rounded-xl flex items-center gap-1.5 transition-all cursor-pointer shadow-lg shadow-[#FF5500]/20"
                     >
@@ -7817,11 +10185,14 @@ export default function App() {
                       } else if (editingItem.type === 'gallery_item') {
                         const itemData = { ...editingItem.data, imageUrl: toDirectDriveUrl(editingItem.data.imageUrl) };
                         const exists = galleryItems.some(item => item.id === itemData.id);
+                        let updated;
                         if (exists) {
-                          setGalleryItems(galleryItems.map(item => item.id === itemData.id ? itemData : item));
+                          updated = galleryItems.map(item => item.id === itemData.id ? itemData : item);
                         } else {
-                          setGalleryItems([itemData, ...galleryItems]);
+                          updated = [itemData, ...galleryItems];
                         }
+                        setGalleryItems(updated);
+                        await updateSiteConfig({ galleryItems: updated });
                       } else if (editingItem.type === 'testimonial') {
                         let updated;
                         const exists = testimonials.some(t => t.id === editingItem.data.id);

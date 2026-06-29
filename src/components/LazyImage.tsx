@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 interface LazyImageProps {
   src: string;
   alt: string;
+  lowResSrc?: string;
   className?: string;
   placeholderClassName?: string;
   referrerPolicy?: React.HTMLAttributeReferrerPolicy;
@@ -27,6 +28,33 @@ const getDriveFileId = (url: string): string | null => {
   // Match drive.google.com/file/d/{id}
   match = url.match(/drive\.google\.com\/file\/d\/([^/&#?]+)/);
   if (match) return match[1];
+
+  return null;
+};
+
+const getLowResUrl = (url: string): string | null => {
+  if (!url) return null;
+  
+  // Unsplash image URL optimization
+  if (url.includes('images.unsplash.com')) {
+    try {
+      const urlObj = new URL(url);
+      urlObj.searchParams.set('w', '50');
+      urlObj.searchParams.set('q', '20');
+      urlObj.searchParams.set('auto', 'format');
+      return urlObj.toString();
+    } catch (e) {
+      return url.replace(/w=\d+/, 'w=50').replace(/q=\d+/, 'q=20');
+    }
+  }
+
+  // Google Drive image URL optimization (fetch smaller thumbnail size if possible to prevent main thread blocking)
+  if (url.includes('drive.google.com') || url.includes('docs.google.com') || url.includes('lh3.googleusercontent.com')) {
+    const fileId = getDriveFileId(url);
+    if (fileId) {
+      return `https://lh3.googleusercontent.com/d/${fileId}=s100`;
+    }
+  }
 
   return null;
 };
@@ -66,6 +94,7 @@ const getPlaceholderGradient = (str: string, theme: 'normal' | 'mono' | 'light')
 export const LazyImage: React.FC<LazyImageProps> = ({
   src,
   alt,
+  lowResSrc,
   className = '',
   placeholderClassName = '',
   referrerPolicy = 'no-referrer',
@@ -80,6 +109,7 @@ export const LazyImage: React.FC<LazyImageProps> = ({
   const [attempt, setAttempt] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const [currentTheme, setCurrentTheme] = useState<'normal' | 'mono' | 'light'>('normal');
+  const resolvedLowRes = lowResSrc || getLowResUrl(src);
 
   // Synchronize and track the theme for loading skeleton aesthetic consistency
   useEffect(() => {
@@ -283,28 +313,46 @@ export const LazyImage: React.FC<LazyImageProps> = ({
           </span>
         </div>
       ) : (
-        isInView && (
-          <img
-            key={currentSrc}
-            src={currentSrc}
-            alt={alt}
-            className={`absolute inset-0 w-full h-full object-cover ${className} transition-all duration-700 ease-out will-change-[filter,opacity,transform] ${
-              isLoaded 
-                ? 'opacity-100 blur-0 scale-100' 
-                : 'opacity-0 blur-xl scale-[1.04]'
-            }`}
-            style={style}
-            referrerPolicy={referrerPolicy}
-            onLoad={() => {
-              globalImageCache.add(src);
-              if (currentSrc !== src) {
-                globalImageCache.add(currentSrc);
-              }
-              setIsLoaded(true);
-            }}
-            onError={handleImageError}
-          />
-        )
+        <>
+          {/* Progressive low-res blurred preview image */}
+          {resolvedLowRes && isInView && (
+            <img
+              src={resolvedLowRes}
+              alt=""
+              decoding="async"
+              className={`absolute inset-0 w-full h-full object-cover filter blur-[10px] scale-[1.05] transition-opacity duration-700 pointer-events-none z-0 ${
+                isLoaded ? 'opacity-0' : 'opacity-100'
+              }`}
+              style={{ transitionDelay: isLoaded ? '100ms' : '0ms' }}
+              referrerPolicy={referrerPolicy}
+            />
+          )}
+
+          {isInView && (
+            <img
+              key={currentSrc}
+              src={currentSrc}
+              alt={alt}
+              decoding="async"
+              loading="lazy"
+              className={`absolute inset-0 w-full h-full object-cover ${className} transition-all duration-700 ease-out will-change-[filter,opacity,transform] z-10 ${
+                isLoaded 
+                  ? 'opacity-100 blur-0 scale-100' 
+                  : 'opacity-0 blur-xl scale-[1.04]'
+              }`}
+              style={style}
+              referrerPolicy={referrerPolicy}
+              onLoad={() => {
+                globalImageCache.add(src);
+                if (currentSrc !== src) {
+                  globalImageCache.add(currentSrc);
+                }
+                setIsLoaded(true);
+              }}
+              onError={handleImageError}
+            />
+          )}
+        </>
       )}
     </div>
   );

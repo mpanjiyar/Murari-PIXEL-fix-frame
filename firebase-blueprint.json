@@ -67,12 +67,33 @@
         "photoServices": { "type": "array" },
         "testimonials": { "type": "array" },
         "pixelFixReviews": { "type": "array" },
-        "instagramPosts": { "type": "array" }
+        "instagramPosts": { "type": "array" },
+        "galleryItems": { "type": "array" }
       },
       "required": ["id"]
+    },
+    "ContactMessage": {
+      "title": "ContactMessage",
+      "description": "A customer inquiry or doorstep booking request logged to the database.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "serviceType": { "type": "string" },
+        "message": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "name", "phone", "email", "serviceType", "message", "timestamp"]
     }
   },
   "firestore": {
+    "/contact_messages/{messageId}": {
+      "schema": "ContactMessage",
+      "description": "Collection of visitor requests and doorstep technician booking entries."
+    },
     "/affiliate_links/{linkId}": {
       "schema": "AffiliateLink",
       "description": "Collection of all affiliate links synced across all devices"

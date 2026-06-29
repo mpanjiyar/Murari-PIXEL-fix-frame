@@ -68,7 +68,27 @@ service cloud.firestore {
         && (!('photoServices' in data) || data.photoServices is list)
         && (!('testimonials' in data) || data.testimonials is list)
         && (!('pixelFixReviews' in data) || data.pixelFixReviews is list)
-        && (!('instagramPosts' in data) || data.instagramPosts is list);
+        && (!('instagramPosts' in data) || data.instagramPosts is list)
+        && (!('galleryItems' in data) || data.galleryItems is list);
+    }
+
+    function isValidContactMessage(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.name is string && data.name.size() <= 500
+        && data.phone is string && data.phone.size() <= 100
+        && data.email is string && data.email.size() <= 500
+        && data.serviceType is string && data.serviceType.size() <= 100
+        && data.message is string && data.message.size() <= 10000
+        && data.timestamp is string && data.timestamp.size() <= 200
+        && (!('status' in data) || (data.status is string && data.status.size() <= 100));
+    }
+
+    // Collection: Contact Messages
+    match /contact_messages/{messageId} {
+      allow read: if true;
+      allow create: if isValidId(messageId) && isValidContactMessage(incoming());
+      allow update: if isValidId(messageId) && isValidContactMessage(incoming());
+      allow delete: if isValidId(messageId);
     }
 
     // Collection: Affiliate Links

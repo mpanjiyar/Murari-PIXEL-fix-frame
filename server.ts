@@ -1029,7 +1029,7 @@ async function expandUrl(url: string): Promise<string> {
   }
 
   // List of domain patterns that are known to be shorteners or redirects
-  const isShortener = /amzn\.to|a\.co|bit\.ly|tinyurl\.com|t\.co|murl\.com|tiny\.cc|is\.gd|lnk\.to/i.test(currentUrl);
+  const isShortener = /amzn\.to|amzn\.in|a\.co|bit\.ly|tinyurl\.com|t\.co|murl\.com|tiny\.cc|is\.gd|lnk\.to|\/d\/[a-zA-Z0-9]/i.test(currentUrl);
   if (!isShortener) {
     return currentUrl;
   }
