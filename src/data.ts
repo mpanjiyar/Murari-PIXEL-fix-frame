@@ -598,7 +598,7 @@ export const INITIAL_AFFILIATE_LINKS: any[] = [
     title: 'Crucial RAM 16GB DDR5 4800MHz Dual-Rank',
     description: 'Boost multitasking workflows and eliminate Adobe Lightroom lag. Perfect upgrade companion for developers, designers, and dual-monitor multitasking.',
     category: 'it_tech, my_gears',
-    url: 'https://amazon.in/dp/B5HXQD29',
+    url: 'https://amazon.in/dp/B09S2MN8JH',
     imageUrl: 'https://images.unsplash.com/photo-1591405351990-4726e33ae587?auto=format&fit=crop&q=80&w=300',
     discountCode: 'FIXSPEEDRAM',
     clicks: 118

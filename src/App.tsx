@@ -929,8 +929,17 @@ export default function App() {
     let isInitialLinks = true;
     const unsubLinks = onSnapshot(collection(db, 'affiliate_links'), (snapshot) => {
       const links: AffiliateLink[] = [];
-      snapshot.forEach((doc) => {
-        links.push(doc.data() as AffiliateLink);
+      snapshot.forEach((snapshotDoc) => {
+        const data = snapshotDoc.data() as AffiliateLink;
+        if (data.url === 'https://amazon.in/dp/B5HXQD29') {
+          const corrected = { ...data, url: 'https://amazon.in/dp/B09S2MN8JH' };
+          links.push(corrected);
+          setDoc(doc(db, 'affiliate_links', snapshotDoc.id), corrected).catch(err => {
+            console.error("Auto-correcting stale affiliate URL in Firestore failed: ", err);
+          });
+        } else {
+          links.push(data);
+        }
       });
       // Sort chronologically or by ID so list remains stable
       links.sort((a, b) => a.id.localeCompare(b.id));
@@ -2788,117 +2797,54 @@ export default function App() {
       </div>
 
       {/* HEADER SECTION WITH ADVANCED THEME CONTROLLERS */}
-      <header className={`sticky top-0 z-40 backdrop-blur-md border-b ${s.headerBg} transition-all duration-300`}>
-        <div className="max-w-7xl mx-auto px-4 lg:px-8 py-3.5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <header className={`sticky top-0 z-40 backdrop-blur-md border-b ${s.headerBg} transition-all duration-300 shadow-xs`}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 md:h-20 flex items-center justify-between gap-4">
           
-          {/* Main Mobile/Desktop Top Row */}
-          <div className="flex items-center justify-between w-full md:w-auto">
-            {/* Logo Brand Brand Identity */}
-            <div className="flex items-center space-x-2 sm:space-x-3 cursor-pointer select-none" onClick={() => { setActiveTab('home'); setIsMobileMenuOpen(false); }}>
-              <PFLogo className={currentTheme === 'mono' ? 'text-zinc-300' : 'text-[#FF5500]'} />
-              <div className="min-w-0">
-                <span className={`font-black text-xs sm:text-base md:text-xl tracking-tight block uppercase leading-none whitespace-nowrap ${
-                  currentTheme === 'light' ? 'text-slate-900' : 'text-white'
-                }`}>
-                  {logoText} <span className="text-[#FF5500] font-mono select-none">.</span>
-                </span>
-                <span className={`text-[8px] sm:text-[9px] uppercase tracking-[0.1em] sm:tracking-[0.3em] font-extrabold block leading-none mt-1 whitespace-nowrap ${
-                  currentTheme === 'mono' ? 'text-zinc-500' : 'text-[#FF5500]'
-                }`}>
-                  {logoSubtext}
-                </span>
-              </div>
-            </div>
-
-            {/* Mobile Actions and Hamburger Trigger */}
-            <div className="flex items-center gap-2 md:hidden">
-              {/* Theme controllers quick for mobile */}
-              <div className={`flex items-center rounded-full p-0.5 border ${
-                currentTheme === 'light' ? 'bg-slate-100 border-slate-200' : 'bg-black/40 border-white/5'
+          {/* Brand Logo */}
+          <div className="flex items-center space-x-2 sm:space-x-3 cursor-pointer select-none" onClick={() => { setActiveTab('home'); setIsMobileMenuOpen(false); }}>
+            <PFLogo className={currentTheme === 'mono' ? 'text-zinc-300' : 'text-[#FF5500]'} />
+            <div className="min-w-0">
+              <span className={`font-semibold text-sm sm:text-base md:text-lg tracking-wide block uppercase leading-none whitespace-nowrap ${
+                currentTheme === 'light' ? 'text-slate-900' : 'text-white'
               }`}>
-                <button
-                  onClick={() => setCurrentTheme('normal')}
-                  title="Sleek Cyber Orange (Default)"
-                  className={`p-1 rounded-full text-xs transition-colors ${
-                    currentTheme === 'normal' 
-                      ? 'bg-[#FF5500] text-white scale-105' 
-                      : 'text-slate-500'
-                  }`}
-                >
-                  <Sparkles size={11} />
-                </button>
-                <button
-                  onClick={() => setCurrentTheme('mono')}
-                  title="Noir Monochrome"
-                  className={`p-1 rounded-full text-xs transition-colors ${
-                    currentTheme === 'mono' 
-                      ? 'bg-zinc-200 text-black scale-105' 
-                      : 'text-slate-500'
-                  }`}
-                >
-                  <Hash size={11} />
-                </button>
-                <button
-                  onClick={() => setCurrentTheme('light')}
-                  title="Alabaster Elegant"
-                  className={`p-1 rounded-full text-xs transition-colors ${
-                    currentTheme === 'light' 
-                      ? 'bg-slate-900 text-white scale-105' 
-                      : 'text-slate-500'
-                  }`}
-                >
-                  <SunIcon size={11} />
-                </button>
-              </div>
-
-              {/* Hamburger Button */}
-              <button
-                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className={`p-2 rounded-lg border transition-all cursor-pointer ${
-                  currentTheme === 'light'
-                    ? 'border-slate-200 hover:bg-slate-100 text-slate-700'
-                    : 'border-white/5 hover:bg-white/5 text-slate-300'
-                }`}
-                aria-label="Toggle Navigation Menu"
-              >
-                {isMobileMenuOpen ? <X size={16} /> : <Menu size={16} />}
-              </button>
+                {logoText} <span className="text-[#FF5500] font-semibold select-none">.</span>
+              </span>
+              <span className={`text-[8px] sm:text-[9px] uppercase tracking-[0.2em] font-bold block leading-none mt-1.5 whitespace-nowrap ${
+                currentTheme === 'mono' ? 'text-zinc-500' : 'text-[#FF5500]/80'
+              }`}>
+                {logoSubtext}
+              </span>
             </div>
           </div>
 
-          {/* Desktop-only Navigation and Advanced settings, hidden on mobile */}
-          <div className="hidden md:flex flex-row items-center gap-4 w-auto">
-            
-            {/* Desktop Tabs Container */}
-            <div className={`flex flex-row gap-1 p-1 rounded-full border shadow-sm backdrop-blur-md transition-all ${
-              currentTheme === 'light' 
-                ? 'bg-slate-100/90 border-slate-200/80 shadow-slate-100/50' 
-                : currentTheme === 'mono'
-                  ? 'bg-zinc-950/90 border-zinc-800 shadow-black'
-                  : 'bg-[#121212]/90 border-white/5 shadow-black/20'
-            }`}>
+          {/* Desktop Tabs Container */}
+          <div className="hidden md:flex items-center justify-center">
+            <div className="flex flex-row gap-1 items-center">
               {[
                 { id: 'home', label: 'Home' },
-                { id: 'pixelfix', label: 'Pixel Fix (IT)' },
-                { id: 'pixelframe', label: 'Pixel Frame (Photo)' },
-                { id: 'gallery', label: 'Live Gallery' },
-                { id: 'contact', label: 'Direct Booking' }
+                { id: 'pixelfix', label: 'Pixel Fix' },
+                { id: 'pixelframe', label: 'Pixel Frame' },
+                { id: 'gallery', label: 'Gallery' },
+                { id: 'affiliate', label: 'Partner Deals' },
+                { id: 'contact', label: 'Booking' }
               ].map(tab => (
-                <button
+                <motion.button
                   key={tab.id}
+                  whileHover={{ scale: 1.06 }}
+                  whileTap={{ scale: 0.94 }}
                   onClick={() => {
                     setActiveTab(tab.id as any);
                     setIsMobileMenuOpen(false);
                   }}
                   onMouseEnter={() => setHoveredTab(tab.id)}
                   onMouseLeave={() => setHoveredTab(null)}
-                  className={`relative px-4 py-2 rounded-full text-xs uppercase tracking-wider font-extrabold transition-all duration-300 outline-none cursor-pointer text-center select-none ${
+                  className={`relative px-4 py-2 rounded-lg text-xs uppercase tracking-widest font-extrabold transition-all duration-200 outline-none cursor-pointer text-center select-none ${
                     activeTab === tab.id
-                      ? currentTheme === 'mono'
-                        ? 'text-black'
-                        : 'text-white'
+                      ? currentTheme === 'light'
+                        ? 'text-slate-900 scale-105'
+                        : 'text-white scale-105'
                       : currentTheme === 'light'
-                        ? 'text-slate-600 hover:text-slate-900'
+                        ? 'text-slate-500 hover:text-slate-900'
                         : 'text-slate-400 hover:text-white'
                   }`}
                 >
@@ -2907,11 +2853,11 @@ export default function App() {
                     {hoveredTab === tab.id && activeTab !== tab.id && (
                       <motion.span
                         layoutId="hoverTabIndicator"
-                        className={`absolute inset-0 rounded-full -z-10 ${
+                        className={`absolute inset-0 rounded-lg -z-10 ${
                           currentTheme === 'light'
-                            ? 'bg-slate-200/70'
+                            ? 'bg-slate-100'
                             : currentTheme === 'mono'
-                              ? 'bg-zinc-800/65'
+                              ? 'bg-zinc-900/60'
                               : 'bg-white/5'
                         }`}
                         initial={{ opacity: 0, scale: 0.95 }}
@@ -2922,11 +2868,11 @@ export default function App() {
                     )}
                   </AnimatePresence>
 
-                  {/* Active Backdrop Indicator */}
+                  {/* Active Underline Indicator */}
                   {activeTab === tab.id && (
                     <motion.span
                       layoutId="activeTabIndicator"
-                      className={`absolute inset-0 rounded-full -z-10 shadow-sm ${
+                      className={`absolute bottom-0 left-4 right-4 h-[3px] rounded-full ${
                         currentTheme === 'mono'
                           ? 'bg-white'
                           : 'bg-[#FF5500]'
@@ -2935,75 +2881,90 @@ export default function App() {
                     />
                   )}
                   <span className="relative z-10">{tab.label}</span>
-                </button>
+                </motion.button>
               ))}
             </div>
+          </div>
 
-            {/* EYE MATCHING DUAL CONTROL MATRIX */}
-            <div className="flex items-center gap-2">
-              <span className="text-[9px] uppercase font-bold tracking-widest text-slate-500 hidden lg:inline">Theme Profile:</span>
-              <div className={`flex items-center rounded-full p-1 self-stretch border ${
-                currentTheme === 'light' ? 'bg-slate-100 border-slate-200' : 'bg-black/40 border-white/5'
+          {/* Desktop Theme & Dashboard Controls */}
+          <div className="hidden md:flex items-center gap-4">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] uppercase font-bold tracking-widest text-slate-500 hidden xl:inline">Theme:</span>
+              <div className={`flex items-center rounded-lg p-0.5 border ${
+                currentTheme === 'light' ? 'bg-slate-50 border-slate-200/60' : 'bg-black/20 border-white/5'
               }`}>
                 <button
                   onClick={() => setCurrentTheme('normal')}
                   title="Sleek Cyber Orange (Default)"
-                  className={`p-1.5 rounded-full text-xs transition-all ${
+                  className={`p-1.5 rounded-md text-xs transition-all cursor-pointer ${
                     currentTheme === 'normal' 
-                      ? 'bg-[#FF5500] text-white scale-110' 
-                      : currentTheme === 'light' 
-                        ? 'text-slate-500 hover:text-[#FF5500]' 
-                        : 'text-slate-500 hover:text-slate-300'
+                      ? 'bg-[#FF5500] text-white shadow-sm' 
+                      : 'text-slate-500 hover:text-[#FF5500]'
                   }`}
                 >
-                  <Sparkles size={13} />
+                  <Sparkles size={11} />
                 </button>
                 <button
                   onClick={() => setCurrentTheme('mono')}
-                  title="Noir Monochrome (Black & White)"
-                  className={`p-1.5 rounded-full text-xs transition-all ${
+                  title="Noir Monochrome"
+                  className={`p-1.5 rounded-md text-xs transition-all cursor-pointer ${
                     currentTheme === 'mono' 
-                      ? 'bg-white text-black scale-110' 
-                      : currentTheme === 'light'
-                        ? 'text-slate-500 hover:text-slate-900'
-                        : 'text-slate-500 hover:text-slate-300'
+                      ? currentTheme === 'light' ? 'bg-slate-900 text-white' : 'bg-zinc-800 text-white'
+                      : 'text-slate-500 hover:text-slate-300 dark:hover:text-white'
                   }`}
                 >
-                  <Hash size={13} />
+                  <Hash size={11} />
                 </button>
                 <button
                   onClick={() => setCurrentTheme('light')}
-                  title="Alabaster Elegant (Eye-friendly Light)"
-                  className={`p-1.5 rounded-full text-xs transition-all ${
+                  title="Alabaster Elegant"
+                  className={`p-1.5 rounded-md text-xs transition-all cursor-pointer ${
                     currentTheme === 'light' 
-                      ? 'bg-slate-900 text-white scale-110' 
-                      : 'text-slate-500 hover:text-slate-300'
+                      ? 'bg-white text-slate-900 shadow-sm border border-slate-200' 
+                      : 'text-slate-500 hover:text-slate-900'
                   }`}
                 >
-                  <SunIcon size={13} />
+                  <SunIcon size={11} />
                 </button>
               </div>
-
-              {/* Studio backend panel triggers */}
-              <button
-                 onClick={() => {
-                   setActiveTab('dashboard');
-                   setIsMobileMenuOpen(false);
-                 }}
-                 className={`p-1.5 rounded-full border transition-all ${
-                   activeTab === 'dashboard'
-                     ? 'bg-[#FF5500] text-white border-[#FF5500]'
-                     : currentTheme === 'light'
-                       ? 'border-slate-300 hover:border-[#FF5500] text-slate-500 hover:text-slate-800 bg-white'
-                       : 'border-white/10 hover:border-[#FF5500] text-slate-400 hover:text-white'
-                 }`}
-                title="Studio Management Dashboard"
-              >
-                <Sliders size={14} />
-              </button>
             </div>
 
+            {/* Studio Panel Trigger */}
+            <button
+               onClick={() => {
+                 setActiveTab('dashboard');
+               }}
+               className={`p-1.5 rounded-md border transition-all cursor-pointer flex items-center justify-center ${
+                 activeTab === 'dashboard'
+                   ? 'bg-[#FF5500] text-white border-[#FF5500]'
+                   : currentTheme === 'light'
+                     ? 'border-slate-200 hover:border-slate-300 text-slate-600 hover:text-slate-900 bg-white shadow-sm'
+                     : 'border-white/5 hover:border-white/10 text-slate-400 hover:text-white bg-white/5'
+               }`}
+              title="Studio Management Dashboard"
+            >
+              <Sliders size={11} />
+            </button>
           </div>
+
+          {/* Mobile hamburger & menu triggers (visible below md) */}
+          <div className="flex items-center gap-2 md:hidden">
+            {/* Hamburger menu button */}
+            <motion.button
+              whileTap={{ scale: 0.92 }}
+              whileHover={{ scale: 1.05 }}
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className={`p-2.5 rounded-lg border transition-all cursor-pointer ${
+                currentTheme === 'light'
+                  ? 'border-slate-200 hover:bg-slate-100 text-slate-700'
+                  : 'border-white/5 hover:bg-white/5 text-slate-300'
+              }`}
+              aria-label="Toggle Navigation Menu"
+            >
+              {isMobileMenuOpen ? <X size={16} /> : <Menu size={16} />}
+            </motion.button>
+          </div>
+
         </div>
       </header>
 
@@ -3017,7 +2978,7 @@ export default function App() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsMobileMenuOpen(false)}
-              className="fixed inset-0 bg-black/65 backdrop-blur-md"
+              className="fixed inset-0 bg-black/60 backdrop-blur-md"
             />
 
             {/* Sliding Panel */}
@@ -3026,9 +2987,9 @@ export default function App() {
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 220 }}
-              className={`fixed top-0 right-0 bottom-0 w-[85%] max-w-sm h-full shadow-2xl flex flex-col p-6 z-50 border-l ${
+              className={`fixed top-0 right-0 bottom-0 w-[85%] max-w-xs h-full shadow-2xl flex flex-col p-6 z-50 border-l ${
                 currentTheme === 'light'
-                  ? 'bg-[#FAF9F5] border-slate-200 text-slate-800'
+                  ? 'bg-white border-slate-200 text-slate-800 shadow-xl'
                   : currentTheme === 'mono'
                     ? 'bg-zinc-950 border-zinc-800 text-zinc-100 font-mono'
                     : 'bg-[#121212] border-white/5 text-slate-100'
@@ -3037,15 +2998,15 @@ export default function App() {
               {/* Drawer Header */}
               <div className="flex items-center justify-between pb-6 border-b border-dashed border-slate-200/50 dark:border-white/5">
                 {/* Logo Brand Identity */}
-                <div className="flex items-center space-x-2" onClick={() => { setActiveTab('home'); setIsMobileMenuOpen(false); }}>
+                <div className="flex items-center space-x-2 cursor-pointer" onClick={() => { setActiveTab('home'); setIsMobileMenuOpen(false); }}>
                   <PFLogo className={currentTheme === 'mono' ? 'text-zinc-300' : 'text-[#FF5500]'} />
                   <div>
-                    <span className={`font-black text-xs uppercase leading-none block ${
+                    <span className={`font-semibold text-xs uppercase leading-none block ${
                       currentTheme === 'light' ? 'text-slate-900' : 'text-white'
                     }`}>
                       {logoText} <span className="text-[#FF5500] font-mono">.</span>
                     </span>
-                    <span className={`text-[8px] uppercase tracking-wider font-extrabold block leading-none mt-1 ${
+                    <span className={`text-[8px] uppercase tracking-wider font-bold block leading-none mt-1 ${
                       currentTheme === 'mono' ? 'text-zinc-500' : 'text-[#FF5500]'
                     }`}>
                       {logoSubtext}
@@ -3069,7 +3030,7 @@ export default function App() {
 
               {/* Drawer Navigation Links */}
               <motion.div 
-                className="flex-1 py-8 overflow-y-auto space-y-3"
+                className="flex-1 py-8 overflow-y-auto space-y-1.5"
                 initial="hidden"
                 animate="visible"
                 variants={{
@@ -3077,60 +3038,62 @@ export default function App() {
                   visible: {
                     opacity: 1,
                     transition: {
-                      staggerChildren: 0.08,
+                      staggerChildren: 0.05,
                     }
                   }
                 }}
               >
                 {[
                   { id: 'home', label: 'Home', icon: Home },
-                  { id: 'pixelfix', label: 'Pixel Fix (IT)', icon: Sliders },
-                  { id: 'pixelframe', label: 'Pixel Frame (Photo)', icon: Camera },
-                  { id: 'gallery', label: 'Live Gallery', icon: FolderOpen },
-                  { id: 'contact', label: 'Direct Booking', icon: Phone }
+                  { id: 'pixelfix', label: 'Pixel Fix', icon: Sliders },
+                  { id: 'pixelframe', label: 'Pixel Frame', icon: Camera },
+                  { id: 'gallery', label: 'Gallery', icon: FolderOpen },
+                  { id: 'affiliate', label: 'Partner Deals', icon: ShoppingBag },
+                  { id: 'contact', label: 'Booking', icon: Phone }
                 ].map(tab => {
                   const TabIcon = tab.icon;
                   return (
                     <motion.button
                       key={tab.id}
                       variants={{
-                        hidden: { opacity: 0, x: 25 },
+                        hidden: { opacity: 0, x: 20 },
                         visible: { 
                           opacity: 1, 
                           x: 0,
-                          transition: { type: 'spring', stiffness: 220, damping: 20 }
+                          transition: { type: 'spring', stiffness: 220, damping: 22 }
                         }
                       }}
-                      whileTap={{ scale: 0.97 }}
+                      whileHover={{ scale: 1.02, x: 4 }}
+                      whileTap={{ scale: 0.98 }}
                       onClick={() => {
                         setActiveTab(tab.id as any);
                         setIsMobileMenuOpen(false);
                       }}
-                      className={`w-full flex items-center justify-between transition-all duration-300 cursor-pointer px-4 py-3 rounded-2xl text-xs uppercase tracking-wider font-extrabold border ${
+                      className={`w-full flex items-center justify-between transition-all duration-200 cursor-pointer px-4 py-2.5 rounded-xl text-xs uppercase tracking-widest font-extrabold border-l-2 ${
                         activeTab === tab.id
                           ? currentTheme === 'mono'
-                            ? 'text-black bg-white border-white shadow-md'
-                            : 'text-white bg-[#FF5500] border-[#FF5500] shadow-md shadow-[#FF5500]/10'
+                            ? 'text-white bg-zinc-800/80 border-white font-extrabold'
+                            : 'text-[#FF5500] bg-[#FF5500]/5 border-[#FF5500] font-extrabold'
                           : currentTheme === 'light'
-                            ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 border-transparent'
+                            ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-50 border-transparent'
                             : 'text-slate-400 hover:text-white hover:bg-white/5 border-transparent'
                       }`}
                     >
                       <span className="flex items-center gap-3">
-                        <span className={`p-1.5 rounded-xl transition-all ${
+                        <span className={`p-1 rounded-md transition-all ${
                           activeTab === tab.id
                             ? currentTheme === 'mono'
-                              ? 'bg-zinc-100 text-black'
-                              : 'bg-white/20 text-white'
+                              ? 'text-white'
+                              : 'text-[#FF5500]'
                             : currentTheme === 'light'
-                              ? 'bg-slate-100 text-slate-500'
-                              : 'bg-white/5 text-slate-400'
+                              ? 'text-slate-500'
+                              : 'text-slate-400'
                         }`}>
                           {TabIcon && <TabIcon size={14} className="shrink-0" />}
                         </span>
                         <span>{tab.label}</span>
                       </span>
-                      <ArrowUpRight size={14} className={activeTab === tab.id ? (currentTheme === 'mono' ? 'text-black' : 'text-white') : 'text-slate-500'} />
+                      <ArrowUpRight size={13} className={activeTab === tab.id ? (currentTheme === 'mono' ? 'text-white' : 'text-[#FF5500]') : 'text-slate-500/70'} />
                     </motion.button>
                   );
                 })}
@@ -3140,43 +3103,43 @@ export default function App() {
               <div className="pt-6 border-t border-dashed border-slate-200/50 dark:border-white/5 space-y-6">
                 {/* Theme Selection */}
                 <div className="space-y-2">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 block">
+                  <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 block">
                     Theme Profile
                   </span>
-                  <div className={`grid grid-cols-3 gap-1 rounded-xl p-1 border ${
-                    currentTheme === 'light' ? 'bg-slate-100 border-slate-200' : 'bg-black/40 border-white/5'
+                  <div className={`grid grid-cols-3 gap-1 rounded-lg p-1 border ${
+                    currentTheme === 'light' ? 'bg-slate-50 border-slate-200/60' : 'bg-black/20 border-white/5'
                   }`}>
                     <button
                       onClick={() => setCurrentTheme('normal')}
-                      className={`py-2 rounded-lg text-xs font-bold uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                      className={`py-1.5 rounded-md text-[10px] font-bold uppercase transition-all flex items-center justify-center gap-1 cursor-pointer ${
                         currentTheme === 'normal'
                           ? 'bg-[#FF5500] text-white shadow-sm'
                           : 'text-slate-500 hover:text-slate-300'
                       }`}
                     >
-                      <Sparkles size={11} />
+                      <Sparkles size={10} />
                       <span>Cyber</span>
                     </button>
                     <button
                       onClick={() => setCurrentTheme('mono')}
-                      className={`py-2 rounded-lg text-xs font-bold uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                      className={`py-1.5 rounded-md text-[10px] font-bold uppercase transition-all flex items-center justify-center gap-1 cursor-pointer ${
                         currentTheme === 'mono'
-                          ? currentTheme === 'light' ? 'bg-slate-900 text-white' : 'bg-white text-black font-black'
+                          ? currentTheme === 'light' ? 'bg-slate-900 text-white' : 'bg-white text-black font-bold'
                           : 'text-slate-500 hover:text-slate-300'
                       }`}
                     >
-                      <Hash size={11} />
+                      <Hash size={10} />
                       <span>Noir</span>
                     </button>
                     <button
                       onClick={() => setCurrentTheme('light')}
-                      className={`py-2 rounded-lg text-xs font-bold uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                      className={`py-1.5 rounded-md text-[10px] font-bold uppercase transition-all flex items-center justify-center gap-1 cursor-pointer ${
                         currentTheme === 'light'
                           ? 'bg-slate-900 text-white shadow-sm'
                           : 'text-slate-500 hover:text-slate-300'
                       }`}
                     >
-                      <SunIcon size={11} />
+                      <SunIcon size={10} />
                       <span>Light</span>
                     </button>
                   </div>
@@ -3184,7 +3147,7 @@ export default function App() {
 
                 {/* Dashboard Access */}
                 <div className="space-y-2">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 block">
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 block">
                     Dashboard Portal
                   </span>
                   <button
@@ -3192,15 +3155,15 @@ export default function App() {
                       setActiveTab('dashboard');
                       setIsMobileMenuOpen(false);
                     }}
-                    className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-extrabold uppercase tracking-widest transition-all cursor-pointer ${
+                    className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
                       activeTab === 'dashboard'
-                        ? 'bg-[#FF5500] text-white'
+                        ? 'bg-[#FF5500] text-white shadow-sm'
                         : currentTheme === 'light'
-                          ? 'bg-slate-200 hover:bg-slate-300 text-slate-700'
+                          ? 'bg-slate-100 hover:bg-slate-200 text-slate-700'
                           : 'bg-white/5 hover:bg-white/10 text-zinc-300'
                     }`}
                   >
-                    <Sliders size={12} />
+                    <Sliders size={11} />
                     <span>Admin Panel</span>
                   </button>
                 </div>
