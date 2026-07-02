@@ -1285,15 +1285,24 @@ export default function App() {
     }, 8000); // 8-second strict timeout
 
     try {
-      console.info("[Auto-Fill] Fetching from endpoint: /api/fetch-amazon-product with timeout controller...");
-      const response = await fetch("/api/fetch-amazon-product", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ url: urlToFetch }),
+      console.info("[Auto-Fill] Fetching from endpoint: /api/fetch-amazon-product with GET request...");
+      let response = await fetch(`/api/fetch-amazon-product?url=${encodeURIComponent(urlToFetch)}`, {
+        method: "GET",
         signal: controller.signal,
       });
+
+      // Robust fallback: if GET returns 405 (Method Not Allowed) or 404 (Not Found), try POST fallback
+      if (response.status === 405 || response.status === 404) {
+        console.info(`[Auto-Fill] GET request failed with status ${response.status}. Trying POST fallback...`);
+        response = await fetch("/api/fetch-amazon-product", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ url: urlToFetch }),
+          signal: controller.signal,
+        });
+      }
 
       clearTimeout(timeoutId);
       console.info(`[Auto-Fill] Server responded with HTTP status ${response.status} (${response.statusText})`);
@@ -2819,7 +2828,11 @@ export default function App() {
 
           {/* Desktop Tabs Container */}
           <div className="hidden md:flex items-center justify-center">
-            <div className="flex flex-row gap-1 items-center">
+            <div className={`flex flex-row gap-0.5 items-center p-1.5 rounded-full border ${
+              currentTheme === 'light' 
+                ? 'bg-slate-50/70 border-slate-200/50' 
+                : 'bg-black/25 border-white/5'
+            } backdrop-blur-md`}>
               {[
                 { id: 'home', label: 'Home' },
                 { id: 'pixelfix', label: 'Pixel Fix' },
@@ -2830,35 +2843,46 @@ export default function App() {
               ].map(tab => (
                 <motion.button
                   key={tab.id}
-                  whileHover={{ scale: 1.06 }}
-                  whileTap={{ scale: 0.94 }}
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.97 }}
                   onClick={() => {
                     setActiveTab(tab.id as any);
                     setIsMobileMenuOpen(false);
                   }}
                   onMouseEnter={() => setHoveredTab(tab.id)}
                   onMouseLeave={() => setHoveredTab(null)}
-                  className={`relative px-4 py-2 rounded-lg text-xs uppercase tracking-widest font-extrabold transition-all duration-200 outline-none cursor-pointer text-center select-none ${
+                  className={`relative px-4 py-1.5 rounded-full text-[9.5px] uppercase tracking-[0.16em] font-black transition-all duration-300 outline-none cursor-pointer text-center select-none ${
                     activeTab === tab.id
-                      ? currentTheme === 'light'
-                        ? 'text-slate-900 scale-105'
-                        : 'text-white scale-105'
+                      ? 'text-white'
                       : currentTheme === 'light'
-                        ? 'text-slate-500 hover:text-slate-900'
+                        ? 'text-slate-600 hover:text-slate-900'
                         : 'text-slate-400 hover:text-white'
                   }`}
                 >
-                  {/* Hover Backdrop Overlay */}
+                  {/* Active Slide Backdrop Pill */}
+                  {activeTab === tab.id && (
+                    <motion.span
+                      layoutId="activeTabIndicatorPill"
+                      className={`absolute inset-0 rounded-full -z-10 ${
+                        currentTheme === 'mono'
+                          ? 'bg-zinc-800 border border-white/10'
+                          : currentTheme === 'light'
+                            ? 'bg-slate-900'
+                            : 'bg-[#FF5500]'
+                      }`}
+                      transition={{ type: "spring", stiffness: 380, damping: 28 }}
+                    />
+                  )}
+
+                  {/* Hover Slide Backdrop Pill */}
                   <AnimatePresence>
                     {hoveredTab === tab.id && activeTab !== tab.id && (
                       <motion.span
-                        layoutId="hoverTabIndicator"
-                        className={`absolute inset-0 rounded-lg -z-10 ${
+                        layoutId="hoverTabIndicatorPill"
+                        className={`absolute inset-0 rounded-full -z-10 ${
                           currentTheme === 'light'
                             ? 'bg-slate-100'
-                            : currentTheme === 'mono'
-                              ? 'bg-zinc-900/60'
-                              : 'bg-white/5'
+                            : 'bg-white/5'
                         }`}
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
@@ -2867,19 +2891,7 @@ export default function App() {
                       />
                     )}
                   </AnimatePresence>
-
-                  {/* Active Underline Indicator */}
-                  {activeTab === tab.id && (
-                    <motion.span
-                      layoutId="activeTabIndicator"
-                      className={`absolute bottom-0 left-4 right-4 h-[3px] rounded-full ${
-                        currentTheme === 'mono'
-                          ? 'bg-white'
-                          : 'bg-[#FF5500]'
-                      }`}
-                      transition={{ type: "spring", stiffness: 380, damping: 28 }}
-                    />
-                  )}
+                  
                   <span className="relative z-10">{tab.label}</span>
                 </motion.button>
               ))}
@@ -2934,21 +2946,38 @@ export default function App() {
                onClick={() => {
                  setActiveTab('dashboard');
                }}
-               className={`p-1.5 rounded-md border transition-all cursor-pointer flex items-center justify-center ${
+               className={`w-7 h-7 rounded-full border transition-all duration-300 cursor-pointer flex items-center justify-center p-0 ${
                  activeTab === 'dashboard'
-                   ? 'bg-[#FF5500] text-white border-[#FF5500]'
+                   ? 'bg-[#FF5500] text-white border-[#FF5500] scale-105 shadow-sm'
                    : currentTheme === 'light'
-                     ? 'border-slate-200 hover:border-slate-300 text-slate-600 hover:text-slate-900 bg-white shadow-sm'
+                     ? 'border-slate-200 hover:border-slate-300 text-slate-600 hover:text-slate-900 bg-white shadow-xs'
                      : 'border-white/5 hover:border-white/10 text-slate-400 hover:text-white bg-white/5'
                }`}
               title="Studio Management Dashboard"
             >
-              <Sliders size={11} />
+              <Sliders size={10} />
             </button>
           </div>
 
           {/* Mobile hamburger & menu triggers (visible below md) */}
           <div className="flex items-center gap-2 md:hidden">
+            {/* Studio Panel Trigger (Mobile) */}
+            <button
+               onClick={() => {
+                 setActiveTab('dashboard');
+               }}
+               className={`w-7 h-7 rounded-full border transition-all duration-300 cursor-pointer flex items-center justify-center p-0 ${
+                 activeTab === 'dashboard'
+                   ? 'bg-[#FF5500] text-white border-[#FF5500] scale-105 shadow-sm'
+                   : currentTheme === 'light'
+                     ? 'border-slate-200 hover:border-slate-300 text-slate-600 hover:text-slate-900 bg-white shadow-xs'
+                     : 'border-white/5 hover:border-white/10 text-slate-400 hover:text-white bg-white/5'
+               }`}
+              title="Studio Management Dashboard"
+            >
+              <Sliders size={10} />
+            </button>
+
             {/* Hamburger menu button */}
             <motion.button
               whileTap={{ scale: 0.92 }}
@@ -3146,25 +3175,25 @@ export default function App() {
                 </div>
 
                 {/* Dashboard Access */}
-                <div className="space-y-2">
-                  <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 block">
-                    Dashboard Portal
+                <div className="flex flex-col items-center justify-center pt-2">
+                  <span className="text-[8px] font-mono font-black uppercase tracking-widest text-slate-500 block mb-2">
+                    Studio Portal
                   </span>
                   <button
                     onClick={() => {
                       setActiveTab('dashboard');
                       setIsMobileMenuOpen(false);
                     }}
-                    className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                    className={`w-8 h-8 rounded-full border transition-all duration-300 cursor-pointer flex items-center justify-center p-0 ${
                       activeTab === 'dashboard'
-                        ? 'bg-[#FF5500] text-white shadow-sm'
+                        ? 'bg-[#FF5500] text-white border-[#FF5500] scale-105 shadow-sm'
                         : currentTheme === 'light'
-                          ? 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                          : 'bg-white/5 hover:bg-white/10 text-zinc-300'
+                          ? 'border-slate-200 hover:border-slate-300 text-slate-600 hover:text-slate-900 bg-white shadow-xs'
+                          : 'border-white/5 hover:border-white/10 text-slate-400 hover:text-white bg-white/5'
                     }`}
+                    title="Studio Management Dashboard"
                   >
                     <Sliders size={11} />
-                    <span>Admin Panel</span>
                   </button>
                 </div>
               </div>
@@ -6420,14 +6449,20 @@ export default function App() {
                             }`}>
                               {item.title}
                             </h3>
-                            {item.discountCode && (
-                              <div className="mt-1.5 flex items-center gap-1">
-                                <span className="text-[8.5px] font-mono uppercase bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-1.5 py-0.5 rounded flex items-center gap-1 font-bold shadow-sm">
+                            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                              {item.discountCode && (
+                                <span className="text-[8px] font-mono uppercase bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-1.5 py-0.5 rounded flex items-center gap-1 font-bold shadow-xs">
                                   <span>🏷️ PROMO:</span>
                                   <span className="font-mono tracking-wider font-black select-all">{item.discountCode}</span>
                                 </span>
-                              </div>
-                            )}
+                              )}
+                              {item.price && (
+                                <span className="text-[8px] font-mono uppercase bg-amber-500/10 text-amber-500 border border-amber-500/20 px-1.5 py-0.5 rounded flex items-center gap-1 font-bold shadow-xs">
+                                  <span>💰 VALUE:</span>
+                                  <span className="font-mono tracking-wider font-black">{item.price}</span>
+                                </span>
+                              )}
+                            </div>
                           </div>
 
                           {/* Curated Testimony Body Block */}
@@ -10060,12 +10095,14 @@ export default function App() {
       {/* DYNAMIC ADMINISTRATIVE RESOURCE EDIT MODAL */}
       <AnimatePresence>
         {editingItem && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/90 backdrop-blur-md">
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
+              initial={{ opacity: 0, scale: 0.96 }}
               animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className={`w-full max-w-xl p-6 rounded-3xl border text-left shadow-2xl relative max-h-[90vh] overflow-y-auto ${
+              exit={{ opacity: 0, scale: 0.96 }}
+              className={`w-full ${
+                editingItem.type === 'affiliate_link' ? 'max-w-4xl' : 'max-w-xl'
+              } p-4 sm:p-6 rounded-3xl border text-left shadow-2xl relative max-h-[95vh] lg:max-h-[90vh] overflow-y-auto ${
                 currentTheme === 'light' ? 'bg-white border-slate-300 text-slate-900' : 'bg-zinc-950 border-white/10 text-white'
               }`}
             >
@@ -10801,280 +10838,390 @@ export default function App() {
                   )}
 
                   {editingItem.type === 'affiliate_link' && (
-                    <div className="space-y-4">
-                      {/* 1. Product Link Input (Auto-detecting) */}
-                      <div className="space-y-1 text-left">
-                        <label className={`text-[10px] uppercase font-mono font-bold tracking-wider ${currentTheme === 'light' ? 'text-slate-600' : 'text-slate-400'}`}>
-                          Product Link (Target Buy URL)
-                        </label>
-                        <div className="relative">
-                          <input
-                            type="url"
-                            required
-                            value={editingItem.data.url || ''}
-                            onChange={(ev) => setEditingItem({
-                              ...editingItem,
-                              data: { ...editingItem.data, url: ev.target.value }
-                            })}
-                            className={`w-full py-3 px-4 rounded-xl border outline-none text-xs font-sans transition-all ${
-                              currentTheme === 'light' 
-                                ? 'bg-white border-slate-200 text-slate-950 focus:border-amber-500 focus:ring-1 focus:ring-amber-500/20' 
-                                : 'bg-zinc-900/60 border-white/5 text-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500/20'
-                            } ${isFetchingAmazon ? 'border-amber-500 ring-1 ring-amber-500/20' : ''}`}
-                            placeholder="Paste product link (Amazon etc.)"
-                          />
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                      {/* Left Column: Form Controls */}
+                      <div className="lg:col-span-7 space-y-4">
+                        {/* 1. Product Link Input (Auto-detecting) */}
+                        <div className="space-y-1 text-left">
+                          <label className={`text-[10px] uppercase font-mono font-bold tracking-wider ${currentTheme === 'light' ? 'text-slate-600' : 'text-slate-400'}`}>
+                            Product Link (Target Buy URL)
+                          </label>
+                          <div className="relative">
+                            <input
+                              type="url"
+                              required
+                              value={editingItem.data.url || ''}
+                              onChange={(ev) => setEditingItem({
+                                ...editingItem,
+                                data: { ...editingItem.data, url: ev.target.value }
+                              })}
+                              className={`w-full py-3 px-4 rounded-xl border outline-none text-xs font-sans transition-all ${
+                                currentTheme === 'light' 
+                                  ? 'bg-white border-slate-200 text-slate-955 focus:border-amber-500' 
+                                  : 'bg-zinc-900/60 border-white/5 text-white focus:border-amber-500'
+                              } ${isFetchingAmazon ? 'border-amber-500' : ''}`}
+                              placeholder="Paste product link (Amazon etc.)"
+                            />
+                            {isFetchingAmazon && (
+                              <div className="absolute right-3.5 top-3.5 flex items-center gap-1.5 text-[10px] text-amber-500 font-mono font-bold">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping" />
+                                <span>AUTO-DETECTING...</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Minimal modern status bar */}
                           {isFetchingAmazon && (
-                            <div className="absolute right-3.5 top-3.5 flex items-center gap-1.5 text-[10px] text-amber-500 font-mono font-bold">
-                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping" />
-                              <span>AUTO-DETECTING...</span>
+                            <div className="w-full h-1 bg-slate-100 dark:bg-zinc-800/85 rounded-full overflow-hidden mt-1">
+                              <div className="h-full bg-amber-500 rounded-full animate-pulse w-3/4" />
+                            </div>
+                          )}
+
+                          {amazonFetchError && (
+                            <div className="p-2.5 rounded-xl border border-red-500/20 bg-red-500/5 text-red-500 font-sans text-[10px] text-left leading-normal flex gap-1.5 mt-1">
+                              <span>⚠️</span>
+                              <div>
+                                <strong>Auto-detect issue:</strong> {amazonFetchError}
+                                <p className="text-[9px] text-slate-400 mt-0.5">Please check your link or enter details manually below.</p>
+                              </div>
                             </div>
                           )}
                         </div>
 
-                        {/* Minimal modern status bar */}
-                        {isFetchingAmazon && (
-                          <div className="w-full h-1 bg-slate-100 dark:bg-zinc-800/80 rounded-full overflow-hidden mt-1">
-                            <div className="h-full bg-amber-500 rounded-full animate-pulse w-3/4" />
-                          </div>
-                        )}
-
-                        {amazonFetchError && (
-                          <div className="p-2.5 rounded-xl border border-red-500/20 bg-red-500/5 text-red-500 font-sans text-[10px] text-left leading-normal flex gap-1.5 mt-1">
-                            <span>⚠️</span>
-                            <div>
-                              <strong>Auto-detect issue:</strong> {amazonFetchError}
-                              <p className="text-[9px] text-slate-400 mt-0.5">Please check your link or enter details manually below.</p>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* 2. Product Title Input */}
-                      <div className="space-y-1 text-left">
-                        <label className={`text-[10px] uppercase font-mono font-bold tracking-wider ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
-                          Product Title
-                        </label>
-                        {isFetchingAmazon ? (
-                          <div className={`w-full h-10 rounded-xl animate-pulse flex items-center px-3 gap-2 ${
-                            currentTheme === 'light' ? 'bg-slate-100 border border-slate-200' : 'bg-zinc-850 border border-white/5'
-                          }`}>
-                            <span className="w-4 h-4 rounded bg-amber-500/20" />
-                            <div className="h-3.5 bg-slate-300 dark:bg-zinc-700 rounded-full w-2/3" />
-                          </div>
-                        ) : (
-                          <LagFreeInput
-                            type="text"
-                            required
-                            value={editingItem.data.title || ''}
-                            onChange={(val) => setEditingItem({
-                              ...editingItem,
-                              data: { ...editingItem.data, title: val }
-                            })}
-                            className={`w-full p-2.5 rounded-xl border outline-none font-sans font-semibold text-xs ${
-                              currentTheme === 'light' 
-                                ? 'bg-slate-50/50 border-slate-200 text-slate-900 focus:border-amber-500' 
-                                : 'bg-black/30 border-white/5 text-white focus:border-amber-500'
-                            }`}
-                            placeholder="Product Title (e.g., Sony Alpha 7 IV Mirrorless Camera)"
-                          />
-                        )}
-                      </div>
-
-                      {/* 3. Category Selector & Preset Pills */}
-                      <div className="space-y-1.5 text-left">
-                        <label className={`text-[10px] uppercase font-mono font-bold tracking-wider ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
-                          Category Group
-                        </label>
-                        {isFetchingAmazon ? (
-                          <div className="space-y-2">
+                        {/* 2. Product Title Input */}
+                        <div className="space-y-1 text-left">
+                          <label className={`text-[10px] uppercase font-mono font-bold tracking-wider ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
+                            Product Title
+                          </label>
+                          {isFetchingAmazon ? (
                             <div className={`w-full h-10 rounded-xl animate-pulse flex items-center px-3 gap-2 ${
                               currentTheme === 'light' ? 'bg-slate-100 border border-slate-200' : 'bg-zinc-850 border border-white/5'
                             }`}>
                               <span className="w-4 h-4 rounded bg-amber-500/20" />
-                              <div className="h-3.5 bg-slate-300 dark:bg-zinc-700 rounded-full w-1/2" />
+                              <div className="h-3.5 bg-slate-300 dark:bg-zinc-700 rounded-full w-2/3" />
                             </div>
-                            <div className="flex gap-1.5 flex-wrap">
-                              {[1, 2, 3].map(i => (
-                                <div key={i} className={`w-16 h-6 rounded-lg animate-pulse ${
-                                  currentTheme === 'light' ? 'bg-slate-100' : 'bg-zinc-800/60'
-                                }`} />
-                              ))}
-                            </div>
-                          </div>
-                        ) : (
-                          <>
+                          ) : (
                             <LagFreeInput
                               type="text"
                               required
-                              value={editingItem.data.category || ''}
+                              value={editingItem.data.title || ''}
                               onChange={(val) => setEditingItem({
                                 ...editingItem,
-                                data: { ...editingItem.data, category: val }
+                                data: { ...editingItem.data, title: val }
                               })}
-                              className={`w-full p-2.5 rounded-xl border outline-none text-xs font-mono mb-1 ${
-                                currentTheme === 'light' 
-                                  ? 'bg-slate-50/50 border-slate-205 text-slate-800 focus:border-amber-500' 
-                                  : 'bg-black/30 border-white/5 text-slate-200 focus:border-amber-500'
-                              }`}
-                              placeholder="e.g. photography, it_tech, software, accessories"
-                            />
-                            
-                            {/* Dynamic Quick Select Pills */}
-                            <div className="flex flex-wrap gap-1 mt-1.5">
-                              {(() => {
-                                const coreKeys = ['photography', 'it_tech', 'software', 'accessories', 'my_gears'];
-                                const activeKeys = Array.from(new Set([
-                                  ...coreKeys,
-                                  ...affiliateLinks.flatMap(a => (a.category || '').split(',').map(c => c.trim()).filter(Boolean))
-                                ])) as string[];
-                                
-                                return activeKeys.map(cat => {
-                                  const friendlyName = affiliateLabelMap[cat] || cat.split(/[_-]/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-                                  const currentCats = (editingItem.data.category || '').split(',').map(c => c.trim()).filter(Boolean);
-                                  const isSelected = currentCats.includes(cat);
-                                  
-                                  return (
-                                    <button
-                                      key={cat}
-                                      type="button"
-                                      onClick={() => {
-                                        let updatedCats;
-                                        if (isSelected) {
-                                          updatedCats = currentCats.filter(c => c !== cat);
-                                        } else {
-                                          updatedCats = [...currentCats, cat];
-                                        }
-                                        setEditingItem({
-                                          ...editingItem,
-                                          data: { 
-                                            ...editingItem.data, 
-                                            category: updatedCats.join(',')
-                                          }
-                                        });
-                                      }}
-                                      className={`px-2 py-1 rounded-lg border text-[9px] font-mono transition-all cursor-pointer flex items-center gap-1 ${
-                                        isSelected
-                                          ? 'bg-amber-500/10 border-amber-500 text-amber-500 font-bold'
-                                          : currentTheme === 'light'
-                                            ? 'bg-white border-slate-200 text-slate-600 hover:border-slate-400'
-                                            : 'bg-white/5 border-white/5 text-slate-400 hover:text-white hover:bg-white/10'
-                                      }`}
-                                    >
-                                      <span>{friendlyName}</span>
-                                    </button>
-                                  );
-                                });
-                              })()}
-                            </div>
-                          </>
-                        )}
-                      </div>
-
-                      {/* 4. Product Photo Image */}
-                      <div className="space-y-2 text-left">
-                        <label className={`text-[10px] uppercase font-mono font-bold tracking-wider ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
-                          Product Photo Image
-                        </label>
-                        {isFetchingAmazon ? (
-                          <div className={`w-full h-24 rounded-xl animate-pulse flex flex-col items-center justify-center gap-2 ${
-                            currentTheme === 'light' ? 'bg-slate-100 border border-slate-200' : 'bg-zinc-850 border border-white/5'
-                          }`}>
-                            <span className="w-8 h-8 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-500 animate-bounce">📸</span>
-                            <div className="h-2 bg-slate-300 dark:bg-zinc-700 rounded-full w-1/4 animate-pulse" />
-                          </div>
-                        ) : (
-                          <>
-                            <ImageUploader
-                              label="Upload Showcase Affiliate Image"
-                              value={editingItem.data.imageUrl || ''}
-                              currentTheme={currentTheme}
-                              onChange={(val) => setEditingItem({
-                                ...editingItem,
-                                data: { ...editingItem.data, imageUrl: val }
-                              })}
-                            />
-                            <LagFreeInput
-                              type="text"
-                              required
-                              value={editingItem.data.imageUrl || ''}
-                              onChange={(val) => setEditingItem({
-                                ...editingItem,
-                                data: { ...editingItem.data, imageUrl: val }
-                              })}
-                              className={`w-full p-2 rounded-lg border outline-none text-[10px] ${
+                              className={`w-full p-2.5 rounded-xl border outline-none font-sans font-semibold text-xs ${
                                 currentTheme === 'light' 
                                   ? 'bg-slate-50/50 border-slate-200 text-slate-900 focus:border-amber-500' 
                                   : 'bg-black/30 border-white/5 text-white focus:border-amber-500'
                               }`}
-                              placeholder="Or paste direct image URL (e.g. Unsplash, imgur...)"
+                              placeholder="Product Title (e.g., Sony Alpha 7 IV Mirrorless Camera)"
                             />
-                            
-                            {/* Live Image Preview */}
-                            {editingItem.data.imageUrl && (
-                              <div className="relative aspect-video w-full rounded-xl overflow-hidden bg-zinc-950 border border-white/5 mt-1.5">
-                                <LazyImage
-                                  src={editingItem.data.imageUrl}
-                                  alt="Asset preview"
-                                  className="w-full h-full object-contain"
-                                  placeholderClassName="absolute inset-0 z-0"
-                                />
+                          )}
+                        </div>
+
+                        {/* 3. Category Selector & Preset Pills */}
+                        <div className="space-y-1.5 text-left">
+                          <label className={`text-[10px] uppercase font-mono font-bold tracking-wider ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
+                            Category Group
+                          </label>
+                          {isFetchingAmazon ? (
+                            <div className="space-y-2">
+                              <div className={`w-full h-10 rounded-xl animate-pulse flex items-center px-3 gap-2 ${
+                                currentTheme === 'light' ? 'bg-slate-100 border border-slate-200' : 'bg-zinc-850 border border-white/5'
+                              }`}>
+                                <span className="w-4 h-4 rounded bg-amber-500/20" />
+                                <div className="h-3.5 bg-slate-300 dark:bg-zinc-700 rounded-full w-1/2" />
                               </div>
-                            )}
-                          </>
-                        )}
+                              <div className="flex gap-1.5 flex-wrap">
+                                {[1, 2, 3].map(i => (
+                                  <div key={i} className={`w-16 h-6 rounded-lg animate-pulse ${
+                                    currentTheme === 'light' ? 'bg-slate-100' : 'bg-zinc-800/60'
+                                  }`} />
+                                ))}
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              <LagFreeInput
+                                type="text"
+                                required
+                                value={editingItem.data.category || ''}
+                                onChange={(val) => setEditingItem({
+                                  ...editingItem,
+                                  data: { ...editingItem.data, category: val }
+                                })}
+                                className={`w-full p-2.5 rounded-xl border outline-none text-xs font-mono mb-1 ${
+                                  currentTheme === 'light' 
+                                    ? 'bg-slate-50/50 border-slate-205 text-slate-800 focus:border-amber-500' 
+                                    : 'bg-black/30 border-white/5 text-slate-200 focus:border-amber-500'
+                                }`}
+                                placeholder="e.g. photography, it_tech, software, accessories"
+                              />
+                              
+                              {/* Dynamic Quick Select Pills */}
+                              <div className="flex flex-wrap gap-1 mt-1.5">
+                                {(() => {
+                                  const coreKeys = ['photography', 'it_tech', 'software', 'accessories', 'my_gears'];
+                                  const activeKeys = Array.from(new Set([
+                                    ...coreKeys,
+                                    ...affiliateLinks.flatMap(a => (a.category || '').split(',').map(c => c.trim()).filter(Boolean))
+                                  ])) as string[];
+                                  
+                                  return activeKeys.map(cat => {
+                                    const friendlyName = affiliateLabelMap[cat] || cat.split(/[_-]/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+                                    const currentCats = (editingItem.data.category || '').split(',').map(c => c.trim()).filter(Boolean);
+                                    const isSelected = currentCats.includes(cat);
+                                    
+                                    return (
+                                      <button
+                                        key={cat}
+                                        type="button"
+                                        onClick={() => {
+                                          let updatedCats;
+                                          if (isSelected) {
+                                            updatedCats = currentCats.filter(c => c !== cat);
+                                          } else {
+                                            updatedCats = [...currentCats, cat];
+                                          }
+                                          setEditingItem({
+                                            ...editingItem,
+                                            data: { 
+                                              ...editingItem.data, 
+                                              category: updatedCats.join(',')
+                                            }
+                                          });
+                                        }}
+                                        className={`px-2 py-1 rounded-lg border text-[9px] font-mono transition-all cursor-pointer flex items-center gap-1 ${
+                                          isSelected
+                                            ? 'bg-amber-500/10 border-amber-500 text-amber-500 font-bold'
+                                            : currentTheme === 'light'
+                                              ? 'bg-white border-slate-200 text-slate-600 hover:border-slate-400'
+                                              : 'bg-white/5 border-white/5 text-slate-400 hover:text-white hover:bg-white/10'
+                                        }`}
+                                      >
+                                        <span>{friendlyName}</span>
+                                      </button>
+                                    );
+                                  });
+                                })()}
+                              </div>
+                            </>
+                          )}
+                        </div>
+
+                        {/* 4. Product Photo Image */}
+                        <div className="space-y-2 text-left">
+                          <label className={`text-[10px] uppercase font-mono font-bold tracking-wider ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
+                            Product Photo Image
+                          </label>
+                          {isFetchingAmazon ? (
+                            <div className={`w-full h-24 rounded-xl animate-pulse flex flex-col items-center justify-center gap-2 ${
+                              currentTheme === 'light' ? 'bg-slate-100 border border-slate-200' : 'bg-zinc-850 border border-white/5'
+                            }`}>
+                              <span className="w-8 h-8 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-500 animate-bounce">📸</span>
+                              <div className="h-2 bg-slate-300 dark:bg-zinc-700 rounded-full w-1/4" />
+                            </div>
+                          ) : (
+                            <>
+                              <ImageUploader
+                                label="Upload Showcase Affiliate Image"
+                                value={editingItem.data.imageUrl || ''}
+                                currentTheme={currentTheme}
+                                onChange={(val) => setEditingItem({
+                                  ...editingItem,
+                                  data: { ...editingItem.data, imageUrl: val }
+                                })}
+                              />
+                              <LagFreeInput
+                                type="text"
+                                required
+                                value={editingItem.data.imageUrl || ''}
+                                onChange={(val) => setEditingItem({
+                                  ...editingItem,
+                                  data: { ...editingItem.data, imageUrl: val }
+                                })}
+                                className={`w-full p-2 rounded-lg border outline-none text-[10px] ${
+                                  currentTheme === 'light' 
+                                    ? 'bg-slate-50/50 border-slate-200 text-slate-900 focus:border-amber-500' 
+                                    : 'bg-black/30 border-white/5 text-white focus:border-amber-500'
+                                }`}
+                                placeholder="Or paste direct image URL (e.g. Unsplash, imgur...)"
+                              />
+                            </>
+                          )}
+                        </div>
+
+                        {/* Grid: Price and Promo Code */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          {/* 5. Optional Promo / Discount Code */}
+                          <div className="space-y-1 text-left">
+                            <label className={`text-[10px] uppercase font-mono font-bold tracking-wider ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
+                              Promo / Discount Code (Optional)
+                            </label>
+                            <LagFreeInput
+                              type="text"
+                              value={editingItem.data.discountCode || ''}
+                              onChange={(val) => setEditingItem({
+                                ...editingItem,
+                                data: { ...editingItem.data, discountCode: val }
+                              })}
+                              className={`w-full p-2.5 rounded-xl border outline-none text-xs font-mono ${
+                                currentTheme === 'light' 
+                                  ? 'bg-slate-50/50 border-slate-200 text-slate-955 focus:border-amber-500' 
+                                  : 'bg-black/30 border-white/5 text-slate-100 focus:border-amber-500'
+                              }`}
+                              placeholder="e.g. PIXELSSD990, FRAMEANCHOR8"
+                            />
+                          </div>
+
+                          {/* 6. Product Price / Value (Optional) */}
+                          <div className="space-y-1 text-left">
+                            <label className={`text-[10px] uppercase font-mono font-bold tracking-wider ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
+                              Price / Value (e.g. ₹7,499, $89)
+                            </label>
+                            <LagFreeInput
+                              type="text"
+                              value={editingItem.data.price || ''}
+                              onChange={(val) => setEditingItem({
+                                ...editingItem,
+                                data: { ...editingItem.data, price: val }
+                              })}
+                              className={`w-full p-2.5 rounded-xl border outline-none text-xs font-mono ${
+                                currentTheme === 'light' 
+                                  ? 'bg-slate-50/50 border-slate-200 text-slate-955 focus:border-amber-500' 
+                                  : 'bg-black/30 border-white/5 text-slate-100 focus:border-amber-500'
+                              }`}
+                              placeholder="e.g. ₹4,499, $149"
+                            />
+                          </div>
+                        </div>
+
+                        {/* 7. Recommendation Description Copy */}
+                        <div className="space-y-1 text-left">
+                          <label className={`text-[10px] uppercase font-mono font-bold tracking-wider ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
+                            Recommendation Text / Testimony
+                          </label>
+                          {isFetchingAmazon ? (
+                            <div className={`w-full h-24 rounded-xl animate-pulse p-3 space-y-2.5 ${
+                              currentTheme === 'light' ? 'bg-slate-100 border border-slate-200' : 'bg-zinc-850 border border-white/5'
+                            }`}>
+                              <div className="h-3.5 bg-slate-300 dark:bg-zinc-700 rounded-full w-11/12" />
+                              <div className="h-3.5 bg-slate-300 dark:bg-zinc-700 rounded-full w-10/12" />
+                              <div className="h-3.5 bg-slate-300 dark:bg-zinc-700 rounded-full w-2/3" />
+                            </div>
+                          ) : (
+                            <LagFreeTextArea
+                              required
+                              rows={3}
+                              value={editingItem.data.description || ''}
+                              onChange={(val) => setEditingItem({
+                                ...editingItem,
+                                data: { ...editingItem.data, description: val }
+                              })}
+                              className={`w-full p-2.5 rounded-xl border outline-none text-xs font-sans leading-relaxed ${
+                                currentTheme === 'light' 
+                                  ? 'bg-slate-50/50 border-slate-200 text-slate-900 focus:border-amber-500' 
+                                  : 'bg-black/30 border-white/5 text-white focus:border-amber-500'
+                              }`}
+                              placeholder="Explain why this gadget/software is highly recommended..."
+                            />
+                          )}
+                        </div>
                       </div>
 
-                      {/* 5. Recommendation Description Copy */}
-                      <div className="space-y-1 text-left">
-                        <label className={`text-[10px] uppercase font-mono font-bold tracking-wider ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
-                          Recommendation Text / Testimony
-                        </label>
-                        {isFetchingAmazon ? (
-                          <div className={`w-full h-24 rounded-xl animate-pulse p-3 space-y-2.5 ${
-                            currentTheme === 'light' ? 'bg-slate-100 border border-slate-200' : 'bg-zinc-850 border border-white/5'
-                          }`}>
-                            <div className="h-3.5 bg-slate-300 dark:bg-zinc-700 rounded-full w-11/12" />
-                            <div className="h-3.5 bg-slate-300 dark:bg-zinc-700 rounded-full w-10/12" />
-                            <div className="h-3.5 bg-slate-300 dark:bg-zinc-700 rounded-full w-2/3" />
-                          </div>
-                        ) : (
-                          <LagFreeTextArea
-                            required
-                            rows={3}
-                            value={editingItem.data.description || ''}
-                            onChange={(val) => setEditingItem({
-                              ...editingItem,
-                              data: { ...editingItem.data, description: val }
-                            })}
-                            className={`w-full p-2.5 rounded-xl border outline-none text-xs font-sans leading-relaxed ${
-                              currentTheme === 'light' 
-                                ? 'bg-slate-50/50 border-slate-200 text-slate-900 focus:border-amber-500' 
-                                : 'bg-black/30 border-white/5 text-white focus:border-amber-500'
+                      {/* Right Column: Live Interactive Card Preview */}
+                      <div className="lg:col-span-5 lg:sticky lg:top-4 space-y-3">
+                        <span className={`text-[9px] uppercase font-mono font-black tracking-widest block text-center lg:text-left ${
+                          currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'
+                        }`}>
+                          ✨ Live Workspace Preview
+                        </span>
+
+                        <div className="p-2 border border-dashed rounded-[32px] border-amber-500/20 bg-amber-500/[0.01] flex items-center justify-center">
+                          <div
+                            className={`w-full max-w-sm rounded-3xl border overflow-hidden flex flex-col justify-between group transition-all duration-300 relative h-full ${
+                              currentTheme === 'light'
+                                ? 'bg-white border-slate-200 shadow-sm'
+                                : 'bg-zinc-950 border-white/5 shadow-2xl'
                             }`}
-                            placeholder="Explain why this gadget/software is highly recommended..."
-                          />
-                        )}
-                      </div>
-                      
-                      {/* 6. Optional Promo / Discount Code */}
-                      <div className="space-y-1 text-left">
-                        <label className={`text-[10px] uppercase font-mono font-bold tracking-wider ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
-                          Promo / Discount Code (Optional)
-                        </label>
-                        <LagFreeInput
-                          type="text"
-                          value={editingItem.data.discountCode || ''}
-                          onChange={(val) => setEditingItem({
-                            ...editingItem,
-                            data: { ...editingItem.data, discountCode: val }
-                          })}
-                          className={`w-full p-2.5 rounded-xl border outline-none text-xs font-mono ${
-                            currentTheme === 'light' 
-                              ? 'bg-slate-50/50 border-slate-200 text-slate-955 focus:border-amber-500' 
-                              : 'bg-black/30 border-white/5 text-slate-100 focus:border-amber-500'
-                          }`}
-                          placeholder="e.g. PIXELSSD990, FRAMEANCHOR8"
-                        />
+                          >
+                            <div className={`px-4 py-3 border-b flex items-center justify-between gap-2 ${
+                              currentTheme === 'light' ? 'bg-slate-50/50 border-slate-200/50' : 'bg-black/15 border-white/5'
+                            }`}>
+                              <div className="flex flex-wrap items-center gap-1 min-w-0">
+                                {(editingItem.data.category || 'photography').split(',').map(c => c.trim()).filter(Boolean).map((catId) => {
+                                  const categoryLabelStr = affiliateLabelMap[catId] || catId;
+                                  return (
+                                    <span 
+                                      key={catId} 
+                                      className="px-2 py-0.5 rounded-full text-[7px] uppercase tracking-widest font-mono font-black border bg-amber-500/10 text-amber-500 border-amber-500/20"
+                                    >
+                                      {categoryLabelStr}
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                              <span className="text-[7.5px] font-mono font-bold bg-amber-500 text-black px-1.5 py-0.5 rounded-full uppercase tracking-wider">
+                                LIVE PREVIEW
+                              </span>
+                            </div>
+
+                            <div className="relative aspect-video w-full overflow-hidden bg-slate-950 border-b border-slate-200/50 dark:border-white/5">
+                              <div className="absolute top-2.5 left-3 px-1.5 py-0.5 rounded bg-amber-500/90 text-white font-mono text-[7px] font-black tracking-widest uppercase z-10">
+                                🛡️ VERIFIED
+                              </div>
+                              {editingItem.data.imageUrl ? (
+                                <img
+                                  src={editingItem.data.imageUrl}
+                                  alt="Live preview"
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex flex-col items-center justify-center text-slate-600 bg-slate-900 text-[10px] font-mono uppercase tracking-wider p-4 text-center">
+                                  <span>No image defined</span>
+                                  <span className="text-[8px] text-slate-500 mt-1">Paste URL or select image above</span>
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="px-4 pt-4 text-left">
+                              <h3 className={`text-xs md:text-sm font-extrabold tracking-tight leading-snug line-clamp-2 ${
+                                currentTheme === 'light' ? 'text-slate-900' : 'text-white'
+                              }`}>
+                                {editingItem.data.title || 'Untitled Recommendation Listing'}
+                              </h3>
+                              <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                                {editingItem.data.discountCode && (
+                                  <span className="text-[8px] font-mono uppercase bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-1.5 py-0.5 rounded flex items-center gap-1 font-bold shadow-xs">
+                                    <span>🏷️ PROMO:</span>
+                                    <span className="font-mono tracking-wider font-black">{editingItem.data.discountCode}</span>
+                                  </span>
+                                )}
+                                {editingItem.data.price && (
+                                  <span className="text-[8px] font-mono uppercase bg-amber-500/10 text-amber-500 border border-amber-500/20 px-1.5 py-0.5 rounded flex items-center gap-1 font-bold shadow-xs">
+                                    <span>💰 VALUE:</span>
+                                    <span className="font-mono tracking-wider font-black">{editingItem.data.price}</span>
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="px-4 py-3 text-left">
+                              <p className={`text-[11px] leading-relaxed font-sans line-clamp-3 ${
+                                currentTheme === 'light' ? 'text-slate-600 font-medium' : 'text-slate-400'
+                              }`}>
+                                {editingItem.data.description || 'Provide a brief, compelling testimony explaining why this gear is recommended...'}
+                              </p>
+                            </div>
+
+                            <div className="p-4 pt-0 mt-auto">
+                              <div className="w-full py-2.5 rounded-xl font-bold font-mono text-[9px] uppercase tracking-wider flex items-center justify-center gap-2 border border-slate-700 bg-white/5 text-slate-400">
+                                <span>SHOP PARTNER DEAL</span>
+                                <ArrowUpRight size={10} />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   )}

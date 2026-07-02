@@ -1079,9 +1079,9 @@ async function expandUrl(url: string): Promise<string> {
 }
 
 // API Route to fetch & extract product details from an Amazon link
-app.post("/api/fetch-amazon-product", async (req, res) => {
+app.all("/api/fetch-amazon-product", async (req, res) => {
   try {
-    const { url } = req.body;
+    const url = req.method === "GET" ? (req.query.url as string) : (req.body?.url as string);
     if (!url || typeof url !== "string") {
       return res.status(400).json({ error: "URL is required and must be a string." });
     }
