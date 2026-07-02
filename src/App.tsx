@@ -4384,18 +4384,18 @@ export default function App() {
                 </p>
               </ScrollReveal>
               
-              <div className="pt-2 flex flex-wrap justify-center gap-3">
+              <div className="pt-2 flex flex-col sm:flex-row justify-center items-center gap-3">
                 <button
                   onClick={() => triggerQuickBooking('it_fix', 'Hi Murari, I want to book doorstep PC support!')}
-                  className="bg-green-600 hover:bg-green-700 text-white text-xs uppercase font-extrabold px-5 py-2.5 rounded-lg flex items-center gap-1.5 cursor-pointer transition-all duration-200"
+                  className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white text-xs uppercase font-extrabold px-5 py-2.5 rounded-lg flex items-center justify-center gap-2 cursor-pointer transition-all duration-200"
                 >
-                  <WhatsAppIcon size={14} /> Send WhatsApp Support Ticket
+                  <WhatsAppIcon size={14} /> <span>Send WhatsApp Support Ticket</span>
                 </button>
                 <a
                   href={`tel:${contactPhoneIt}`}
-                  className="bg-white hover:bg-zinc-200 text-black text-xs uppercase font-extrabold px-5 py-2.5 rounded-lg flex items-center gap-1.5 transition-all duration-200"
+                  className="w-full sm:w-auto bg-white hover:bg-zinc-200 text-black text-xs uppercase font-extrabold px-5 py-2.5 rounded-lg flex items-center justify-center gap-2 transition-all duration-200"
                 >
-                  <Phone size={14} /> Call Support Now
+                  <Phone size={14} /> <span>Call Support Now</span>
                 </a>
               </div>
             </div>
@@ -4687,20 +4687,20 @@ export default function App() {
                 </p>
               </ScrollReveal>
 
-              <div className="pt-2 flex flex-wrap justify-center gap-3">
+              <div className="pt-2 flex flex-col sm:flex-row justify-center items-center gap-3">
                 <button
                   onClick={() => triggerQuickBooking('photography', 'Hello Murari, I want to book photography coverage!')}
-                  className="bg-green-600 hover:bg-green-700 text-white text-xs uppercase font-extrabold px-5 py-2.5 rounded-lg flex items-center gap-1.5"
+                  className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white text-xs uppercase font-extrabold px-5 py-2.5 rounded-lg flex items-center justify-center gap-2 cursor-pointer transition-all duration-200"
                 >
-                  <WhatsAppIcon size={14} /> Send WhatsApp Photo Ticket
+                  <WhatsAppIcon size={14} /> <span>Send WhatsApp Photo Ticket</span>
                 </button>
                 <a
                   href={`tel:${contactPhonePhotos}`}
-                  className={`bg-white hover:bg-zinc-200 text-black text-xs uppercase font-extrabold px-5 py-2.5 rounded-lg flex items-center gap-1.5 ${
+                  className={`w-full sm:w-auto bg-white hover:bg-zinc-200 text-black text-xs uppercase font-extrabold px-5 py-2.5 rounded-lg flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer ${
                     currentTheme === 'light' ? 'border border-slate-200 shadow-sm' : ''
                   }`}
                 >
-                  <Phone size={14} /> Dial Photographer Now
+                  <Phone size={14} /> <span>Dial Photographer Now</span>
                 </a>
               </div>
             </div>
@@ -6704,7 +6704,7 @@ export default function App() {
                         }}
                         className="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded-xl text-[10px] font-extrabold uppercase tracking-widest flex items-center justify-center gap-1.5 cursor-pointer shadow-md"
                       >
-                        <WhatsAppIcon size={12} /> WhatsApp Inquiry
+                        <WhatsAppIcon size={12} /> <span>WhatsApp Inquiry</span>
                       </button>
                     </div>
                   </ScrollReveal>
@@ -6726,18 +6726,18 @@ export default function App() {
                     We offer tailored solutions for high-scale enterprise network configurations, office maintenance contracts, or multi-day destination event photography packages.
                   </p>
                 </div>
-                <div className="pt-2 flex flex-wrap justify-center gap-3">
+                <div className="pt-2 flex flex-col sm:flex-row justify-center items-center gap-3">
                   <button
                     onClick={() => handleEstimateCostRedirect('pixelfix', 'Inquiring about fully customized package solutions.')}
-                    className="bg-[#FF5500] hover:bg-[#FF4400] text-white px-5 py-2.5 rounded-xl font-extrabold text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-md hover:shadow-[#FF5500]/20 active:scale-95 transition-all cursor-pointer"
+                    className="w-full sm:w-auto bg-[#FF5500] hover:bg-[#FF4400] text-white px-5 py-2.5 rounded-xl font-extrabold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-md hover:shadow-[#FF5500]/20 active:scale-95 transition-all cursor-pointer"
                   >
-                    Configure Custom Quote
+                    <span>Configure Custom Quote</span>
                   </button>
                   <button
                     onClick={() => triggerQuickBooking('it_fix', 'Hello Murari, I have a custom project requirement. Please consult with me.')}
-                    className="bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-xl font-extrabold text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-md active:scale-95 transition-all cursor-pointer"
+                    className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-xl font-extrabold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-md active:scale-95 transition-all cursor-pointer"
                   >
-                    <WhatsAppIcon size={14} /> WhatsApp Custom Consult
+                    <WhatsAppIcon size={14} /> <span>WhatsApp Custom Consult</span>
                   </button>
                 </div>
               </div>
@@ -6806,7 +6806,7 @@ export default function App() {
                     onClick={() => triggerQuickBooking('it_fix', 'Hello Murari, I want to book standard doorstep computer repair support!')}
                     className="w-full bg-green-600 hover:bg-green-700 text-white font-extrabold text-xs uppercase py-3.5 tracking-wider rounded-lg flex items-center justify-center gap-2"
                   >
-                    <WhatsAppIcon size={14} /> Send WhatsApp Support Ticket
+                    <WhatsAppIcon size={14} /> <span>Send WhatsApp Support Ticket</span>
                   </button>
                   <a
                     href={`tel:${contactPhoneIt}`}
@@ -6849,7 +6849,7 @@ export default function App() {
                     onClick={() => triggerQuickBooking('photography', 'Hello Murari, I am inquiring about wedding, anniversary, or corporate event photography packages!')}
                     className="w-full bg-green-600 hover:bg-green-700 text-white font-extrabold text-xs uppercase py-3.5 tracking-wider rounded-lg flex items-center justify-center gap-2"
                   >
-                    <WhatsAppIcon size={14} /> WhatsApp Photographer
+                    <WhatsAppIcon size={14} /> <span>WhatsApp Photographer</span>
                   </button>
                   <a
                     href={`tel:${contactPhonePhotos}`}
@@ -9456,19 +9456,19 @@ export default function App() {
                     setPreviewImage(null);
                     triggerQuickBooking('photography', `Hi Murari, I just saw your photo "${previewImage.title}" in your portfolio! I would like to inquire about similar event coverage details.`);
                   }}
-                  className="bg-[#FF5500] hover:bg-[#FF4400] text-zinc-100 px-5 py-2.5 rounded-xl text-xs font-extrabold uppercase tracking-wide flex items-center justify-center gap-1.5 cursor-pointer"
+                  className="w-full sm:flex-1 bg-[#FF5500] hover:bg-[#FF4400] text-zinc-100 px-5 py-2.5 rounded-xl text-xs font-extrabold uppercase tracking-wide flex items-center justify-center gap-2 cursor-pointer transition-all duration-200"
                 >
-                  <WhatsAppIcon size={14} /> Request Portfolio Similar Shoot
+                  <WhatsAppIcon size={14} /> <span>Request Portfolio Similar Shoot</span>
                 </button>
                 <button
                   onClick={() => setPreviewImage(null)}
-                  className={`px-5 py-2.5 rounded-xl text-xs font-extrabold uppercase tracking-wide cursor-pointer transition-colors ${
+                  className={`w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs font-extrabold uppercase tracking-wide cursor-pointer transition-colors ${
                     currentTheme === 'light'
                       ? 'bg-slate-100 hover:bg-slate-200 text-slate-800'
                       : 'bg-white/5 hover:bg-white/10 text-white'
                   }`}
                 >
-                  Close Spec Preview
+                  <span>Close Spec Preview</span>
                 </button>
               </div>
             </motion.div>
