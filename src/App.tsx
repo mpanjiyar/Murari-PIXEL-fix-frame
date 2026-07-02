@@ -1119,7 +1119,8 @@ export default function App() {
   const initialUrlRef = useRef<string>('');
   const amazonCacheRef = useRef<Map<string, any>>(new Map());
 
-  // Cleans product titles, removing any remaining double escaped or HTML entity noise while preserving the full title and model/specification details
+  // Cleans product titles, removing any remaining double escaped or HTML entity noise while preserving the full title and model/specification details.
+  // Professionally simplifies the titles and strictly limits them to a maximum of 15 words.
   const cleanTitle = (rawTitle: string): string => {
     if (!rawTitle) return '';
     
@@ -1158,8 +1159,21 @@ export default function App() {
       .replace(/\s*\|\s*(?:Amazon|Flipkart|Shop|Store|Best Buy|Ebay)(?:\.(?:com|in|co\.uk|org|net))?\s*$/i, "")
       .replace(/\s*-\s*(?:Amazon|Flipkart|Shop|Store|Best Buy|Ebay)(?:\.(?:com|in|co\.uk|org|net))?\s*$/i, "");
 
+    // 3. Remove common keyword-stuffed fluff phrases to keep the title professional and clear
+    clean = clean
+      .replace(/\s+for\s+(?:laptops?|pc|desktops?|gaming|workstations?|macbooks?|notebooks?|cameras?|smartphones?|ps5|xbox|consoles?)(?:\s*(?:\/|or|,)\s*(?:laptops?|pc|desktops?|gaming|workstations?|macbooks?|notebooks?|cameras?|smartphones?|ps5|xbox|consoles?))*/gi, "")
+      .replace(/\s+(?:compatible\s+with|suited\s+for|designed\s+for|optimized\s+for|ideal\s+for)\s+[^,\-\(\[\|]+/gi, "")
+      .replace(/\s+[\(\[]\s*(?:pack\s+of\s+\d+|renewed|refurbished|imported|international\s+version|color:\s*[\w\s]+)\s*[\)\]]/gi, "")
+      .replace(/\s+[\-\|\:]\s*(?:best\s+choice|high\s+quality|premium\s+edition|professional\s+use|multipurpose|all\s+in\s+one).*$/i, "");
+
     // Clean trailing punctuation
     clean = clean.replace(/[\s\-|:|;|,]+$/, "").trim();
+
+    // 4. Enforce strict 15-word maximum limit
+    const words = clean.split(/\s+/).filter(Boolean);
+    if (words.length > 15) {
+      return words.slice(0, 15).join(' ') + '...';
+    }
 
     return clean;
   };
@@ -1526,23 +1540,7 @@ export default function App() {
     }
   };
 
-  useEffect(() => {
-    if (editingItem?.type !== 'affiliate_link') return;
-    const url = editingItem.data.url;
-    if (!url || typeof url !== 'string' || !url.trim()) return;
-
-    const looksLikeUrl = /^(https?:\/\/)?([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}/i.test(url);
-    if (!looksLikeUrl) return;
-
-    if (url === lastFetchedUrlRef.current) return;
-
-    const timer = setTimeout(() => {
-      lastFetchedUrlRef.current = url;
-      fetchAmazonDetails(url, false);
-    }, 400);
-
-    return () => clearTimeout(timer);
-  }, [editingItem?.data?.url, editingItem?.type]);
+  // Auto-fetch was disabled per user request. Use the explicit manual "Auto Fetch" button in the form.
 
   const [isSaving, setIsSaving] = useState(false);
   const [isSavingIdentity, setIsSavingIdentity] = useState(false);
@@ -1587,6 +1585,25 @@ export default function App() {
 
   // Active picture preview modal
   const [previewImage, setPreviewImage] = useState<GalleryItem | null>(null);
+  const [modalImageAspectRatio, setModalImageAspectRatio] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (previewImage?.imageUrl) {
+      const img = new Image();
+      img.src = previewImage.imageUrl;
+      img.onload = () => {
+        if (img.naturalWidth && img.naturalHeight) {
+          setModalImageAspectRatio(img.naturalWidth / img.naturalHeight);
+        }
+      };
+      img.onerror = () => {
+        setModalImageAspectRatio(null);
+      };
+    } else {
+      setModalImageAspectRatio(null);
+    }
+  }, [previewImage]);
+
   const [previewMode, setPreviewMode] = useState<'finished' | 'comparison'>('finished');
   const [isSmpsCalculatorOpen, setIsSmpsCalculatorOpen] = useState(false);
   const [isPhotoResizerOpen, setIsPhotoResizerOpen] = useState(false);
@@ -6539,7 +6556,7 @@ export default function App() {
 
                             <LazyImage
                               src={item.imageUrl || 'https://images.unsplash.com/photo-1542751371-adc38448a05e'}
-                              alt={item.title}
+                              alt={cleanTitle(item.title)}
                               className="w-full h-full object-cover transition-transform duration-700 ease-in-out scale-100 group-hover:scale-105"
                               placeholderClassName="absolute inset-0 z-0"
                             />
@@ -6553,7 +6570,7 @@ export default function App() {
                             <h3 className={`text-xs md:text-sm font-extrabold tracking-tight leading-snug line-clamp-2 ${
                               currentTheme === 'light' ? 'text-slate-900' : 'text-white'
                             }`}>
-                              {item.title}
+                              {cleanTitle(item.title)}
                             </h3>
                             <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                               {item.discountCode && (
@@ -9565,15 +9582,27 @@ export default function App() {
                 </span>
               </div>
 
-              <div className={`aspect-video w-full rounded-2xl overflow-hidden relative border ${
-                currentTheme === 'light' ? 'bg-slate-100 border-slate-200' : 'bg-black border-white/5'
-              }`}>
-                <LazyImage
-                  src={previewImage.imageUrl}
-                  alt={previewImage.altText}
-                  className="w-full h-full object-contain"
-                  placeholderClassName="absolute inset-0 z-0"
-                />
+              <div className="w-full flex justify-center">
+                <div 
+                  className={`rounded-2xl overflow-hidden relative border transition-all duration-300 ${
+                    currentTheme === 'light' ? 'bg-slate-100 border-slate-200' : 'bg-black border-white/5'
+                  }`}
+                  style={{ 
+                    aspectRatio: modalImageAspectRatio ? `${modalImageAspectRatio}` : '16/9',
+                    width: modalImageAspectRatio 
+                      ? `min(100%, calc(55vh * ${modalImageAspectRatio}))` 
+                      : '100%',
+                    maxHeight: '55vh',
+                    maxWidth: '100%'
+                  }}
+                >
+                  <LazyImage
+                    src={previewImage.imageUrl}
+                    alt={previewImage.altText}
+                    className="w-full h-full object-contain"
+                    placeholderClassName="absolute inset-0 z-0"
+                  />
+                </div>
               </div>
 
               <div className="space-y-2 text-left">
@@ -10322,7 +10351,7 @@ export default function App() {
                       } else if (editingItem.type === 'affiliate_link') {
                         const itemData = {
                           id: editingItem.data.id || 'aff_' + Date.now().toString(),
-                          title: editingItem.data.title || '',
+                          title: cleanTitle(editingItem.data.title || ''),
                           description: editingItem.data.description || '',
                           category: (editingItem.data.category || '')
                             .split(',')
@@ -10947,35 +10976,60 @@ export default function App() {
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
                       {/* Left Column: Form Controls */}
                       <div className="lg:col-span-7 space-y-4">
-                        {/* 1. Product Link Input (Auto-detecting) */}
+                        {/* 1. Product Link Input (Manual-trigger) */}
                         <div className="space-y-1 text-left">
                           <label className={`text-[10px] uppercase font-mono font-bold tracking-wider ${currentTheme === 'light' ? 'text-slate-600' : 'text-slate-400'}`}>
                             Product Link (Target Buy URL)
                           </label>
-                          <div className="relative">
-                            <input
-                              type="url"
-                              required
-                              value={editingItem.data.url || ''}
-                              onChange={(ev) => setEditingItem({
-                                ...editingItem,
-                                data: { ...editingItem.data, url: ev.target.value }
-                              })}
-                              className={`w-full py-3 px-4 rounded-xl border outline-none text-xs font-sans transition-all ${
-                                currentTheme === 'light' 
-                                  ? 'bg-white border-slate-200 text-slate-955 focus:border-amber-500' 
-                                  : 'bg-zinc-900/60 border-white/5 text-white focus:border-amber-500'
-                              } ${isFetchingAmazon ? 'border-amber-500' : ''}`}
-                              placeholder="Paste product link (Amazon etc.)"
-                            />
-                            {isFetchingAmazon && (
-                              <div className="absolute right-3.5 top-3.5 flex items-center gap-1.5 text-[10px] text-amber-500 font-mono font-bold">
-                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping" />
-                                <span>AUTO-DETECTING...</span>
-                              </div>
-                            )}
+                          <div className="flex flex-col sm:flex-row gap-2">
+                            <div className="relative flex-1">
+                              <input
+                                type="url"
+                                required
+                                value={editingItem.data.url || ''}
+                                onChange={(ev) => setEditingItem({
+                                  ...editingItem,
+                                  data: { ...editingItem.data, url: ev.target.value }
+                                })}
+                                className={`w-full py-3 px-4 rounded-xl border outline-none text-xs font-sans transition-all ${
+                                  currentTheme === 'light' 
+                                    ? 'bg-white border-slate-200 text-slate-955 focus:border-amber-500' 
+                                    : 'bg-zinc-900/60 border-white/5 text-white focus:border-amber-500'
+                                } ${isFetchingAmazon ? 'border-amber-500' : ''}`}
+                                placeholder="Paste product link (Amazon etc.)"
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const url = editingItem.data.url;
+                                if (url && url.trim()) {
+                                  lastFetchedUrlRef.current = url;
+                                  fetchAmazonDetails(url, true);
+                                } else {
+                                  triggerToast("Please enter a valid product link first", "info");
+                                }
+                              }}
+                              disabled={isFetchingAmazon || !editingItem.data.url?.trim()}
+                              className={`py-3 px-4 rounded-xl border font-mono text-[11px] font-bold tracking-wider transition-all cursor-pointer whitespace-nowrap flex items-center justify-center gap-1.5 select-none ${
+                                currentTheme === 'light'
+                                  ? 'bg-amber-50 border-amber-200 hover:bg-amber-100 text-amber-800 disabled:bg-slate-50 disabled:border-slate-200 disabled:text-slate-400'
+                                  : 'bg-amber-950/40 border-amber-500/20 hover:bg-amber-950/60 text-amber-300 disabled:bg-zinc-900/40 disabled:border-white/5 disabled:text-zinc-600'
+                              }`}
+                            >
+                              {isFetchingAmazon ? (
+                                <>
+                                  <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-500" />
+                                  <span>FETCHING...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                                  <span>AUTO FETCH</span>
+                                </>
+                              )}
+                            </button>
                           </div>
-
                           {/* Minimal modern status bar */}
                           {isFetchingAmazon && (
                             <div className="w-full h-1 bg-slate-100 dark:bg-zinc-800/85 rounded-full overflow-hidden mt-1">
