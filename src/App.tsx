@@ -1401,6 +1401,104 @@ export default function App() {
 
       console.error(`[Auto-Fill] Error fetching product details for URL "${urlToFetch}":`, err);
       
+      // Client-side fallback extraction from the URL directly as a last-resort safe fallback
+      try {
+        console.info("[Auto-Fill Fallback] Attempting client-side URL parsing fallback...");
+        
+        // 1. Try to extract ASIN
+        let asin = "";
+        const asinPatterns = [
+          /\/dp\/([A-Z0-9]{10})/i,
+          /\/gp\/product\/([A-Z0-9]{10})/i,
+          /\/d\/([A-Z0-9]{10})/i,
+          /[?&]asin=([A-Z0-9]{10})/i
+        ];
+        for (const pattern of asinPatterns) {
+          const match = urlToFetch.match(pattern);
+          if (match && match[1]) {
+            asin = match[1].toUpperCase();
+            break;
+          }
+        }
+
+        // 2. Try to extract title from the path slug
+        let extractedTitle = "";
+        try {
+          const pathname = new URL(urlToFetch).pathname;
+          const parts = pathname.split('/').filter(p => p.length > 4 && !p.includes('.') && !['dp', 'gp', 'product', 'd'].includes(p.toLowerCase()));
+          if (parts.length > 0) {
+            extractedTitle = parts[0]
+              .replace(/_|-/g, ' ')
+              .replace(/\b(ref|ie|UTF8|qid|sr|pf_rd_.*)\b.*/gi, '')
+              .trim();
+          }
+        } catch (_) {}
+
+        if (!extractedTitle && asin) {
+          extractedTitle = `Product (ASIN: ${asin})`;
+        } else if (!extractedTitle) {
+          extractedTitle = "Curated Product Gear";
+        }
+
+        // Capitalize words beautifully
+        extractedTitle = extractedTitle
+          .split(' ')
+          .map(w => w ? (w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()) : '')
+          .filter(Boolean)
+          .join(' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+
+        // Limit length
+        if (extractedTitle.length > 80) {
+          extractedTitle = extractedTitle.substring(0, 80) + "...";
+        }
+
+        // 3. Try to determine category
+        let category: 'photography' | 'it_tech' | 'software' | 'accessories' = 'accessories';
+        const lowercaseUrl = urlToFetch.toLowerCase();
+        if (lowercaseUrl.includes('camera') || lowercaseUrl.includes('lens') || lowercaseUrl.includes('tripod') || lowercaseUrl.includes('microphone') || lowercaseUrl.includes('gimbal')) {
+          category = 'photography';
+        } else if (lowercaseUrl.includes('ssd') || lowercaseUrl.includes('drive') || lowercaseUrl.includes('router') || lowercaseUrl.includes('laptop') || lowercaseUrl.includes('ram') || lowercaseUrl.includes('desktop')) {
+          category = 'it_tech';
+        } else if (lowercaseUrl.includes('software') || lowercaseUrl.includes('license') || lowercaseUrl.includes('windows') || lowercaseUrl.includes('creative-cloud')) {
+          category = 'software';
+        }
+
+        const placeholderImageUrl = asin 
+          ? `https://images-na.ssl-images-amazon.com/images/P/${asin}.01.LZZZZZZZ.jpg`
+          : "https://images.unsplash.com/photo-1531403009284-440f080d1e12?auto=format&fit=crop&q=80&w=600";
+
+        setEditingItem(prev => {
+          if (!prev) return null;
+          const shouldOverwrite = autoFillMode === 'overwrite';
+          
+          const updatedTitle = (shouldOverwrite || !prev.data.title?.trim()) ? (extractedTitle || prev.data.title || '') : (prev.data.title || extractedTitle || '');
+          const updatedDescription = (shouldOverwrite || !prev.data.description?.trim()) ? (`Curated product link: ${urlToFetch}` || prev.data.description || '') : (prev.data.description || `Curated product link: ${urlToFetch}`);
+          const updatedImageUrl = (shouldOverwrite || !prev.data.imageUrl?.trim()) ? (placeholderImageUrl || prev.data.imageUrl || '') : (prev.data.imageUrl || placeholderImageUrl || '');
+          const updatedCategory = (shouldOverwrite || !prev.data.category?.trim() || prev.data.category === 'accessories') ? (category || prev.data.category || 'accessories') : (prev.data.category || category || 'accessories');
+
+          return {
+            ...prev,
+            data: {
+              ...prev.data,
+              title: updatedTitle,
+              description: updatedDescription,
+              imageUrl: updatedImageUrl,
+              category: updatedCategory,
+            }
+          };
+        });
+
+        triggerToast("Auto-detected basic product info from link!", "success");
+        setAmazonFetchError(null); // Clear error because we succeeded in falling back!
+        setAutoFillStep(5);
+        setTimeout(() => setAutoFillStep(0), 4000);
+        return; // Success! No need to throw or show error
+      } catch (fallbackErr) {
+        console.error("[Auto-Fill Fallback] Failed client-side extraction:", fallbackErr);
+      }
+
       // Cache negative results for failed URLs with a short expiration period (60 seconds)
       amazonCacheRef.current.set(urlToFetch, {
         success: false,
