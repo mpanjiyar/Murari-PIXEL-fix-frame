@@ -198,6 +198,13 @@ function extractTitleFromAmazonUrl(url: string): string | null {
   try {
     const urlObj = new URL(url);
     const pathname = urlObj.pathname;
+    const hostname = urlObj.hostname.toLowerCase();
+    
+    // If it's a known shortened domain, pathname is just a shortener hash
+    const isShortDomain = /amzn\.[a-z]{2,4}|a\.co|bit\.ly|tinyurl\.com|t\.co|murl\.com|tiny\.cc|is\.gd|lnk\.to|rebrand\.ly/i.test(hostname);
+    if (isShortDomain) {
+      return null;
+    }
     
     // Look for product slug before /dp/ or /gp/
     const dpMatch = pathname.match(/\/([^\/]+)\/dp\/[A-Z0-9]{10}/i) || 
@@ -216,6 +223,11 @@ function extractTitleFromAmazonUrl(url: string): string | null {
     }
     
     if (slug) {
+      // If the slug looks like a short code or hash, ignore it
+      if (/^[a-z0-9]{5,10}$/i.test(slug)) {
+        return null;
+      }
+
       // Clean up the slug
       let clean = slug
         .replace(/_|-/g, " ")
@@ -432,6 +444,17 @@ function fallbackExtractFromHtml(url: string, fullHtml: string) {
   if (isTitleBlocked) {
     const slugTitle = extractTitleFromAmazonUrl(url);
     title = slugTitle ? cleanProductTitle(slugTitle) : (asin ? `Amazon Gear (ASIN: ${asin})` : "Curated Equipment Gear");
+  }
+
+  // Strictly enforce 15-word maximum limit for local fallback to align with User Request 1
+  if (title) {
+    const titleWords = title.split(/\s+/).filter(Boolean);
+    if (titleWords.length > 15) {
+      let truncated = titleWords.slice(0, 15).join(" ");
+      // Clean up any trailing connectors, hyphens, or punctuation at the end of the words
+      truncated = truncated.replace(/[\s\-|:|;|,|/|\\|&]+$/, "").trim();
+      title = truncated + "...";
+    }
   }
 
   // Extract Description
@@ -1053,7 +1076,7 @@ async function expandUrl(url: string): Promise<string> {
   }
 
   // List of domain patterns that are known to be shorteners or redirects
-  const isShortener = /amzn\.to|amzn\.in|a\.co|bit\.ly|tinyurl\.com|t\.co|murl\.com|tiny\.cc|is\.gd|lnk\.to|\/d\/[a-zA-Z0-9]/i.test(currentUrl);
+  const isShortener = /amzn\.[a-z]{2,4}|a\.co|bit\.ly|tinyurl\.com|t\.co|murl\.com|tiny\.cc|is\.gd|lnk\.to|rebrand\.ly|shope\.ee|\/d\/[a-zA-Z0-9]/i.test(currentUrl);
   if (!isShortener) {
     return currentUrl;
   }
@@ -1102,8 +1125,18 @@ async function expandUrl(url: string): Promise<string> {
   return currentUrl;
 }
 
-// API Route to fetch & extract product details from an Amazon link
-app.all("/api/fetch-amazon-product", async (req, res) => {
+// Explicit GET route for product fetching
+app.get("/api/fetch-amazon-product", async (req, res) => {
+  await handleFetchProduct(req, res);
+});
+
+// Explicit POST route for product fetching
+app.post("/api/fetch-amazon-product", async (req, res) => {
+  await handleFetchProduct(req, res);
+});
+
+// Main handler for fetching product details
+async function handleFetchProduct(req: express.Request, res: express.Response) {
   try {
     const url = req.method === "GET" ? (req.query.url as string) : (req.body?.url as string);
     if (!url || typeof url !== "string") {
@@ -1198,8 +1231,8 @@ Use the provided HTML page context if available, and use Google Search grounding
 
 Specifically:
 1. Extract or determine:
-   - title: The FULL, complete, official product title exactly as it appears on the e-commerce listing page (e.g. "Apple iPhone 15 Pro (128 GB) - Blue Titanium" or "Sony Alpha 7 IV Full-Frame Mirrorless Interchangeable Lens Camera with 28-70mm Zoom Lens Kit"). Do NOT shorten, truncate, or omit critical specifications, brand names, model names, sizes, or technical identifiers. We need the absolute full and precise title of the product.
-   - description: A compelling, elegant, and concise recommendation text or product summary highlighting key specifications, tech details, and its utility (2-3 sentences max). Formulate it as a helpful review.
+   - title: A clear, professional, and easy-to-understand product title that is strictly no longer than 15 words (e.g., "Apple iPhone 15 Pro (128 GB) - Blue Titanium" or "Sony Alpha 7 IV Mirrorless Camera"). Ensure the title is complete, accurate, professionally formatted, and fits beautifully within the 15-word limit without needing any trailing ellipsis or truncation.
+   - description: A compelling, elegant, and professionally written product summary or recommendation text (strictly 2-3 sentences max). Ensure it highlights the key specifications, utility, and build quality in clear, grammatically complete sentences. It must be a helpful, polished review-style text, entirely free from incomplete sentences, promotional hype, repetitive text, or raw HTML tags.
    - imageUrl: A high-quality, valid, direct image URL of the actual product. Seek out real high-resolution listing images. Prioritize official Amazon image domain URLs starting with "https://images-na.ssl-images-amazon.com/images/I/" or "https://m.media-amazon.com/images/I/" if they exist. Do NOT return blank, generic, low-resolution, or placeholder images. It must be a proper, clear, direct photo of the actual product.
    - price: The current price formatted with currency (e.g. ₹64,990 or $799 or £999).
    - category: Map the product strictly to one of the following category strings:
@@ -1311,7 +1344,7 @@ ${htmlContent ? `HTML Scraping Snippet:\n${htmlContent}` : "Note: Direct scrapin
     console.error("Error in fetch-amazon-product route:", error);
     res.status(500).json({ error: error?.message || "Internal server error fetching product data." });
   }
-});
+}
 
 // Vite middleware for development or static server for production
 async function startServer() {

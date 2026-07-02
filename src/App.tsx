@@ -101,6 +101,7 @@ import SmpsCalculator from './components/SmpsCalculator';
 import CoverageMap from './components/CoverageMap';
 import PhotoResizer from './components/PhotoResizer';
 import { ReviewQRCode } from './components/ReviewQRCode';
+import { QRCodeGenerator } from './components/QRCodeGenerator';
 import { initAuth, googleSignIn, googleSignOut } from './lib/driveAuth';
 import { uploadBackupToDrive, listBackupsOnDrive, downloadBackupFromDrive, deleteBackupFromDrive, upsertLiveSyncBackup, getOrCreateFolder, uploadPhotoFileToDrive } from './lib/driveService';
 import type { DriveBackupFile } from './lib/driveService';
@@ -1169,10 +1170,13 @@ export default function App() {
     // Clean trailing punctuation
     clean = clean.replace(/[\s\-|:|;|,]+$/, "").trim();
 
-    // 4. Enforce strict 15-word maximum limit
+    // 4. Enforce strict 15-word maximum limit with smart clean termination
     const words = clean.split(/\s+/).filter(Boolean);
     if (words.length > 15) {
-      return words.slice(0, 15).join(' ') + '...';
+      let truncated = words.slice(0, 15).join(' ');
+      // Clean up any trailing connectors, hyphens, or punctuation at the end of the words
+      truncated = truncated.replace(/[\s\-|:|;|,|/|\\|&]+$/, "").trim();
+      return truncated + '...';
     }
 
     return clean;
@@ -1240,14 +1244,9 @@ export default function App() {
         const product = isLegacy ? cachedEntry : cachedEntry.product;
         if (product) {
           console.info(`[Auto-Fill] Cache hit (priority resolved) for URL: "${urlToFetch}"`, product);
-          const { title, description, imageUrl, price, category } = product;
+          const { title, description, imageUrl, category } = product;
 
           let finalDescription = description;
-          if (price && description && !description.includes(price)) {
-            finalDescription = `Deal: ${price} | ${description}`;
-          } else if (price && !description) {
-            finalDescription = `Deal: ${price}`;
-          }
 
           setEditingItem(prev => {
             if (!prev) return null;
@@ -1257,7 +1256,7 @@ export default function App() {
             const updatedDescription = (shouldOverwrite || !prev.data.description?.trim()) ? (finalDescription || prev.data.description || '') : (prev.data.description || finalDescription || '');
             const updatedImageUrl = (shouldOverwrite || !prev.data.imageUrl?.trim()) ? (imageUrl || prev.data.imageUrl || '') : (prev.data.imageUrl || imageUrl || '');
             const updatedCategory = (shouldOverwrite || !prev.data.category?.trim() || prev.data.category === 'accessories') ? (category || prev.data.category || 'accessories') : (prev.data.category || category || 'accessories');
-            const updatedPrice = (shouldOverwrite || !prev.data.price?.trim()) ? (price || prev.data.price || '') : (prev.data.price || price || '');
+            const updatedPrice = '';
 
             return {
               ...prev,
@@ -1299,21 +1298,21 @@ export default function App() {
     }, 8000); // 8-second strict timeout
 
     try {
-      console.info("[Auto-Fill] Fetching from endpoint: /api/fetch-amazon-product with GET request...");
-      let response = await fetch(`/api/fetch-amazon-product?url=${encodeURIComponent(urlToFetch)}`, {
-        method: "GET",
+      console.info("[Auto-Fill] Fetching from endpoint: /api/fetch-amazon-product with POST request (Primary)...");
+      let response = await fetch("/api/fetch-amazon-product", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ url: urlToFetch }),
         signal: controller.signal,
       });
 
-      // Robust fallback: if GET returns 405 (Method Not Allowed) or 404 (Not Found), try POST fallback
+      // Robust fallback: if POST returns 405 (Method Not Allowed) or 404 (Not Found), try GET fallback
       if (response.status === 405 || response.status === 404) {
-        console.info(`[Auto-Fill] GET request failed with status ${response.status}. Trying POST fallback...`);
-        response = await fetch("/api/fetch-amazon-product", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ url: urlToFetch }),
+        console.info(`[Auto-Fill] POST request failed with status ${response.status}. Trying GET fallback...`);
+        response = await fetch(`/api/fetch-amazon-product?url=${encodeURIComponent(urlToFetch)}`, {
+          method: "GET",
           signal: controller.signal,
         });
       }
@@ -1364,8 +1363,8 @@ export default function App() {
       }
 
       if (resData && resData.success && resData.product) {
-        const { title, description, imageUrl, price, category } = resData.product;
-        console.info("[Auto-Fill] Successfully extracted product metadata:", { title, imageUrl, price, category });
+        const { title, description, imageUrl, category } = resData.product;
+        console.info("[Auto-Fill] Successfully extracted product metadata:", { title, imageUrl, category });
         
         // Cache the product data for subsequent edits/views of this URL
         amazonCacheRef.current.set(urlToFetch, {
@@ -1374,13 +1373,7 @@ export default function App() {
           timestamp: Date.now()
         });
 
-        // Format description nicely to include the price if present
         let finalDescription = description;
-        if (price && description && !description.includes(price)) {
-          finalDescription = `Deal: ${price} | ${description}`;
-        } else if (price && !description) {
-          finalDescription = `Deal: ${price}`;
-        }
 
         setEditingItem(prev => {
           if (!prev) return null;
@@ -1392,7 +1385,7 @@ export default function App() {
           const updatedDescription = (shouldOverwrite || !data.description?.trim()) ? (finalDescription || data.description || '') : (data.description || finalDescription || '');
           const updatedImageUrl = (shouldOverwrite || !data.imageUrl?.trim()) ? (imageUrl || data.imageUrl || '') : (data.imageUrl || imageUrl || '');
           const updatedCategory = (shouldOverwrite || !data.category?.trim() || data.category === 'accessories') ? (category || data.category || 'accessories') : (data.category || category || 'accessories');
-          const updatedPrice = (shouldOverwrite || !data.price?.trim()) ? (price || data.price || '') : (data.price || price || '');
+          const updatedPrice = '';
 
           return {
             ...prev,
@@ -1426,13 +1419,18 @@ export default function App() {
       try {
         console.info("[Auto-Fill Fallback] Attempting client-side URL parsing fallback...");
         
-        // 1. Try to extract ASIN
+        // 1. Try to extract ASIN with comprehensive e-commerce patterns
         let asin = "";
         const asinPatterns = [
           /\/dp\/([A-Z0-9]{10})/i,
           /\/gp\/product\/([A-Z0-9]{10})/i,
+          /\/gp\/aw\/d\/([A-Z0-9]{10})/i,
+          /\/dp\/aw\/d\/([A-Z0-9]{10})/i,
           /\/d\/([A-Z0-9]{10})/i,
-          /[?&]asin=([A-Z0-9]{10})/i
+          /\/asin\/([A-Z0-9]{10})/i,
+          /[?&]asin=([A-Z0-9]{10})/i,
+          /\/product\/([A-Z0-9]{10})/i,
+          /\/product-reviews\/([A-Z0-9]{10})/i
         ];
         for (const pattern of asinPatterns) {
           const match = urlToFetch.match(pattern);
@@ -1442,23 +1440,32 @@ export default function App() {
           }
         }
 
-        // 2. Try to extract title from the path slug
+        // 2. Try to extract title from the path slug safely
         let extractedTitle = "";
         try {
-          const pathname = new URL(urlToFetch).pathname;
-          const parts = pathname.split('/').filter(p => p.length > 4 && !p.includes('.') && !['dp', 'gp', 'product', 'd'].includes(p.toLowerCase()));
-          if (parts.length > 0) {
-            extractedTitle = parts[0]
-              .replace(/_|-/g, ' ')
-              .replace(/\b(ref|ie|UTF8|qid|sr|pf_rd_.*)\b.*/gi, '')
-              .trim();
+          const urlObj = new URL(urlToFetch);
+          const hostname = urlObj.hostname.toLowerCase();
+          const isShortDomain = /amzn\.[a-z]{2,4}|a\.co|bit\.ly|tinyurl\.com|t\.co|murl\.com|tiny\.cc|is\.gd|lnk\.to|rebrand\.ly/i.test(hostname);
+          
+          if (!isShortDomain) {
+            const pathname = urlObj.pathname;
+            const parts = pathname.split('/').filter(p => p.length > 4 && !p.includes('.') && !['dp', 'gp', 'product', 'd', 'asin'].includes(p.toLowerCase()));
+            if (parts.length > 0) {
+              const slug = parts[0];
+              if (!/^[a-z0-9]{5,10}$/i.test(slug)) {
+                extractedTitle = slug
+                  .replace(/_|-/g, ' ')
+                  .replace(/\b(ref|ie|UTF8|qid|sr|pf_rd_.*)\b.*/gi, '')
+                  .trim();
+              }
+            }
           }
         } catch (_) {}
 
         if (!extractedTitle && asin) {
           extractedTitle = `Product (ASIN: ${asin})`;
         } else if (!extractedTitle) {
-          extractedTitle = "Curated Product Gear";
+          extractedTitle = "Curated Affiliate Deal";
         }
 
         // Capitalize words beautifully
@@ -4818,6 +4825,9 @@ export default function App() {
             {/* Ambient Background with subtle photography animations */}
             <PixelFrameBackground currentTheme={currentTheme} />
 
+            {/* Compact QR Code Generator */}
+            <QRCodeGenerator currentTheme={currentTheme} triggerToast={triggerToast} />
+
             <div className="relative z-10 space-y-12">
             {/* Header branding */}
             <div className="text-center space-y-4 max-w-3xl mx-auto">
@@ -6579,12 +6589,6 @@ export default function App() {
                                   <span className="font-mono tracking-wider font-black select-all">{item.discountCode}</span>
                                 </span>
                               )}
-                              {item.price && (
-                                <span className="text-[8px] font-mono uppercase bg-amber-500/10 text-amber-500 border border-amber-500/20 px-1.5 py-0.5 rounded flex items-center gap-1 font-bold shadow-xs">
-                                  <span>💰 VALUE:</span>
-                                  <span className="font-mono tracking-wider font-black">{item.price}</span>
-                                </span>
-                              )}
                             </div>
                           </div>
 
@@ -6605,7 +6609,7 @@ export default function App() {
                             target="_blank"
                             rel="noopener noreferrer"
                             onClick={() => handleTrackClick(item.id)}
-                            className={`w-full py-2.5 rounded-xl font-bold font-mono text-[9px] uppercase tracking-wider flex items-center justify-center gap-2 transition-all duration-300 border cursor-pointer ${
+                            className={`w-full py-3.5 md:py-2.5 rounded-xl font-bold font-mono text-[9px] uppercase tracking-wider flex items-center justify-center gap-2 transition-all duration-300 border cursor-pointer ${
                               currentTheme === 'light'
                                 ? 'bg-slate-900 border-slate-900 text-white hover:bg-amber-500 hover:border-amber-500 hover:shadow-lg hover:shadow-amber-500/10'
                                 : 'bg-white/5 border-white/5 text-slate-150 hover:bg-amber-500 hover:border-amber-500 hover:text-white hover:shadow-lg hover:shadow-amber-500/10'
@@ -11061,13 +11065,13 @@ export default function App() {
                               <div className="h-3.5 bg-slate-300 dark:bg-zinc-700 rounded-full w-2/3" />
                             </div>
                           ) : (
-                            <LagFreeInput
+                            <input
                               type="text"
                               required
                               value={editingItem.data.title || ''}
-                              onChange={(val) => setEditingItem({
+                              onChange={(ev) => setEditingItem({
                                 ...editingItem,
-                                data: { ...editingItem.data, title: val }
+                                data: { ...editingItem.data, title: ev.target.value }
                               })}
                               className={`w-full p-2.5 rounded-xl border outline-none font-sans font-semibold text-xs ${
                                 currentTheme === 'light' 
@@ -11102,13 +11106,13 @@ export default function App() {
                             </div>
                           ) : (
                             <>
-                              <LagFreeInput
+                              <input
                                 type="text"
                                 required
                                 value={editingItem.data.category || ''}
-                                onChange={(val) => setEditingItem({
+                                onChange={(ev) => setEditingItem({
                                   ...editingItem,
-                                  data: { ...editingItem.data, category: val }
+                                  data: { ...editingItem.data, category: ev.target.value }
                                 })}
                                 className={`w-full p-2.5 rounded-xl border outline-none text-xs font-mono mb-1 ${
                                   currentTheme === 'light' 
@@ -11192,13 +11196,13 @@ export default function App() {
                                   data: { ...editingItem.data, imageUrl: val }
                                 })}
                               />
-                              <LagFreeInput
+                              <input
                                 type="text"
                                 required
                                 value={editingItem.data.imageUrl || ''}
-                                onChange={(val) => setEditingItem({
+                                onChange={(ev) => setEditingItem({
                                   ...editingItem,
-                                  data: { ...editingItem.data, imageUrl: val }
+                                  data: { ...editingItem.data, imageUrl: ev.target.value }
                                 })}
                                 className={`w-full p-2 rounded-lg border outline-none text-[10px] ${
                                   currentTheme === 'light' 
@@ -11211,49 +11215,25 @@ export default function App() {
                           )}
                         </div>
 
-                        {/* Grid: Price and Promo Code */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          {/* 5. Optional Promo / Discount Code */}
-                          <div className="space-y-1 text-left">
-                            <label className={`text-[10px] uppercase font-mono font-bold tracking-wider ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
-                              Promo / Discount Code (Optional)
-                            </label>
-                            <LagFreeInput
-                              type="text"
-                              value={editingItem.data.discountCode || ''}
-                              onChange={(val) => setEditingItem({
-                                ...editingItem,
-                                data: { ...editingItem.data, discountCode: val }
-                              })}
-                              className={`w-full p-2.5 rounded-xl border outline-none text-xs font-mono ${
-                                currentTheme === 'light' 
-                                  ? 'bg-slate-50/50 border-slate-200 text-slate-955 focus:border-amber-500' 
-                                  : 'bg-black/30 border-white/5 text-slate-100 focus:border-amber-500'
-                              }`}
-                              placeholder="e.g. PIXELSSD990, FRAMEANCHOR8"
-                            />
-                          </div>
-
-                          {/* 6. Product Price / Value (Optional) */}
-                          <div className="space-y-1 text-left">
-                            <label className={`text-[10px] uppercase font-mono font-bold tracking-wider ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
-                              Price / Value (e.g. ₹7,499, $89)
-                            </label>
-                            <LagFreeInput
-                              type="text"
-                              value={editingItem.data.price || ''}
-                              onChange={(val) => setEditingItem({
-                                ...editingItem,
-                                data: { ...editingItem.data, price: val }
-                              })}
-                              className={`w-full p-2.5 rounded-xl border outline-none text-xs font-mono ${
-                                currentTheme === 'light' 
-                                  ? 'bg-slate-50/50 border-slate-200 text-slate-955 focus:border-amber-500' 
-                                  : 'bg-black/30 border-white/5 text-slate-100 focus:border-amber-500'
-                              }`}
-                              placeholder="e.g. ₹4,499, $149"
-                            />
-                          </div>
+                        {/* 5. Optional Promo / Discount Code */}
+                        <div className="space-y-1 text-left">
+                          <label className={`text-[10px] uppercase font-mono font-bold tracking-wider ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
+                            Promo / Discount Code (Optional)
+                          </label>
+                           <input
+                             type="text"
+                             value={editingItem.data.discountCode || ''}
+                             onChange={(ev) => setEditingItem({
+                               ...editingItem,
+                               data: { ...editingItem.data, discountCode: ev.target.value }
+                             })}
+                             className={`w-full p-2.5 rounded-xl border outline-none text-xs font-mono ${
+                               currentTheme === 'light' 
+                                 ? 'bg-slate-50/50 border-slate-200 text-slate-955 focus:border-amber-500' 
+                                 : 'bg-black/30 border-white/5 text-slate-100 focus:border-amber-500'
+                             }`}
+                             placeholder="e.g. PIXELSSD990, FRAMEANCHOR8"
+                           />
                         </div>
 
                         {/* 7. Recommendation Description Copy */}
@@ -11270,13 +11250,13 @@ export default function App() {
                               <div className="h-3.5 bg-slate-300 dark:bg-zinc-700 rounded-full w-2/3" />
                             </div>
                           ) : (
-                            <LagFreeTextArea
+                            <textarea
                               required
                               rows={3}
                               value={editingItem.data.description || ''}
-                              onChange={(val) => setEditingItem({
+                              onChange={(ev) => setEditingItem({
                                 ...editingItem,
-                                data: { ...editingItem.data, description: val }
+                                data: { ...editingItem.data, description: ev.target.value }
                               })}
                               className={`w-full p-2.5 rounded-xl border outline-none text-xs font-sans leading-relaxed ${
                                 currentTheme === 'light' 
@@ -11357,12 +11337,6 @@ export default function App() {
                                     <span className="font-mono tracking-wider font-black">{editingItem.data.discountCode}</span>
                                   </span>
                                 )}
-                                {editingItem.data.price && (
-                                  <span className="text-[8px] font-mono uppercase bg-amber-500/10 text-amber-500 border border-amber-500/20 px-1.5 py-0.5 rounded flex items-center gap-1 font-bold shadow-xs">
-                                    <span>💰 VALUE:</span>
-                                    <span className="font-mono tracking-wider font-black">{editingItem.data.price}</span>
-                                  </span>
-                                )}
                               </div>
                             </div>
 
@@ -11375,7 +11349,7 @@ export default function App() {
                             </div>
 
                             <div className="p-4 pt-0 mt-auto">
-                              <div className="w-full py-2.5 rounded-xl font-bold font-mono text-[9px] uppercase tracking-wider flex items-center justify-center gap-2 border border-slate-700 bg-white/5 text-slate-400">
+                              <div className="w-full py-3.5 md:py-2.5 rounded-xl font-bold font-mono text-[9px] uppercase tracking-wider flex items-center justify-center gap-2 border border-slate-700 bg-white/5 text-slate-400">
                                 <span>SHOP PARTNER DEAL</span>
                                 <ArrowUpRight size={10} />
                               </div>
@@ -11695,6 +11669,52 @@ export default function App() {
               </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* Floating WhatsApp Chat Button for Pixel Fix & Pixel Frame */}
+      <AnimatePresence>
+        {(activeTab === 'pixelfix' || activeTab === 'pixelframe') && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8, y: 30 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.8, y: 30 }}
+            transition={{ type: "spring", stiffness: 300, damping: 25 }}
+            className="fixed bottom-6 right-6 md:bottom-8 md:right-8 z-40 flex flex-col items-end gap-2 group"
+          >
+            {/* Hover Tooltip/Label */}
+            <div className={`px-3 py-1.5 rounded-xl border text-[9px] uppercase font-mono font-black tracking-widest shadow-2xl opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 pointer-events-none select-none ${
+              currentTheme === 'light'
+                ? 'bg-white border-slate-200 text-slate-800 shadow-slate-200/40'
+                : 'bg-zinc-900 border-zinc-800 text-white shadow-black/60'
+            }`}>
+              Chat with Murari
+            </div>
+
+            {/* Float Circle Button Container for Ring Pulsing */}
+            <div className="relative w-14 h-14">
+              {/* Pulsing Backing Wave */}
+              <div className="absolute inset-0 rounded-full bg-[#25D366] opacity-30 animate-ping pointer-events-none" />
+
+              {/* Float Circle Button */}
+              <button
+                type="button"
+                id="floating-whatsapp-btn"
+                onClick={() => {
+                  const phone = activeTab === 'pixelfix' ? contactPhoneIt : contactPhonePhotos;
+                  const cleanPhone = getCleanWhatsAppNumber(phone);
+                  const template = activeTab === 'pixelfix'
+                    ? "Hi Murari, I am visiting your Pixel Fix page and would like to inquire about doorstep IT diagnostic/support services."
+                    : "Hi Murari, I am visiting your Pixel Frame page and would like to inquire about your premium event photography/cinematography services.";
+                  window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(template)}`, '_blank');
+                }}
+                className="relative w-full h-full rounded-full bg-[#25D366] text-white flex items-center justify-center shadow-xl shadow-[#25D366]/30 hover:shadow-[#25D366]/50 cursor-pointer transition-all hover:scale-110 active:scale-95 duration-200"
+                title="Chat with Murari on WhatsApp"
+              >
+                <WhatsAppIcon size={28} className="text-white" />
+              </button>
+            </div>
+          </motion.div>
         )}
       </AnimatePresence>
 
