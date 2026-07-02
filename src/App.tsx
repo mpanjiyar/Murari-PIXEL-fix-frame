@@ -1334,6 +1334,12 @@ export default function App() {
         throw new Error("Empty response body received from server metadata endpoint.");
       }
 
+      // If response text is HTML instead of JSON (usually happens if Vite/Express falls back to index.html)
+      if (responseText.trim().toLowerCase().startsWith("<!doctype") || responseText.trim().toLowerCase().startsWith("<html")) {
+        console.warn("[Auto-Fill] Server returned HTML page instead of JSON product data.");
+        throw new Error("The API endpoint is temporarily unavailable or returned a server error page.");
+      }
+
       let resData: any = null;
       try {
         resData = JSON.parse(responseText);
@@ -1366,17 +1372,18 @@ export default function App() {
           if (!prev) return null;
           
           const shouldOverwrite = autoFillMode === 'overwrite';
+          const data = prev.data || {};
 
-          const updatedTitle = (shouldOverwrite || !prev.data.title?.trim()) ? (cleanTitle(title) || prev.data.title || '') : (prev.data.title || cleanTitle(title) || '');
-          const updatedDescription = (shouldOverwrite || !prev.data.description?.trim()) ? (finalDescription || prev.data.description || '') : (prev.data.description || finalDescription || '');
-          const updatedImageUrl = (shouldOverwrite || !prev.data.imageUrl?.trim()) ? (imageUrl || prev.data.imageUrl || '') : (prev.data.imageUrl || imageUrl || '');
-          const updatedCategory = (shouldOverwrite || !prev.data.category?.trim() || prev.data.category === 'accessories') ? (category || prev.data.category || 'accessories') : (prev.data.category || category || 'accessories');
-          const updatedPrice = (shouldOverwrite || !prev.data.price?.trim()) ? (price || prev.data.price || '') : (prev.data.price || price || '');
+          const updatedTitle = (shouldOverwrite || !data.title?.trim()) ? (cleanTitle(title) || data.title || '') : (data.title || cleanTitle(title) || '');
+          const updatedDescription = (shouldOverwrite || !data.description?.trim()) ? (finalDescription || data.description || '') : (data.description || finalDescription || '');
+          const updatedImageUrl = (shouldOverwrite || !data.imageUrl?.trim()) ? (imageUrl || data.imageUrl || '') : (data.imageUrl || imageUrl || '');
+          const updatedCategory = (shouldOverwrite || !data.category?.trim() || data.category === 'accessories') ? (category || data.category || 'accessories') : (data.category || category || 'accessories');
+          const updatedPrice = (shouldOverwrite || !data.price?.trim()) ? (price || data.price || '') : (data.price || price || '');
 
           return {
             ...prev,
             data: {
-              ...prev.data,
+              ...data,
               title: updatedTitle,
               description: updatedDescription,
               imageUrl: updatedImageUrl,
@@ -1472,16 +1479,17 @@ export default function App() {
         setEditingItem(prev => {
           if (!prev) return null;
           const shouldOverwrite = autoFillMode === 'overwrite';
+          const data = prev.data || {};
           
-          const updatedTitle = (shouldOverwrite || !prev.data.title?.trim()) ? (extractedTitle || prev.data.title || '') : (prev.data.title || extractedTitle || '');
-          const updatedDescription = (shouldOverwrite || !prev.data.description?.trim()) ? (`Curated product link: ${urlToFetch}` || prev.data.description || '') : (prev.data.description || `Curated product link: ${urlToFetch}`);
-          const updatedImageUrl = (shouldOverwrite || !prev.data.imageUrl?.trim()) ? (placeholderImageUrl || prev.data.imageUrl || '') : (prev.data.imageUrl || placeholderImageUrl || '');
-          const updatedCategory = (shouldOverwrite || !prev.data.category?.trim() || prev.data.category === 'accessories') ? (category || prev.data.category || 'accessories') : (prev.data.category || category || 'accessories');
+          const updatedTitle = (shouldOverwrite || !data.title?.trim()) ? (extractedTitle || data.title || '') : (data.title || extractedTitle || '');
+          const updatedDescription = (shouldOverwrite || !data.description?.trim()) ? (`Curated product link: ${urlToFetch}` || data.description || '') : (data.description || `Curated product link: ${urlToFetch}`);
+          const updatedImageUrl = (shouldOverwrite || !data.imageUrl?.trim()) ? (placeholderImageUrl || data.imageUrl || '') : (data.imageUrl || placeholderImageUrl || '');
+          const updatedCategory = (shouldOverwrite || !data.category?.trim() || data.category === 'accessories') ? (category || data.category || 'accessories') : (data.category || category || 'accessories');
 
           return {
             ...prev,
             data: {
-              ...prev.data,
+              ...data,
               title: updatedTitle,
               description: updatedDescription,
               imageUrl: updatedImageUrl,

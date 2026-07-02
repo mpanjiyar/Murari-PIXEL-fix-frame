@@ -3,11 +3,24 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
+import fs from "fs";
 
 dotenv.config();
 
 const app = express();
 const PORT = 3000;
+
+// Request logging middleware to log to console and file
+app.use((req, res, next) => {
+  const logMsg = `[${new Date().toISOString()}] ${req.method} ${req.url}\n`;
+  console.log(logMsg.trim());
+  try {
+    fs.appendFileSync(path.join(process.cwd(), "server.log"), logMsg);
+  } catch (err) {
+    // Ignore log write errors
+  }
+  next();
+});
 
 // Enable JSON parsing with a generous limit
 app.use(express.json({ limit: "5mb" }));
