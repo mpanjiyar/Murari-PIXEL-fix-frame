@@ -843,55 +843,83 @@ export default function App() {
         processedFields.profilePhotoUrl = await compressBase64Image(processedFields.profilePhotoUrl);
       }
 
-      // 2. If it has galleryItems
-      if (Array.isArray(processedFields.galleryItems)) {
-        processedFields.galleryItems = await Promise.all(
-          processedFields.galleryItems.map(async (item) => {
-            const optUrl = await compressBase64Image(item.imageUrl);
-            const optBeforeUrl = item.beforeImageUrl ? await compressBase64Image(item.beforeImageUrl) : undefined;
-            return { ...item, imageUrl: optUrl, beforeImageUrl: optBeforeUrl };
-          })
-        );
+      // 2. Intercept and write separate documents for large arrays to prevent 1MB limit error
+      if ('galleryItems' in processedFields) {
+        if (Array.isArray(processedFields.galleryItems)) {
+          processedFields.galleryItems = await Promise.all(
+            processedFields.galleryItems.map(async (item) => {
+              const optUrl = await compressBase64Image(item.imageUrl);
+              const optBeforeUrl = item.beforeImageUrl ? await compressBase64Image(item.beforeImageUrl) : undefined;
+              return { ...item, imageUrl: optUrl, beforeImageUrl: optBeforeUrl };
+            })
+          );
+        }
+        await setDoc(doc(db, 'site_config', 'gallery_items'), {
+          id: 'gallery_items',
+          galleryItems: processedFields.galleryItems || []
+        });
+        delete processedFields.galleryItems;
       }
 
-      // 3. If it has instagramPosts
-      if (Array.isArray(processedFields.instagramPosts)) {
-        processedFields.instagramPosts = await Promise.all(
-          processedFields.instagramPosts.map(async (post) => {
-            const optUrl = await compressBase64Image(post.imageUrl);
-            return { ...post, imageUrl: optUrl };
-          })
-        );
+      if ('instagramPosts' in processedFields) {
+        if (Array.isArray(processedFields.instagramPosts)) {
+          processedFields.instagramPosts = await Promise.all(
+            processedFields.instagramPosts.map(async (post) => {
+              const optUrl = await compressBase64Image(post.imageUrl);
+              return { ...post, imageUrl: optUrl };
+            })
+          );
+        }
+        await setDoc(doc(db, 'site_config', 'instagram_posts'), {
+          id: 'instagram_posts',
+          instagramPosts: processedFields.instagramPosts || []
+        });
+        delete processedFields.instagramPosts;
       }
 
-      // 4. If it has testimonials
-      if (Array.isArray(processedFields.testimonials)) {
-        processedFields.testimonials = await Promise.all(
-          processedFields.testimonials.map(async (t) => {
-            if (t.avatarUrl) {
-              const optAvatar = await compressBase64Image(t.avatarUrl);
-              return { ...t, avatarUrl: optAvatar };
-            }
-            return t;
-          })
-        );
+      if ('testimonials' in processedFields) {
+        if (Array.isArray(processedFields.testimonials)) {
+          processedFields.testimonials = await Promise.all(
+            processedFields.testimonials.map(async (t) => {
+              if (t.avatarUrl) {
+                const optAvatar = await compressBase64Image(t.avatarUrl);
+                return { ...t, avatarUrl: optAvatar };
+              }
+              return t;
+            })
+          );
+        }
+        await setDoc(doc(db, 'site_config', 'testimonials'), {
+          id: 'testimonials',
+          testimonials: processedFields.testimonials || []
+        });
+        delete processedFields.testimonials;
       }
 
-      // 5. If it has pixelFixReviews
-      if (Array.isArray(processedFields.pixelFixReviews)) {
-        processedFields.pixelFixReviews = await Promise.all(
-          processedFields.pixelFixReviews.map(async (r) => {
-            if (r.avatarUrl) {
-              const optAvatar = await compressBase64Image(r.avatarUrl);
-              return { ...r, avatarUrl: optAvatar };
-            }
-            return r;
-          })
-        );
+      if ('pixelFixReviews' in processedFields) {
+        if (Array.isArray(processedFields.pixelFixReviews)) {
+          processedFields.pixelFixReviews = await Promise.all(
+            processedFields.pixelFixReviews.map(async (r) => {
+              if (r.avatarUrl) {
+                const optAvatar = await compressBase64Image(r.avatarUrl);
+                return { ...r, avatarUrl: optAvatar };
+              }
+              return r;
+            })
+          );
+        }
+        await setDoc(doc(db, 'site_config', 'pixel_fix_reviews'), {
+          id: 'pixel_fix_reviews',
+          pixelFixReviews: processedFields.pixelFixReviews || []
+        });
+        delete processedFields.pixelFixReviews;
       }
 
-      const configRef = doc(db, 'site_config', 'homepage');
-      await setDoc(configRef, processedFields, { merge: true });
+      // Finally, if there are remaining fields to update in homepage, we save them to homepage!
+      if (Object.keys(processedFields).length > 1 || (Object.keys(processedFields).length === 1 && !processedFields.id)) {
+        const configRef = doc(db, 'site_config', 'homepage');
+        await setDoc(configRef, processedFields, { merge: true });
+      }
     } catch (err) {
       console.error("Error updating site config in Firestore: ", err);
       handleFirestoreError(err, OperationType.WRITE, 'site_config/homepage');
@@ -1237,10 +1265,11 @@ export default function App() {
     };
   }, []);
 
-  // Sync site configuration and all backend components in real-time
+  // Sync site configuration and all backend components in real-time with split-document layout
   useEffect(() => {
     let isInitialSite = true;
-    const unsubSite = onSnapshot(doc(db, 'site_config', 'homepage'), (docSnap) => {
+
+    const unsubSite = onSnapshot(doc(db, 'site_config', 'homepage'), async (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
         if (data.heroHeadline) setHeroHeadline(data.heroHeadline);
@@ -1261,10 +1290,62 @@ export default function App() {
         // Nested lists
         if (data.itServices && Array.isArray(data.itServices)) setItServices(data.itServices);
         if (data.photoServices && Array.isArray(data.photoServices)) setPhotoServices(data.photoServices);
-        if (data.testimonials && Array.isArray(data.testimonials)) setTestimonials(data.testimonials);
-        if (data.pixelFixReviews && Array.isArray(data.pixelFixReviews)) setPixelFixReviews(data.pixelFixReviews);
-        if (data.instagramPosts && Array.isArray(data.instagramPosts)) setInstagramPosts(data.instagramPosts);
-        if (data.galleryItems && Array.isArray(data.galleryItems)) setGalleryItems(data.galleryItems);
+
+        // Self-Healing Migration: Check if any large lists are still inside the monolithic document.
+        // If so, we safely split and write them to their separate documents and clean the homepage document.
+        const needsMigration = 
+          (data.galleryItems && Array.isArray(data.galleryItems) && data.galleryItems.length > 0) ||
+          (data.testimonials && Array.isArray(data.testimonials) && data.testimonials.length > 0) ||
+          (data.pixelFixReviews && Array.isArray(data.pixelFixReviews) && data.pixelFixReviews.length > 0) ||
+          (data.instagramPosts && Array.isArray(data.instagramPosts) && data.instagramPosts.length > 0);
+
+        if (needsMigration) {
+          console.info("[Self-Healing Migration] Bloated monolithic site config detected. Splitting and shrinking document...");
+          try {
+            if (data.galleryItems && Array.isArray(data.galleryItems)) {
+              await setDoc(doc(db, 'site_config', 'gallery_items'), { id: 'gallery_items', galleryItems: data.galleryItems });
+              setGalleryItems(data.galleryItems);
+            }
+            if (data.testimonials && Array.isArray(data.testimonials)) {
+              await setDoc(doc(db, 'site_config', 'testimonials'), { id: 'testimonials', testimonials: data.testimonials });
+              setTestimonials(data.testimonials);
+            }
+            if (data.pixelFixReviews && Array.isArray(data.pixelFixReviews)) {
+              await setDoc(doc(db, 'site_config', 'pixel_fix_reviews'), { id: 'pixel_fix_reviews', pixelFixReviews: data.pixelFixReviews });
+              setPixelFixReviews(data.pixelFixReviews);
+            }
+            if (data.instagramPosts && Array.isArray(data.instagramPosts)) {
+              await setDoc(doc(db, 'site_config', 'instagram_posts'), { id: 'instagram_posts', instagramPosts: data.instagramPosts });
+              setInstagramPosts(data.instagramPosts);
+            }
+
+            // Shrink/clean the homepage document by removing the bloated lists
+            const cleanHomepage: any = {};
+            Object.keys(data).forEach(key => {
+              if (!['galleryItems', 'testimonials', 'pixelFixReviews', 'instagramPosts'].includes(key)) {
+                cleanHomepage[key] = data[key];
+              }
+            });
+            await setDoc(doc(db, 'site_config', 'homepage'), cleanHomepage);
+            console.info("[Self-Healing Migration] Monolithic document successfully shrunk and split documents written!");
+          } catch (migrateErr) {
+            console.error("[Self-Healing Migration] Error migrating monolithic config: ", migrateErr);
+          }
+        } else {
+          // Fallback if split documents don't exist yet but no migration is needed (empty states)
+          if (data.galleryItems && Array.isArray(data.galleryItems)) {
+            setGalleryItems(prev => prev.length === 0 ? data.galleryItems : prev);
+          }
+          if (data.testimonials && Array.isArray(data.testimonials)) {
+            setTestimonials(prev => prev.length === 0 ? data.testimonials : prev);
+          }
+          if (data.pixelFixReviews && Array.isArray(data.pixelFixReviews)) {
+            setPixelFixReviews(prev => prev.length === 0 ? data.pixelFixReviews : prev);
+          }
+          if (data.instagramPosts && Array.isArray(data.instagramPosts)) {
+            setInstagramPosts(prev => prev.length === 0 ? data.instagramPosts : prev);
+          }
+        }
       } else if (isInitialSite) {
         // Seed database instantly if config does not exist
         const initialConfig = {
@@ -1284,13 +1365,21 @@ export default function App() {
           contactEmail,
           contactAddress,
           itServices,
-          photoServices,
-          testimonials,
-          pixelFixReviews,
-          instagramPosts,
-          galleryItems
+          photoServices
         };
-        setDoc(doc(db, 'site_config', 'homepage'), initialConfig).then(() => {
+
+        const initialGallery = { id: 'gallery_items', galleryItems };
+        const initialTestimonials = { id: 'testimonials', testimonials };
+        const initialPixelReviews = { id: 'pixel_fix_reviews', pixelFixReviews };
+        const initialInsta = { id: 'instagram_posts', instagramPosts };
+
+        try {
+          await setDoc(doc(db, 'site_config', 'homepage'), initialConfig);
+          await setDoc(doc(db, 'site_config', 'gallery_items'), initialGallery);
+          await setDoc(doc(db, 'site_config', 'testimonials'), initialTestimonials);
+          await setDoc(doc(db, 'site_config', 'pixel_fix_reviews'), initialPixelReviews);
+          await setDoc(doc(db, 'site_config', 'instagram_posts'), initialInsta);
+
           // Seed initial affiliate links and social links at the exact same time
           INITIAL_AFFILIATE_LINKS.forEach(async (link) => {
             try {
@@ -1306,9 +1395,9 @@ export default function App() {
               console.error("Error seeding initial social link: ", e);
             }
           });
-        }).catch((err) => {
+        } catch (err) {
           console.error("Seeding initial homepage config error: ", err);
-        });
+        }
       }
       isInitialSite = false;
     }, (error) => {
@@ -1316,7 +1405,58 @@ export default function App() {
       handleFirestoreError(error, OperationType.GET, 'site_config/homepage');
     });
 
-    return () => unsubSite();
+    // Real-time listeners for the separate split configuration documents
+    const unsubGallery = onSnapshot(doc(db, 'site_config', 'gallery_items'), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data.galleryItems && Array.isArray(data.galleryItems)) {
+          setGalleryItems(data.galleryItems);
+        }
+      }
+    }, (err) => {
+      console.error("Gallery items snap error: ", err);
+    });
+
+    const unsubTestimonials = onSnapshot(doc(db, 'site_config', 'testimonials'), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data.testimonials && Array.isArray(data.testimonials)) {
+          setTestimonials(data.testimonials);
+        }
+      }
+    }, (err) => {
+      console.error("Testimonials snap error: ", err);
+    });
+
+    const unsubPixelReviews = onSnapshot(doc(db, 'site_config', 'pixel_fix_reviews'), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data.pixelFixReviews && Array.isArray(data.pixelFixReviews)) {
+          setPixelFixReviews(data.pixelFixReviews);
+        }
+      }
+    }, (err) => {
+      console.error("Pixel fix reviews snap error: ", err);
+    });
+
+    const unsubInstagram = onSnapshot(doc(db, 'site_config', 'instagram_posts'), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data.instagramPosts && Array.isArray(data.instagramPosts)) {
+          setInstagramPosts(data.instagramPosts);
+        }
+      }
+    }, (err) => {
+      console.error("Instagram posts snap error: ", err);
+    });
+
+    return () => {
+      unsubSite();
+      unsubGallery();
+      unsubTestimonials();
+      unsubPixelReviews();
+      unsubInstagram();
+    };
   }, []);
 
   const [editingItem, setEditingItem] = useState<{
@@ -3138,6 +3278,7 @@ export default function App() {
   const [navigationDirection, setNavigationDirection] = useState<number>(0);
   const swipeStartX = useRef<number | null>(null);
   const swipeStartY = useRef<number | null>(null);
+  const isSwipingRef = useRef<boolean>(false);
 
   const previewImageIndex = useMemo(() => {
     if (!previewImage) return -1;
@@ -3185,6 +3326,16 @@ export default function App() {
   const handleTouchStart = (e: React.TouchEvent) => {
     swipeStartX.current = e.touches[0].clientX;
     swipeStartY.current = e.touches[0].clientY;
+    isSwipingRef.current = false;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (swipeStartX.current === null) return;
+    const diffX = Math.abs(e.touches[0].clientX - swipeStartX.current);
+    const diffY = Math.abs(e.touches[0].clientY - swipeStartY.current);
+    if (diffX > 10 || diffY > 10) {
+      isSwipingRef.current = true;
+    }
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
@@ -3195,11 +3346,12 @@ export default function App() {
     const diffX = touchEndX - swipeStartX.current;
     const diffY = touchEndY - swipeStartY.current;
 
-    const minSwipeDistance = 40; // minimum swipe in px
+    const minSwipeDistance = 45; // minimum swipe in px
 
     if (Math.abs(diffX) > Math.abs(diffY)) {
       // Horizontal swipe
       if (Math.abs(diffX) > minSwipeDistance) {
+        isSwipingRef.current = true;
         if (diffX < 0) {
           // Swipe Left -> next image
           if (hasNextPreview) {
@@ -3214,8 +3366,11 @@ export default function App() {
       }
     }
 
-    swipeStartX.current = null;
-    swipeStartY.current = null;
+    // Reset coordinates with a tiny timeout to let click handlers know swiping finished, preventing double trigger clicks
+    setTimeout(() => {
+      swipeStartX.current = null;
+      swipeStartY.current = null;
+    }, 100);
   };
 
   const filteredInstagramPosts = useMemo(() => {
@@ -7376,7 +7531,7 @@ export default function App() {
 
                             <LazyImage
                               src={item.imageUrl || 'https://images.unsplash.com/photo-1542751371-adc38448a05e'}
-                              alt={cleanTitle(item.title)}
+                              alt={item.title}
                               className="w-full h-full object-cover transition-transform duration-700 ease-in-out scale-100 group-hover:scale-105"
                               placeholderClassName="absolute inset-0 z-0"
                             />
@@ -7390,7 +7545,7 @@ export default function App() {
                             <h3 className={`text-xs md:text-sm font-extrabold tracking-tight leading-snug line-clamp-2 ${
                               currentTheme === 'light' ? 'text-slate-900' : 'text-white'
                             }`}>
-                              {cleanTitle(item.title)}
+                              {item.title}
                             </h3>
                             <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                               {item.discountCode && (
@@ -10535,7 +10690,15 @@ export default function App() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.25, ease: "easeOut" }}
-            onClick={() => setPreviewImage(null)}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            onClick={(e) => {
+              if (isSwipingRef.current) return;
+              if (e.target === e.currentTarget) {
+                setPreviewImage(null);
+              }
+            }}
             className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4"
           >
             <motion.div
@@ -10549,8 +10712,6 @@ export default function App() {
                 mass: 1
               }}
               onClick={(e) => e.stopPropagation()}
-              onTouchStart={handleTouchStart}
-              onTouchEnd={handleTouchEnd}
               className={`border rounded-3xl p-4 md:p-6 max-w-3xl w-full text-left space-y-4 relative select-none ${
                 currentTheme === 'light' ? 'bg-white border-slate-200 shadow-2xl' : 'bg-[#18181F] border border-white/10'
               }`}
@@ -11396,7 +11557,7 @@ export default function App() {
                       } else if (editingItem.type === 'affiliate_link') {
                         const itemData = {
                           id: editingItem.data.id || 'aff_' + Date.now().toString(),
-                          title: cleanTitle(editingItem.data.title || ''),
+                          title: editingItem.data.title || '',
                           description: editingItem.data.description || '',
                           category: (editingItem.data.category || '')
                             .split(',')

@@ -335,7 +335,7 @@ export const LazyImage: React.FC<LazyImageProps> = ({
               alt={alt}
               decoding="async"
               loading="lazy"
-              className={`absolute inset-0 w-full h-full object-cover ${className} transition-all duration-700 ease-out will-change-[filter,opacity,transform] z-10 ${
+              className={`absolute inset-0 w-full h-full ${className.includes('object-') ? '' : 'object-cover'} ${className} transition-all duration-700 ease-out will-change-[filter,opacity,transform] z-10 ${
                 isLoaded 
                   ? 'opacity-100 blur-0 scale-100' 
                   : 'opacity-0 blur-xl scale-[1.04]'
