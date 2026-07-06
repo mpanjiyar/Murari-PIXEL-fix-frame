@@ -41,6 +41,7 @@ import {
   Sparkles,
   ExternalLink,
   ChevronRight,
+  ChevronLeft,
   Eye,
   EyeOff,
   Bell,
@@ -457,6 +458,27 @@ const getCategoryLabel = (category: string): string => {
     custom: 'Outdoor'
   };
   return map[category] || category;
+};
+
+const slideVariants = {
+  enter: (direction: number) => ({
+    x: direction > 0 ? '100%' : direction < 0 ? '-100%' : 0,
+    opacity: 0,
+  }),
+  center: {
+    x: 0,
+    opacity: 1,
+  },
+  exit: (direction: number) => ({
+    x: direction > 0 ? '-100%' : direction < 0 ? '100%' : 0,
+    opacity: 0,
+  }),
+};
+
+const slideTransition = {
+  type: "spring",
+  stiffness: 300,
+  damping: 30,
 };
 
 export default function App() {
@@ -3111,6 +3133,90 @@ export default function App() {
     
     return items;
   }, [galleryItems, activeGalleryFilter, activeGalleryTagFilter]);
+
+  // Swipe & keyboard navigation helpers for the image preview modal
+  const [navigationDirection, setNavigationDirection] = useState<number>(0);
+  const swipeStartX = useRef<number | null>(null);
+  const swipeStartY = useRef<number | null>(null);
+
+  const previewImageIndex = useMemo(() => {
+    if (!previewImage) return -1;
+    return filteredItems.findIndex(item => item.id === previewImage.id);
+  }, [previewImage, filteredItems]);
+
+  const hasPrevPreview = previewImageIndex > 0;
+  const hasNextPreview = previewImageIndex >= 0 && previewImageIndex < filteredItems.length - 1;
+
+  const navigatePrevPreview = () => {
+    if (hasPrevPreview) {
+      setNavigationDirection(-1);
+      setPreviewImage(filteredItems[previewImageIndex - 1]);
+    }
+  };
+
+  const navigateNextPreview = () => {
+    if (hasNextPreview) {
+      setNavigationDirection(1);
+      setPreviewImage(filteredItems[previewImageIndex + 1]);
+    }
+  };
+
+  useEffect(() => {
+    if (!previewImage) {
+      setNavigationDirection(0);
+    }
+  }, [previewImage]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!previewImage) return;
+      if (e.key === 'ArrowLeft') {
+        navigatePrevPreview();
+      } else if (e.key === 'ArrowRight') {
+        navigateNextPreview();
+      } else if (e.key === 'Escape') {
+        setPreviewImage(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [previewImage, previewImageIndex, filteredItems]);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    swipeStartX.current = e.touches[0].clientX;
+    swipeStartY.current = e.touches[0].clientY;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (swipeStartX.current === null || swipeStartY.current === null) return;
+    const touchEndX = e.changedTouches[0].clientX;
+    const touchEndY = e.changedTouches[0].clientY;
+
+    const diffX = touchEndX - swipeStartX.current;
+    const diffY = touchEndY - swipeStartY.current;
+
+    const minSwipeDistance = 40; // minimum swipe in px
+
+    if (Math.abs(diffX) > Math.abs(diffY)) {
+      // Horizontal swipe
+      if (Math.abs(diffX) > minSwipeDistance) {
+        if (diffX < 0) {
+          // Swipe Left -> next image
+          if (hasNextPreview) {
+            navigateNextPreview();
+          }
+        } else {
+          // Swipe Right -> previous image
+          if (hasPrevPreview) {
+            navigatePrevPreview();
+          }
+        }
+      }
+    }
+
+    swipeStartX.current = null;
+    swipeStartY.current = null;
+  };
 
   const filteredInstagramPosts = useMemo(() => {
     const isVideoPost = (post: any) => post.mediaType === 'VIDEO' || !!post.videoUrl;
@@ -10443,7 +10549,9 @@ export default function App() {
                 mass: 1
               }}
               onClick={(e) => e.stopPropagation()}
-              className={`border rounded-3xl p-4 md:p-6 max-w-3xl w-full text-left space-y-4 relative ${
+              onTouchStart={handleTouchStart}
+              onTouchEnd={handleTouchEnd}
+              className={`border rounded-3xl p-4 md:p-6 max-w-3xl w-full text-left space-y-4 relative select-none ${
                 currentTheme === 'light' ? 'bg-white border-slate-200 shadow-2xl' : 'bg-[#18181F] border border-white/10'
               }`}
             >
@@ -10460,6 +10568,13 @@ export default function App() {
                 <span className="text-[10px] uppercase font-mono font-bold text-[#FF5500] tracking-wider px-2.5 py-0.5 bg-[#FF5500]/10 rounded border border-[#FF5500]/20 inline-block">
                   {getCategoryLabel(previewImage.category).toUpperCase()}
                 </span>
+                {previewImageIndex !== -1 && (
+                  <span className={`text-[11px] font-mono font-bold px-2.5 py-0.5 rounded-full ${
+                    currentTheme === 'light' ? 'text-slate-500 bg-slate-100' : 'text-slate-400 bg-white/5'
+                  }`}>
+                    {previewImageIndex + 1} of {filteredItems.length}
+                  </span>
+                )}
               </div>
 
               <div className="w-full flex justify-center">
@@ -10476,25 +10591,75 @@ export default function App() {
                     maxWidth: '100%'
                   }}
                 >
-                  <LazyImage
-                    src={previewImage.imageUrl}
-                    alt={previewImage.altText}
-                    className="w-full h-full object-contain"
-                    placeholderClassName="absolute inset-0 z-0"
-                  />
+                  <AnimatePresence initial={false} custom={navigationDirection} mode="popLayout">
+                    <motion.div
+                      key={previewImage.id}
+                      custom={navigationDirection}
+                      variants={slideVariants}
+                      initial="enter"
+                      animate="center"
+                      exit="exit"
+                      transition={slideTransition}
+                      className="absolute inset-0 w-full h-full"
+                    >
+                      <LazyImage
+                        src={previewImage.imageUrl}
+                        alt={previewImage.altText}
+                        className="w-full h-full object-contain select-none pointer-events-none"
+                        placeholderClassName="absolute inset-0 z-0"
+                      />
+                    </motion.div>
+                  </AnimatePresence>
+
+                  {/* Left overlay navigation arrow */}
+                  {hasPrevPreview && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); navigatePrevPreview(); }}
+                      className={`absolute left-3 top-1/2 -translate-y-1/2 p-2.5 rounded-full cursor-pointer transition-all duration-200 z-10 flex items-center justify-center border hover:scale-105 active:scale-95 ${
+                        currentTheme === 'light'
+                          ? 'bg-white/90 border-slate-200 text-slate-800 shadow-md hover:bg-slate-50'
+                          : 'bg-black/70 border-white/10 text-white shadow-lg hover:bg-black/90'
+                      }`}
+                      title="Previous image"
+                    >
+                      <ChevronLeft size={16} />
+                    </button>
+                  )}
+
+                  {/* Right overlay navigation arrow */}
+                  {hasNextPreview && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); navigateNextPreview(); }}
+                      className={`absolute right-3 top-1/2 -translate-y-1/2 p-2.5 rounded-full cursor-pointer transition-all duration-200 z-10 flex items-center justify-center border hover:scale-105 active:scale-95 ${
+                        currentTheme === 'light'
+                          ? 'bg-white/90 border-slate-200 text-slate-800 shadow-md hover:bg-slate-50'
+                          : 'bg-black/70 border-white/10 text-white shadow-lg hover:bg-black/90'
+                      }`}
+                      title="Next image"
+                    >
+                      <ChevronRight size={16} />
+                    </button>
+                  )}
                 </div>
               </div>
 
               <div className="space-y-2 text-left">
-                <h3 className={`text-lg md:text-xl font-black ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
-                  {previewImage.title}
-                </h3>
+                <div className="flex items-center justify-between">
+                  <h3 className={`text-lg md:text-xl font-black ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
+                    {previewImage.title}
+                  </h3>
+                </div>
                 
-                <div className={`flex flex-wrap items-center gap-4 text-xs font-mono pt-2 border-t ${
+                <div className={`flex flex-wrap items-center justify-between gap-4 text-xs font-mono pt-2 border-t ${
                   currentTheme === 'light' ? 'text-slate-600 border-slate-200' : 'text-slate-500 border-white/5'
                 }`}>
-                  <span>🗓️ Shot Date: {previewImage.date}</span>
-                  <span>📷 Camera Parameters: <strong className={currentTheme === 'light' ? 'text-slate-900 font-bold' : 'text-white font-normal'}>{previewImage.cameraInfo || 'Nikon Z8 • High Definition Output'}</strong></span>
+                  <div className="flex flex-wrap items-center gap-4">
+                    <span>🗓️ Shot Date: {previewImage.date}</span>
+                    <span>📷 Camera Parameters: <strong className={currentTheme === 'light' ? 'text-slate-900 font-bold' : 'text-white font-normal'}>{previewImage.cameraInfo || 'Nikon Z8 • High Definition Output'}</strong></span>
+                  </div>
+                  <span className={`text-[10px] italic ${currentTheme === 'light' ? 'text-slate-400' : 'text-slate-600'}`}>
+                    Tip: Swipe or use Left/Right arrows
+                  </span>
                 </div>
               </div>
 
