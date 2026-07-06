@@ -12,7 +12,10 @@
         "url": { "type": "string" },
         "imageUrl": { "type": "string" },
         "discountCode": { "type": "string" },
-        "clicks": { "type": "integer" }
+        "clicks": { "type": "integer" },
+        "clickHistory": { "type": "object" },
+        "last_clicked": { "type": "string" },
+        "daily_click_count": { "type": "object" }
       },
       "required": ["id", "title", "description", "category", "url", "imageUrl"]
     },
@@ -87,9 +90,32 @@
         "status": { "type": "string" }
       },
       "required": ["id", "name", "phone", "email", "serviceType", "message", "timestamp"]
+    },
+    "SoftwareLicense": {
+      "title": "SoftwareLicense",
+      "description": "A dynamic software product license key listing editable by the administrator.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "price": { "type": "string" },
+        "badge": { "type": "string" },
+        "description": { "type": "string" },
+        "licenseType": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "features": { "type": "string" },
+        "compatibility": { "type": "string" },
+        "details": { "type": "string" },
+        "category": { "type": "string" }
+      },
+      "required": ["id", "name", "price"]
     }
   },
   "firestore": {
+    "/software_licenses/{licenseId}": {
+      "schema": "SoftwareLicense",
+      "description": "Collection of available software licenses managed by the administrator."
+    },
     "/contact_messages/{messageId}": {
       "schema": "ContactMessage",
       "description": "Collection of visitor requests and doorstep technician booking entries."

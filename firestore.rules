@@ -28,7 +28,10 @@ service cloud.firestore {
         && data.url is string && data.url.size() <= 3000
         && data.imageUrl is string && data.imageUrl.size() <= 10000000
         && (!('discountCode' in data) || (data.discountCode is string && data.discountCode.size() <= 200))
-        && (!('clicks' in data) || (data.clicks is int || data.clicks is float));
+        && (!('clicks' in data) || (data.clicks is int || data.clicks is float))
+        && (!('clickHistory' in data) || data.clickHistory is map)
+        && (!('last_clicked' in data) || (data.last_clicked is string && data.last_clicked.size() <= 100))
+        && (!('daily_click_count' in data) || data.daily_click_count is map);
     }
 
     function isValidCategoryMap(data) {
@@ -83,6 +86,20 @@ service cloud.firestore {
         && (!('status' in data) || (data.status is string && data.status.size() <= 100));
     }
 
+    function isValidSoftwareLicense(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.name is string && data.name.size() <= 300
+        && data.price is string && data.price.size() <= 100
+        && (!('badge' in data) || (data.badge is string && data.badge.size() <= 100))
+        && (!('description' in data) || (data.description is string && data.description.size() <= 5000))
+        && (!('licenseType' in data) || (data.licenseType is string && data.licenseType.size() <= 500))
+        && (!('imageUrl' in data) || (data.imageUrl is string && data.imageUrl.size() <= 10000000))
+        && (!('features' in data) || (data.features is string && data.features.size() <= 5000))
+        && (!('compatibility' in data) || (data.compatibility is string && data.compatibility.size() <= 1000))
+        && (!('details' in data) || (data.details is string && data.details.size() <= 1000))
+        && (!('category' in data) || (data.category is string && data.category.size() <= 200));
+    }
+
     // Collection: Contact Messages
     match /contact_messages/{messageId} {
       allow read: if true;
@@ -113,6 +130,14 @@ service cloud.firestore {
       allow create: if isValidId(linkId) && isValidSocialLink(incoming());
       allow update: if isValidId(linkId) && isValidSocialLink(incoming());
       allow delete: if isValidId(linkId);
+    }
+
+    // Collection: Software Licenses
+    match /software_licenses/{licenseId} {
+      allow read: if true;
+      allow create: if isValidId(licenseId) && isValidSoftwareLicense(incoming());
+      allow update: if isValidId(licenseId) && isValidSoftwareLicense(incoming());
+      allow delete: if isValidId(licenseId);
     }
 
     // Collection: Site Config

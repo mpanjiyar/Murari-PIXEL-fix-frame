@@ -551,8 +551,9 @@ function fallbackExtractFromHtml(url: string, fullHtml: string) {
   // Determine Category
   const category = mapAmazonCategory(url, title, description, fullHtml);
 
-  // Generate an elegant, custom description if missing or blocked
+  // Generate an elegant, custom description if missing, blocked, or too short
   const isDescriptionBlocked = !description || 
+                               description.length < 40 ||
                                description.toLowerCase().includes("robot check") || 
                                description.toLowerCase().includes("captcha") || 
                                description.toLowerCase().includes("automated access") ||
@@ -1091,8 +1092,12 @@ async function expandUrl(url: string): Promise<string> {
       redirect: "follow",
       signal: controller.signal,
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache'
       }
     });
     clearTimeout(timeoutId);
@@ -1110,7 +1115,12 @@ async function expandUrl(url: string): Promise<string> {
         redirect: "follow",
         signal: controller2.signal,
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Accept-Encoding': 'gzip, deflate, br',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
         }
       });
       clearTimeout(timeoutId2);
@@ -1159,9 +1169,12 @@ async function handleFetchProduct(req: express.Request, res: express.Response) {
       const response = await fetch(targetUrl, {
         signal: controller.signal,
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-          'Accept-Language': 'en-US,en;q=0.5',
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Accept-Encoding': 'gzip, deflate, br',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
         }
       });
       clearTimeout(timeoutId);

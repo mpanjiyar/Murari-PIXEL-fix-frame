@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
 import { LazyImage } from './LazyImage';
 
@@ -23,29 +23,29 @@ export const BeforeAfterSlider: React.FC<BeforeAfterSliderProps> = ({
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const handleMove = (clientX: number) => {
+  const handleMove = useCallback((clientX: number) => {
     if (!containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
     const x = clientX - rect.left;
     const percentage = Math.max(0, Math.min(100, (x / rect.width) * 100));
     setSliderPosition(percentage);
-  };
+  }, []);
 
-  const handleTouchMove = (e: TouchEvent) => {
+  const handleTouchMove = useCallback((e: TouchEvent) => {
     if (!isDragging) return;
     if (e.touches.length > 0) {
       handleMove(e.touches[0].clientX);
     }
-  };
+  }, [isDragging, handleMove]);
 
-  const handleMouseMove = (e: MouseEvent) => {
+  const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!isDragging) return;
     handleMove(e.clientX);
-  };
+  }, [isDragging, handleMove]);
 
-  const handleMouseUp = () => {
+  const handleMouseUp = useCallback(() => {
     setIsDragging(false);
-  };
+  }, []);
 
   useEffect(() => {
     if (isDragging) {
@@ -61,9 +61,9 @@ export const BeforeAfterSlider: React.FC<BeforeAfterSliderProps> = ({
       window.removeEventListener('touchmove', handleTouchMove);
       window.removeEventListener('touchend', handleMouseUp);
     };
-  }, [isDragging]);
+  }, [isDragging, handleMouseMove, handleTouchMove, handleMouseUp]);
 
-  const onStart = (e: React.MouseEvent | React.TouchEvent) => {
+  const onStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault();
     setIsDragging(true);
     if ('touches' in e) {
@@ -73,7 +73,7 @@ export const BeforeAfterSlider: React.FC<BeforeAfterSliderProps> = ({
     } else {
       handleMove(e.clientX);
     }
-  };
+  }, [handleMove]);
 
   return (
     <div 

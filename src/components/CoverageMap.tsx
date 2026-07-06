@@ -55,8 +55,8 @@ export default function CoverageMap({ currentTheme }: CoverageMapProps) {
     return L.divIcon({
       html: `
         <div class="relative flex items-center justify-center">
-          <span class="animate-ping absolute inline-flex h-6 w-6 rounded-full bg-${color}/40 opacity-75"></span>
-          <div class="relative bg-zinc-950 border-2 border-[${color}] p-1.5 rounded-full shadow-lg flex items-center justify-center">
+          <span class="animate-ping absolute inline-flex h-6 w-6 rounded-full" style="background-color: ${color}; opacity: 0.4;"></span>
+          <div class="relative bg-zinc-950 p-1.5 rounded-full shadow-lg flex items-center justify-center" style="border: 2px solid ${color};">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <path d="M20 10c0 4.993-5.539 10.193-7.399 11.74a1.095 1.095 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0Z"/>
               <circle cx="12" cy="10" r="3"/>

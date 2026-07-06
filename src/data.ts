@@ -606,7 +606,7 @@ export const INITIAL_AFFILIATE_LINKS: any[] = [
   {
     id: 'aff-4',
     title: 'SanDisk Extreme PRO UHS-II SDXC Card 128GB',
-    description: 'Ultra-fast read/write speeds up to 300MB/s. Captures seamless high-speed raw continuous bursts on Nikon Z8/Z9 without filling the internal camera buffer.',
+    description: 'Ultra-fast read/write speeds up to 300MB/s. Captures seamless high-speed raw continuous bursts on professional camera systems without filling the internal camera buffer.',
     category: 'photography, my_gears',
     url: 'https://amazon.in/dp/B010NE3O1G',
     imageUrl: 'https://images.unsplash.com/photo-1623126908029-58cb08a2b272?auto=format&fit=crop&q=80&w=300',
@@ -622,6 +622,65 @@ export const INITIAL_AFFILIATE_LINKS: any[] = [
     imageUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&q=80&w=300',
     discountCode: 'ADOBEDISC5',
     clicks: 94
+  }
+];
+
+export const INITIAL_SOFTWARE_LICENSES: any[] = [
+  {
+    id: 'lic-win-pro',
+    name: 'Windows 10/11 Pro License Key',
+    price: '₹1,500',
+    badge: 'Most Popular',
+    description: 'Lifetime retail activation key for Windows 10 or 11 Professional. Instant delivery with email and SMS setup directions.',
+    licenseType: 'Lifetime License Key',
+    imageUrl: 'https://images.unsplash.com/photo-1624571409412-1f2205579655?auto=format&fit=crop&q=80&w=600',
+    features: '1 PC Activation, Free Technical Support, 100% Genuine Retail Key, Online Activation',
+    compatibility: 'Compatible with Windows 10 Pro & Windows 11 Pro (32/64-bit)',
+    details: 'Instant Digital Delivery • OEM/Retail Activation • Global Region',
+    category: 'operating_system',
+    url: 'https://www.microsoft.com/d/windows-11-pro/dg7gmgf0krt0'
+  },
+  {
+    id: 'lic-office-2019',
+    name: 'Microsoft Office 2019',
+    price: '₹1,800',
+    badge: 'Budget Friendly',
+    description: 'Classic Microsoft Office productivity suite including Word, Excel, PowerPoint, and Outlook for business and home setups.',
+    licenseType: 'Lifetime License Key',
+    imageUrl: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&q=80&w=600',
+    features: 'Lifetime Activation, No Subscription, Classic 2019 Apps, 1 User Account Link',
+    compatibility: 'Compatible with Windows 10 & Windows 11',
+    details: 'Email activation code • Offline/Online Setup • Single-device limit',
+    category: 'productivity',
+    url: 'https://www.microsoft.com/microsoft-365/p/office-home-business-2019/dg7gmgf0kgdx'
+  },
+  {
+    id: 'lic-office-2021',
+    name: 'Microsoft Office 2021',
+    price: '₹2,500',
+    badge: 'Best Seller',
+    description: 'Enhanced productivity suite with modern collaboration, high-performance Excel formulas, dark mode styling, and seamless UI.',
+    licenseType: 'Lifetime License Key',
+    imageUrl: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&q=80&w=600',
+    features: 'Lifetime Retail Key, Link to Microsoft Account, Full Suite Access, Free Minor Updates',
+    compatibility: 'Compatible with Windows 10, Windows 11, and macOS (Mac version)',
+    details: 'Linked to Microsoft Account • Online/Phone Activation • Reinstallable anytime',
+    category: 'productivity',
+    url: 'https://www.microsoft.com/microsoft-365/p/office-home-business-2021/dg7gmgf0kb9h'
+  },
+  {
+    id: 'lic-office-2024',
+    name: 'Microsoft Office 2024',
+    price: '₹4,000',
+    badge: 'Premium Enterprise',
+    description: 'The latest standalone productivity suite. Features cutting-edge UI design, AI assistant capabilities, and the fastest Excel processing engine.',
+    licenseType: 'Lifetime License Key',
+    imageUrl: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?auto=format&fit=crop&q=80&w=600',
+    features: 'Lifetime Genuine License, Advanced Excel Matrix Functions, Outlook Security Safeguards, 2024 UI Elements',
+    compatibility: 'Compatible with Windows 10, Windows 11, and macOS (Sonoma/Sequoia)',
+    details: 'Full Retail Suite • Instant Digital Key • Automatic Account Binding',
+    category: 'productivity',
+    url: 'https://www.microsoft.com/microsoft-365/p/office-home-business-2024/dg7gmgf0qv07'
   }
 ];
 

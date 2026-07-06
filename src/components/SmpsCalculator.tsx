@@ -1523,14 +1523,14 @@ export default function SmpsCalculator({ currentTheme }: SmpsCalculatorProps) {
             <button
               onClick={handleWhatsAppInquiry}
               disabled={isFormEmpty}
-              className={`w-full py-2.5 px-4 rounded-xl text-[11px] font-extrabold uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm transition-all ${
+              className={`w-full py-2.5 px-4 rounded-xl text-[11px] font-extrabold uppercase tracking-wider flex items-center justify-center gap-2 text-center shadow-sm transition-all ${
                 isFormEmpty 
                   ? 'opacity-40 cursor-not-allowed bg-zinc-800 text-zinc-500' 
                   : 'bg-[#FF5500] hover:bg-[#FF4400] text-white hover:shadow-[#FF5500]/20 active:scale-98 cursor-pointer'
               }`}
             >
               <WhatsAppIcon size={12} />
-              <span>Inquire Assembly with special list</span>
+              <span className="text-center">Inquire Assembly with special list</span>
             </button>
           </div>
 

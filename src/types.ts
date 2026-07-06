@@ -66,6 +66,23 @@ export interface AffiliateLink {
   price?: string;
   clicks: number;
   clickHistory?: Record<string, number>;
+  last_clicked?: string;
+  daily_click_count?: Record<string, number>;
+}
+
+export interface SoftwareLicense {
+  id: string;
+  name: string;
+  price: string;
+  badge: string;
+  description: string;
+  licenseType: string;
+  imageUrl: string;
+  features: string;
+  compatibility: string;
+  details: string;
+  category: string;
+  url?: string;
 }
 
 export interface SocialLink {

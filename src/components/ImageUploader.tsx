@@ -22,17 +22,46 @@ export function ImageUploader({ value, onChange, currentTheme, label = "Upload I
       return;
     }
 
-    // Check size - cap at 4MB to avoid localStorage string limits
-    if (file.size > 4 * 1024 * 1024) {
-      setError('Image is too large. Preview upload limit is 4MB for real-time saving.');
-      return;
-    }
-
     setError(null);
     const reader = new FileReader();
     reader.onload = (e) => {
-      if (e.target?.result && typeof e.target.result === 'string') {
-        onChange(e.target.result);
+      const result = e.target?.result;
+      if (typeof result === 'string') {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+
+          // Compress if dimensions exceed 800px
+          const maxDimension = 800;
+          if (width > maxDimension || height > maxDimension) {
+            if (width > height) {
+              height = Math.round((height * maxDimension) / width);
+              width = maxDimension;
+            } else {
+              width = Math.round((width * maxDimension) / height);
+              height = maxDimension;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            // Compress to JPEG with 0.7 quality to reduce string size significantly
+            const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
+            onChange(compressedBase64);
+          } else {
+            onChange(result); // Fallback to raw base64 if canvas drawing fails
+          }
+        };
+        img.onerror = () => {
+          setError('Failed to process image structure.');
+        };
+        img.src = result;
       } else {
         setError('Failed to process image file.');
       }
