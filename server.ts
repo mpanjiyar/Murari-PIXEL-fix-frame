@@ -297,10 +297,134 @@ function cleanProductTitle(title: string): string {
     .replace(/\s*\|\s*(?:Amazon|Flipkart|Shop|Store|Best Buy|Ebay)(?:\.(?:com|in|co\.uk|org|net))?\s*$/i, "")
     .replace(/\s*-\s*(?:Amazon|Flipkart|Shop|Store|Best Buy|Ebay)(?:\.(?:com|in|co\.uk|org|net))?\s*$/i, "");
 
+  // 4. Remove common promotional fluff from titles
+  const promoFluff = [
+    /FREE Shipping/gi, /FREE Delivery/gi, /Eligible for FREE Shipping/gi,
+    /With Coupon/gi, /Best Seller/gi, /Top Rated/gi, /Special Offer/gi,
+    /Limited Time Deal/gi, /Deal of the Day/gi, /Prime Day Deal/gi
+  ];
+  for (const regex of promoFluff) {
+    clean = clean.replace(regex, "");
+  }
+
+  // 5. Remove tracking parameters from title if present
+  clean = clean.replace(/[?&](?:tag|ref|utm_)[a-zA-Z0-9_\-]+=[^&]+/gi, "");
+
+  // 6. Remove duplicated words (e.g., "Sony Sony Alpha" -> "Sony Alpha")
+  const words = clean.split(/\s+/).filter(Boolean);
+  const uniqueWords: string[] = [];
+  for (let i = 0; i < words.length; i++) {
+    const word = words[i];
+    if (i > 0 && word.toLowerCase() === words[i-1].toLowerCase()) {
+      continue;
+    }
+    if (word.length > 3 && uniqueWords.length > 0 && uniqueWords[uniqueWords.length - 1].toLowerCase() === word.toLowerCase()) {
+      continue;
+    }
+    uniqueWords.push(word);
+  }
+  clean = uniqueWords.join(" ");
+
   // Clean trailing punctuation
   clean = clean.replace(/[\s\-|:|;|,]+$/, "").trim();
 
   return clean;
+}
+
+// Clean up product description to remove e-commerce boilerplate like compatibility prompts
+function cleanProductDescription(desc: string): string {
+  if (!desc) return "";
+  
+  let clean = decodeHtmlEntities(desc);
+  
+  clean = clean
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<[^>]+>/g, " ");
+
+  const noisePatterns = [
+    /make\s*sure\s*this\s*fits\s*by\s*entering\s*your\s*model\s*number\.?/gi,
+    /this\s*fits\s*your\s*\.?/gi,
+    /enter\s*your\s*model\s*number\s*to\s*make\s*sure\s*this\s*fits\.?/gi,
+    /click\s*here\s*to\s*ensure\s*compatibility\s*of\s*this\s*product\s*with\s*your\s*model\.?/gi,
+    /about\s*this\s*item\s*:?/gi,
+    /product\s*description\s*:?/gi,
+    /we\s*use\s*cookies\s*to\s*enhance\s*your\s*experience[\s\S]*/gi,
+    /by\s*continuing\s*to\s*visit\s*this\s*site\s*you\s*agree[\s\S]*/gi,
+    /all\s*rights\s*reserved\.?/gi,
+    /terms\s*of\s*service\s*and\s*privacy\s*policy[\s\S]*/gi,
+    /skip\s*to\s*main\s*content/gi,
+    /sign\s*in\s*to\s*your\s*account/gi
+  ];
+  
+  for (const regex of noisePatterns) {
+    clean = clean.replace(regex, "");
+  }
+
+  // Deduplicate sentences/paragraphs
+  const sentences = clean.split(/[.!?]+\s+/);
+  const uniqueSentences: string[] = [];
+  const seenLower = new Set<string>();
+  
+  for (const sentence of sentences) {
+    const trimmed = sentence.trim();
+    if (!trimmed) continue;
+    const lower = trimmed.toLowerCase();
+    if (lower.length < 5) continue;
+    if (!seenLower.has(lower)) {
+      seenLower.add(lower);
+      uniqueSentences.push(trimmed);
+    }
+  }
+  
+  clean = uniqueSentences.join(". ");
+  if (clean && !clean.endsWith(".")) {
+    clean += ".";
+  }
+
+  clean = clean.replace(/\s+/g, " ").trim();
+  
+  return clean;
+}
+
+// Resilient meta tag extractor supporting arbitrary attribute ordering
+function extractMetaTag(html: string, nameOrProperty: string): string | null {
+  if (!html) return null;
+  const regex1 = new RegExp(`<meta\\s+[^>]*?(?:name|property)=["']${nameOrProperty}["'][^>]*?content=["']([^"']*)["']`, "i");
+  const regex2 = new RegExp(`<meta\\s+[^>]*?content=["']([^"']*)["'][^>]*?(?:name|property)=["']${nameOrProperty}["']`, "i");
+  
+  const match1 = html.match(regex1);
+  if (match1 && match1[1]) return match1[1].trim();
+  
+  const match2 = html.match(regex2);
+  if (match2 && match2[1]) return match2[1].trim();
+  
+  return null;
+}
+
+// Resolve any relative URLs to fully qualified absolute ones
+function makeUrlAbsolute(base: string, relative: string): string {
+  if (!relative) return relative;
+  if (/^https?:\/\//i.test(relative)) return relative;
+  if (relative.startsWith("//")) return "https:" + relative;
+  
+  try {
+    const urlObj = new URL(base);
+    return new URL(relative, urlObj.origin).toString();
+  } catch (e) {
+    return relative;
+  }
+}
+
+// Clean truncation on word boundaries to look professional
+function smartTruncate(text: string, maxLen: number): string {
+  if (!text || text.length <= maxLen) return text;
+  const truncated = text.substring(0, maxLen);
+  const lastSpace = truncated.lastIndexOf(" ");
+  if (lastSpace > maxLen * 0.7) {
+    return truncated.substring(0, lastSpace).trim() + "...";
+  }
+  return truncated.trim() + "...";
 }
 
 // Explicitly maps common Amazon categories, department breadcrumbs, and keywords to the defined portfolio categories
@@ -400,10 +524,7 @@ function mapAmazonCategory(url: string, title: string, description: string, html
 
 // Helper function to extract product metadata programmatically from HTML when Gemini is unavailable or rate-limited
 function fallbackExtractFromHtml(url: string, fullHtml: string) {
-  // Extract ASIN
   const asin = extractAmazonAsin(url);
-  
-  // Extract Title
   let title = "";
   
   if (fullHtml) {
@@ -415,14 +536,12 @@ function fallbackExtractFromHtml(url: string, fullHtml: string) {
     if (amazonTitleMatch) {
       title = amazonTitleMatch[1].trim();
     } else {
-      // Normal meta tag extraction
-      const ogTitleMatch = fullHtml.match(/<meta[^>]*property=["']og:title["'][^>]*content=["']([^"']+)["']/i) ||
-                           fullHtml.match(/<meta[^>]*name=["']twitter:title["'][^>]*content=["']([^"']+)["']/i) ||
-                           fullHtml.match(/<meta[^>]*name=["']title["'][^>]*content=["']([^"']+)["']/i) ||
-                           fullHtml.match(/<meta[^>]*content=["']([^"']+)["'][^>]*property=["']og:title["']/i);
-      if (ogTitleMatch) {
-        title = ogTitleMatch[1];
-      } else {
+      title = extractMetaTag(fullHtml, "og:title") ||
+              extractMetaTag(fullHtml, "twitter:title") ||
+              extractMetaTag(fullHtml, "title") ||
+              "";
+              
+      if (!title) {
         const titleTagMatch = fullHtml.match(/<title>([\s\S]*?)<\/title>/i);
         if (titleTagMatch) {
           title = titleTagMatch[1];
@@ -446,14 +565,11 @@ function fallbackExtractFromHtml(url: string, fullHtml: string) {
     title = slugTitle ? cleanProductTitle(slugTitle) : (asin ? `Amazon Gear (ASIN: ${asin})` : "Curated Equipment Gear");
   }
 
-  // Strictly enforce 15-word maximum limit for local fallback to align with User Request 1
+  // Strictly enforce 15-word maximum limit for local fallback
   if (title) {
     const titleWords = title.split(/\s+/).filter(Boolean);
     if (titleWords.length > 15) {
-      let truncated = titleWords.slice(0, 15).join(" ");
-      // Clean up any trailing connectors, hyphens, or punctuation at the end of the words
-      truncated = truncated.replace(/[\s\-|:|;|,|/|\\|&]+$/, "").trim();
-      title = truncated + "...";
+      title = smartTruncate(titleWords.slice(0, 15).join(" "), 80);
     }
   }
 
@@ -469,45 +585,34 @@ function fallbackExtractFromHtml(url: string, fullHtml: string) {
         .replace(/\s+/g, " ")
         .trim();
     } else {
-      const ogDescMatch = fullHtml.match(/<meta[^>]*property=["']og:description["'][^>]*content=["']([^"']+)["']/i) ||
-                          fullHtml.match(/<meta[^>]*name=["']twitter:description["'][^>]*content=["']([^"']+)["']/i) ||
-                          fullHtml.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i) ||
-                          fullHtml.match(/<meta[^>]*content=["']([^"']+)["'][^>]*property=["']og:description["']/i);
-      if (ogDescMatch) {
-        description = ogDescMatch[1].trim();
-      }
+      description = extractMetaTag(fullHtml, "og:description") ||
+                    extractMetaTag(fullHtml, "twitter:description") ||
+                    extractMetaTag(fullHtml, "description") ||
+                    "";
     }
   }
 
+  // Clean description of compatibility checks and e-commerce boilerplate
+  description = cleanProductDescription(description);
+
+  // Limit description length elegantly
   if (description) {
-    description = description.replace(/&amp;/g, "&")
-                             .replace(/&lt;/g, "<")
-                             .replace(/&gt;/g, ">")
-                             .replace(/&quot;/g, '"')
-                             .replace(/&#39;/g, "'")
-                             .replace(/&ndash;/g, "–")
-                             .replace(/&mdash;/g, "—")
-                             .replace(/<[^>]+>/g, " ") // Strip any stray tags
-                             .replace(/\s+/g, " ")
-                             .trim();
-    if (description.length > 180) {
-      description = description.substring(0, 177) + "...";
-    }
+    description = smartTruncate(description, 180);
   }
 
-  // Extract Image URL using smart /images/I/ product item scanner first
+  // Extract Image URL
   let imageUrl = "";
   if (fullHtml) {
     const candidateImages = extractProductImagesFromHtml(fullHtml);
     if (candidateImages.length > 0) {
       imageUrl = getHighResAmazonUrl(candidateImages[0]);
     } else {
-      // Fallback to og:image meta tags
-      const ogImageMatch = fullHtml.match(/<meta[^>]*property=["']og:image["'][^>]*content=["']([^"']+)["']/i) ||
-                           fullHtml.match(/<meta[^>]*name=["']twitter:image["'][^>]*content=["']([^"']+)["']/i);
-      if (ogImageMatch) {
-        imageUrl = getHighResAmazonUrl(ogImageMatch[1]);
-      } else {
+      imageUrl = extractMetaTag(fullHtml, "og:image") ||
+                 extractMetaTag(fullHtml, "twitter:image") ||
+                 extractMetaTag(fullHtml, "image") ||
+                 "";
+      
+      if (!imageUrl) {
         // Direct matches from Amazon script/image containers
         const amznImgMatch = fullHtml.match(/hiRes"[\s:]+["'](https:\/\/images-[^"']+)["']/i) ||
                              fullHtml.match(/large"[\s:]+["'](https:\/\/images-[^"']+)["']/i) ||
@@ -517,7 +622,26 @@ function fallbackExtractFromHtml(url: string, fullHtml: string) {
           imageUrl = getHighResAmazonUrl(amznImgMatch[1]);
         }
       }
+
+      // Try general img tag scanner if still not found
+      if (!imageUrl) {
+        const imgRegex = /<img\s+[^>]*?src=["'](https?:\/\/[^"']+\.(?:jpg|jpeg|png|gif|webp))["']/gi;
+        let imgMatch;
+        while ((imgMatch = imgRegex.exec(fullHtml)) !== null) {
+          const src = imgMatch[1];
+          const srcLower = src.toLowerCase();
+          if (!srcLower.includes("spacer") && !srcLower.includes("pixel") && !srcLower.includes("icon") && !srcLower.includes("logo") && !srcLower.includes("loading") && !srcLower.includes("spinner") && src.length > 15) {
+            imageUrl = src;
+            break;
+          }
+        }
+      }
     }
+  }
+
+  // Make image URL absolute
+  if (imageUrl) {
+    imageUrl = makeUrlAbsolute(url, imageUrl);
   }
 
   // If imageUrl is empty, or is a generic/placeholder image, or looks like a tracking pixel, and we have ASIN, use ASIN image!
@@ -1069,70 +1193,176 @@ app.get("/api/instagram-posts", async (req, res) => {
 });
 
 // API Route to fetch & extract product details from an Amazon link
-// Helper to follow redirects iteratively and safely resolve shortened or affiliate redirect links
-async function expandUrl(url: string): Promise<string> {
+// Global map to deduplicate concurrent fetch requests for the same URL to prevent rate limiting & race conditions
+const activeProductFetches = new Map<string, Promise<any>>();
+
+// Helper to merge tracking parameters from the original shortened URL into the final target URL
+function mergeQueryParams(originalUrl: string, targetUrl: string): string {
+  try {
+    const origObj = new URL(originalUrl);
+    const targetObj = new URL(targetUrl);
+    
+    // Copy tracking and campaign parameters from original to target if they exist
+    const trackingKeys = ['tag', 'ref', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'subid', 'campaign', 'affid', 'associates_id'];
+    
+    for (const [key, value] of origObj.searchParams.entries()) {
+      const lowerKey = key.toLowerCase();
+      const isTracking = trackingKeys.some(tk => lowerKey === tk || lowerKey.startsWith(tk) || lowerKey.includes('aff') || lowerKey.includes('track') || lowerKey.includes('ref'));
+      if (isTracking && !targetObj.searchParams.has(key)) {
+        targetObj.searchParams.set(key, value);
+      }
+    }
+    return targetObj.toString();
+  } catch (err) {
+    return targetUrl;
+  }
+}
+
+// Helper to expand URL, check redirects, detect redirect loops, verify HTTPS, and check live reachability
+async function expandAndValidateUrl(url: string): Promise<{ targetUrl: string; redirectHops: string[]; isLive: boolean; error?: string }> {
   let currentUrl = url.trim();
   if (!/^https?:\/\//i.test(currentUrl)) {
     currentUrl = "https://" + currentUrl;
   }
 
-  // List of domain patterns that are known to be shorteners or redirects
-  const isShortener = /amzn\.[a-z]{2,4}|a\.co|bit\.ly|tinyurl\.com|t\.co|murl\.com|tiny\.cc|is\.gd|lnk\.to|rebrand\.ly|shope\.ee|\/d\/[a-zA-Z0-9]/i.test(currentUrl);
-  if (!isShortener) {
-    return currentUrl;
+  // Validate basic URL structure
+  try {
+    const parsed = new URL(currentUrl);
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+      return { targetUrl: currentUrl, redirectHops: [], isLive: false, error: "Only HTTP and HTTPS links are supported." };
+    }
+  } catch (err) {
+    return { targetUrl: currentUrl, redirectHops: [], isLive: false, error: "Malformed URL syntax." };
   }
 
-  console.info(`[Expand URL] Attempting to expand shortener URL: "${currentUrl}"`);
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4000);
+  const hops: string[] = [currentUrl];
+  const maxHops = 5;
+  let currentHop = 0;
+  let isLive = true;
+  let validationError: string | undefined;
 
-    const response = await fetch(currentUrl, {
-      method: "GET",
-      redirect: "follow",
-      signal: controller.signal,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Cache-Control': 'no-cache',
-        'Pragma': 'no-cache'
-      }
-    });
-    clearTimeout(timeoutId);
-    if (response.url && response.url !== currentUrl) {
-      console.info(`[Expand URL] Expanded to: "${response.url}"`);
-      return response.url;
+  while (currentHop < maxHops) {
+    // List of domain patterns that are known to be shorteners or redirects
+    const isShortener = /amzn\.[a-z]{2,4}|a\.co|bit\.ly|tinyurl\.com|t\.co|murl\.com|tiny\.cc|is\.gd|lnk\.to|rebrand\.ly|shope\.ee|\/d\/[a-zA-Z0-9]/i.test(currentUrl);
+    if (!isShortener && currentHop > 0) {
+      break;
     }
-  } catch (err: any) {
-    console.info(`[Expand URL] Error during GET expansion: ${err?.message || "unknown"}. Trying HEAD fallback...`);
+
+    console.info(`[Expand URL Hop ${currentHop + 1}] Attempting to resolve: "${currentUrl}"`);
     try {
-      const controller2 = new AbortController();
-      const timeoutId2 = setTimeout(() => controller2.abort(), 3000);
-      const response2 = await fetch(currentUrl, {
-        method: "HEAD",
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
+
+      const response = await fetch(currentUrl, {
+        method: "GET",
         redirect: "follow",
-        signal: controller2.signal,
+        signal: controller.signal,
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, Gecko) Chrome/119.0.0.0 Safari/537.36',
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
           'Accept-Language': 'en-US,en;q=0.9',
-          'Accept-Encoding': 'gzip, deflate, br',
           'Cache-Control': 'no-cache',
           'Pragma': 'no-cache'
         }
       });
-      clearTimeout(timeoutId2);
-      if (response2.url && response2.url !== currentUrl) {
-        console.info(`[Expand URL] HEAD expanded to: "${response2.url}"`);
-        return response2.url;
+      clearTimeout(timeoutId);
+
+      // Check for dead link
+      if (response.status === 404) {
+        isLive = false;
+        validationError = `Dead link detected or missing product page (HTTP 404 at "${currentUrl}").`;
+        break;
       }
-    } catch (headErr: any) {
-      console.info(`[Expand URL] HEAD fallback expansion failed: ${headErr?.message || "unknown"}`);
+      if (response.status >= 500) {
+        isLive = false;
+        validationError = `Product page returned server error (HTTP ${response.status}).`;
+        break;
+      }
+
+      if (response.url && response.url !== currentUrl) {
+        const nextUrl = response.url;
+        if (hops.includes(nextUrl)) {
+          isLive = false;
+          validationError = `Redirect loop detected at: "${nextUrl}"`;
+          break;
+        }
+        hops.push(nextUrl);
+        currentUrl = nextUrl;
+      } else {
+        break;
+      }
+    } catch (err: any) {
+      console.warn(`[Expand URL] Hop failed: ${err?.message || "unknown"}. Retrying with HEAD...`);
+      try {
+        const controller2 = new AbortController();
+        const timeoutId2 = setTimeout(() => controller2.abort(), 3000);
+        const response2 = await fetch(currentUrl, {
+          method: "HEAD",
+          redirect: "follow",
+          signal: controller2.signal,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, Gecko) Chrome/119.0.0.0 Safari/537.36',
+            'Cache-Control': 'no-cache'
+          }
+        });
+        clearTimeout(timeoutId2);
+
+        if (response2.status === 404) {
+          isLive = false;
+          validationError = `Dead link detected or missing product page (HTTP 404 at "${currentUrl}").`;
+          break;
+        }
+
+        if (response2.url && response2.url !== currentUrl) {
+          const nextUrl = response2.url;
+          if (hops.includes(nextUrl)) {
+            isLive = false;
+            validationError = `Redirect loop detected at: "${nextUrl}"`;
+            break;
+          }
+          hops.push(nextUrl);
+          currentUrl = nextUrl;
+        } else {
+          break;
+        }
+      } catch (headErr: any) {
+        console.error(`[Expand URL] HEAD expansion failed: ${headErr?.message || "unknown"}`);
+        isLive = false;
+        validationError = `Unreachable link: ${headErr?.message || "connection failed"}`;
+        break;
+      }
     }
+
+    currentHop++;
   }
-  return currentUrl;
+
+  if (hops.length > maxHops && isLive) {
+    isLive = false;
+    validationError = "Too many redirect hops detected.";
+  }
+
+  return { targetUrl: currentUrl, redirectHops: hops, isLive, error: validationError };
+}
+
+// Warning helper for tracking tags
+function checkAffiliateTracking(url: string): { valid: boolean; warning?: string } {
+  try {
+    const urlObj = new URL(url);
+    const host = urlObj.hostname.toLowerCase();
+    
+    if (host.includes("amazon.") || host === "amazon.com") {
+      const tag = urlObj.searchParams.get("tag");
+      if (!tag) {
+        return { valid: true, warning: "Warning: Missing Amazon affiliate Associate Tag ('tag' parameter). Product link will not track referral earnings." };
+      }
+      if (!/^[a-zA-Z0-9_-]+-[0-9]{2}$/i.test(tag)) {
+        return { valid: true, warning: "Warning: Amazon associate tag might be invalid. Standard Amazon tags end with a code like '-20' or '-21'." };
+      }
+    }
+    return { valid: true };
+  } catch (err) {
+    return { valid: false, warning: "Invalid URL structure." };
+  }
 }
 
 // Explicit GET route for product fetching
@@ -1147,65 +1377,90 @@ app.post("/api/fetch-amazon-product", async (req, res) => {
 
 // Main handler for fetching product details
 async function handleFetchProduct(req: express.Request, res: express.Response) {
-  try {
-    const url = req.method === "GET" ? (req.query.url as string) : (req.body?.url as string);
-    if (!url || typeof url !== "string") {
-      return res.status(400).json({ error: "URL is required and must be a string." });
+  const url = req.method === "GET" ? (req.query.url as string) : (req.body?.url as string);
+  if (!url || typeof url !== "string") {
+    return res.status(400).json({ error: "URL is required and must be a string." });
+  }
+
+  // Check if there is already an active fetch for this URL to deduplicate requests
+  let fetchPromise = activeProductFetches.get(url);
+  if (fetchPromise) {
+    console.info(`[Auto-Fill] Reusing active concurrent request for URL: "${url}"`);
+    try {
+      const result = await fetchPromise;
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(400).json({ error: err?.message || "Failed to fetch product details." });
+    }
+  }
+
+  const executionPromise = (async () => {
+    // 1. Expand and Validate URL (Redirect loop checker, dead-link checker)
+    const validation = await expandAndValidateUrl(url);
+    if (!validation.isLive) {
+      throw new Error(validation.error || "Affiliate URL validation failed. The link is unreachable or invalid.");
     }
 
-    // 1. Expand shortened link to full Amazon URL first to extract rich cues
-    const targetUrl = await expandUrl(url);
-    console.info(`[Auto-Fill] Operating on target URL: "${targetUrl}"`);
+    // Merge original shortened URL's tracking parameters into expanded URL
+    const targetUrl = mergeQueryParams(url, validation.targetUrl);
+    console.info(`[Auto-Fill] Validated & Operating on target URL: "${targetUrl}"`);
+
+    const trackingStatus = checkAffiliateTracking(targetUrl);
+    const trackingWarning = trackingStatus.warning || null;
 
     const asin = extractAmazonAsin(targetUrl);
     const slugTitle = extractTitleFromAmazonUrl(targetUrl);
-    console.info(`[Auto-Fill] Extracted cues: ASIN="${asin || "null"}", SlugTitle="${slugTitle || "null"}"`);
 
     let fullHtml = "";
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5500); // 5.5-second fetch timeout
+      // 2. Fetch with automatic retry mechanism
+      const fetchWithRetry = async (target: string, retries = 2, delay = 1000): Promise<string> => {
+        for (let attempt = 1; attempt <= retries; attempt++) {
+          try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5500);
 
-      const response = await fetch(targetUrl, {
-        signal: controller.signal,
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-          'Accept-Language': 'en-US,en;q=0.9',
-          'Accept-Encoding': 'gzip, deflate, br',
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache'
-        }
-      });
-      clearTimeout(timeoutId);
+            const response = await fetch(target, {
+              signal: controller.signal,
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache'
+              }
+            });
+            clearTimeout(timeoutId);
 
-      if (response.ok) {
-        const text = await response.text();
-        if (isAmazonBlockPage(text)) {
-          console.info("[Fetch Info] Direct fetch triggered Amazon CAPTCHA/Robot check block page. Discarding HTML context to rely on search grounding with explicit hints.");
-          fullHtml = "";
-        } else {
-          fullHtml = text;
+            if (response.ok) {
+              const text = await response.text();
+              if (!isAmazonBlockPage(text)) {
+                return text;
+              }
+            }
+          } catch (e) {
+            if (attempt === retries) throw e;
+          }
+          await new Promise(r => setTimeout(r, delay));
         }
-      }
+        return "";
+      };
+
+      fullHtml = await fetchWithRetry(targetUrl);
     } catch (fetchErr: any) {
-      console.info(`[Fetch Info] Direct HTML acquisition fell back. (${fetchErr?.message || "Unavailable"})`);
+      console.info(`[Fetch Info] Direct HTML acquisition failed on all attempts: ${fetchErr?.message}`);
     }
 
-    // Try Gemini API first if key exists and initializes successfully
+    // Try Gemini extraction with search grounding
     const ai = getGeminiClient();
     if (ai) {
       try {
         let htmlContent = "";
         if (fullHtml) {
-          // Prevent ReDoS by isolating the head tag and truncating body
           const headMatch = fullHtml.match(/<head[\s\S]*?<\/head>/i);
           const headHtml = headMatch ? headMatch[0] : fullHtml.substring(0, 15000);
-
           const titleMatch = headHtml.match(/<title>([\s\S]*?)<\/title>/i);
           const metaTags: string[] = [];
-          
-          // Fast and non-greedy meta tag scanner
           const metaRegex = /<meta\s+[^>]*content=["']([\s\S]*?)["'][^>]*>/gi;
           let match;
           while ((match = metaRegex.exec(headHtml)) !== null && metaTags.length < 15) {
@@ -1214,8 +1469,7 @@ async function handleFetchProduct(req: express.Request, res: express.Response) {
               metaTags.push(tagStr);
             }
           }
-          
-          // Isolate body and truncate to 15KB to guarantee fast regex execution
+
           let bodySnippet = "";
           const bodyMatch = fullHtml.match(/<body[\s\S]*?<\/body>/i);
           if (bodyMatch) {
@@ -1247,7 +1501,10 @@ Specifically:
    - title: A clear, professional, and easy-to-understand product title that is strictly no longer than 15 words (e.g., "Apple iPhone 15 Pro (128 GB) - Blue Titanium" or "Sony Alpha 7 IV Mirrorless Camera"). Ensure the title is complete, accurate, professionally formatted, and fits beautifully within the 15-word limit without needing any trailing ellipsis or truncation.
    - description: A compelling, elegant, and professionally written product summary or recommendation text (strictly 2-3 sentences max). Ensure it highlights the key specifications, utility, and build quality in clear, grammatically complete sentences. It must be a helpful, polished review-style text, entirely free from incomplete sentences, promotional hype, repetitive text, or raw HTML tags.
    - imageUrl: A high-quality, valid, direct image URL of the actual product. Seek out real high-resolution listing images. Prioritize official Amazon image domain URLs starting with "https://images-na.ssl-images-amazon.com/images/I/" or "https://m.media-amazon.com/images/I/" if they exist. Do NOT return blank, generic, low-resolution, or placeholder images. It must be a proper, clear, direct photo of the actual product.
-   - price: The current price formatted with currency (e.g. ₹64,990 or $799 or £999).
+   - price: The current sale price formatted with currency (e.g. ₹64,990 or $799 or £999).
+   - originalPrice: The original or list price before discounts formatted with currency (e.g. ₹79,900 or $999 or £1,199). If there is no discount, this can be empty.
+   - discountPercentage: The discount percent calculation or label (e.g., "18% OFF" or "20% saving").
+   - availability: Product stock availability status (e.g., "In Stock", "Out of Stock", "Only 3 left in stock!").
    - category: Map the product strictly to one of the following category strings:
      - "photography": Cameras, lenses, tripods, gimbals, cinematography equipment, lighting gear, studio/audio microphones, audio and recording gear.
      - "it_tech": Routers, switches, computer processors, motherboards, RAM, hard drives, SSDs, laptops, desktops, servers, GPUs, monitors, networking gear.
@@ -1257,13 +1514,12 @@ Specifically:
 
 Make sure to return valid JSON matching the requested schema. Ensure the imageUrl is a real, absolute, direct image URL.`;
 
-        // Pass high-fidelity cues to Gemini so Google Search grounding excels
         const contents = `Extract the product details from this page data and/or URL.
 Product Target URL: ${targetUrl}
 Product ASIN Code: ${asin || "Not Available"}
 Inferred Title Cue: ${slugTitle || "Not Available"}
 
-${htmlContent ? `HTML Scraping Snippet:\n${htmlContent}` : "Note: Direct scraping was rate-limited or blocked. Please perform a Google Search query for this product (using the ASIN or Inferred Title Cue if available) to fetch the correct title, price, high-resolution product image, category, and review-style description."}`;
+${htmlContent ? `HTML Scraping Snippet:\n${htmlContent}` : "Note: Direct scraping was rate-limited or blocked. Please perform a Google Search query for this product (using the ASIN or Inferred Title Cue if available) to fetch the correct title, price, originalPrice, discountPercentage, availability, high-resolution product image, category, and review-style description."}`;
 
         const geminiResponse = await ai.models.generateContent({
           model: "gemini-3.5-flash",
@@ -1278,6 +1534,9 @@ ${htmlContent ? `HTML Scraping Snippet:\n${htmlContent}` : "Note: Direct scrapin
                 description: { type: Type.STRING },
                 imageUrl: { type: Type.STRING },
                 price: { type: Type.STRING },
+                originalPrice: { type: Type.STRING },
+                discountPercentage: { type: Type.STRING },
+                availability: { type: Type.STRING },
                 category: { 
                   type: Type.STRING,
                   enum: ["photography", "it_tech", "software", "accessories"]
@@ -1294,17 +1553,16 @@ ${htmlContent ? `HTML Scraping Snippet:\n${htmlContent}` : "Note: Direct scrapin
         if (resultText) {
           const productData = JSON.parse(resultText);
           
-          // Clean the title returned by Gemini
-          if (productData.title) {
-            productData.title = cleanProductTitle(productData.title);
+          if (productData.title) productData.title = cleanProductTitle(productData.title);
+          if (productData.description) {
+            productData.description = cleanProductDescription(productData.description);
+            productData.description = smartTruncate(productData.description, 180);
           }
-          
-          // Clean the image URL returned by Gemini
           if (productData.imageUrl) {
+            productData.imageUrl = makeUrlAbsolute(targetUrl, productData.imageUrl);
             productData.imageUrl = getHighResAmazonUrl(productData.imageUrl);
           }
           
-          // Validate and normalize category strictly using our mapping logic as a highly accurate cross-check
           const allowedCategories = ["photography", "it_tech", "software", "accessories"];
           const originalCategory = productData.category;
           if (!originalCategory || !allowedCategories.includes(originalCategory) || originalCategory === "accessories") {
@@ -1316,7 +1574,6 @@ ${htmlContent ? `HTML Scraping Snippet:\n${htmlContent}` : "Note: Direct scrapin
             }
           }
           
-          // If we have direct HTML and found real Amazon product images, prioritize the exact first item image
           if (fullHtml) {
             const candidateImages = extractProductImagesFromHtml(fullHtml);
             if (candidateImages.length > 0) {
@@ -1324,7 +1581,6 @@ ${htmlContent ? `HTML Scraping Snippet:\n${htmlContent}` : "Note: Direct scrapin
             }
           }
 
-          // If imageUrl is empty, or is a placeholder/generic, or is not a direct image URL, and we have an ASIN, use ASIN image!
           const isPlaceholderImg = !productData.imageUrl || 
                                    productData.imageUrl.includes("unsplash.com") || 
                                    productData.imageUrl.includes("transparent") || 
@@ -1333,29 +1589,74 @@ ${htmlContent ? `HTML Scraping Snippet:\n${htmlContent}` : "Note: Direct scrapin
           if (isPlaceholderImg && asin) {
             productData.imageUrl = `https://images-na.ssl-images-amazon.com/images/P/${asin}.01.LZZZZZZZ.jpg`;
           }
-          
-          return res.json({ success: true, product: productData });
+
+          return { success: true, product: productData, warning: trackingWarning };
         }
       } catch (geminiErr: any) {
-        // Handle API quota exhaustion or general model errors gracefully without dumping raw error stack traces
-        const isQuotaError = geminiErr?.message?.includes("RESOURCE_EXHAUSTED") || geminiErr?.status === "RESOURCE_EXHAUSTED";
-        if (isQuotaError) {
-          console.info("[Quota Note] Gemini API rate limit or limit exceeded. Seamlessly falling back to local HTML parsing extraction.");
-        } else {
-          console.info(`[Info] Gemini extraction fallback triggered. (${geminiErr?.message || "Reason unknown"})`);
-        }
+        console.warn(`[Gemini] Error during metadata extraction: ${geminiErr?.message || "unknown"}`);
       }
-    } else {
-      console.info("[Info] GEMINI_API_KEY is not defined. Using direct HTML metadata parser.");
     }
 
-    // Seamless fallback to custom HTML metadata scraping
-    const fallbackProduct = fallbackExtractFromHtml(targetUrl, fullHtml);
-    res.json({ success: true, product: fallbackProduct, isFallback: true });
+    // Local Fallback Scraping
+    const fallbackProduct = fallbackExtractFromHtml(targetUrl, fullHtml) as any;
+    
+    // Supplement fallback product with originalPrice, discount, availability if parsed
+    let originalPrice = "";
+    let discountPercentage = "";
+    let availability = "In Stock";
 
-  } catch (error: any) {
-    console.error("Error in fetch-amazon-product route:", error);
-    res.status(500).json({ error: error?.message || "Internal server error fetching product data." });
+    if (fullHtml) {
+      // originalPrice regex parsing
+      const origPriceMatch = fullHtml.match(/<span class="a-price a-text-price"[^>]*>[\s\S]*?<span class="a-offscreen">([^<]+)<\/span>/i) ||
+                             fullHtml.match(/<span class="a-text-price"[^>]*>[\s\S]*?<span class="a-offscreen">([^<]+)<\/span>/i) ||
+                             fullHtml.match(/<span class="priceBlockStrike"[^>]*>([^<]+)<\/span>/i);
+      if (origPriceMatch) {
+        originalPrice = origPriceMatch[1].trim();
+      }
+
+      // availability parsing
+      if (fullHtml.includes("out of stock") || fullHtml.includes("Currently unavailable")) {
+        availability = "Out of Stock";
+      } else {
+        const leftMatch = fullHtml.match(/only\s+([0-9]+)\s+left\s+in\s+stock/i);
+        if (leftMatch) {
+          availability = `Only ${leftMatch[1]} left!`;
+        }
+      }
+
+      // calculate discount percentage if possible
+      if (fallbackProduct.price && originalPrice) {
+        const parseNum = (str: string) => {
+          const m = str.replace(/[^\d.]/g, '');
+          return m ? parseFloat(m) : 0;
+        };
+        const curNum = parseNum(fallbackProduct.price);
+        const origNum = parseNum(originalPrice);
+        if (curNum && origNum && origNum > curNum) {
+          const pct = Math.round(((origNum - curNum) / origNum) * 100);
+          discountPercentage = `${pct}% OFF`;
+        }
+      }
+    }
+
+    fallbackProduct.originalPrice = originalPrice || "";
+    fallbackProduct.discountPercentage = discountPercentage || "";
+    fallbackProduct.availability = availability;
+
+    return { success: true, product: fallbackProduct, isFallback: true, warning: trackingWarning };
+  })();
+
+  // Cache the execution promise so concurrent hits get the same active promise
+  activeProductFetches.set(url, executionPromise);
+
+  try {
+    const result = await executionPromise;
+    activeProductFetches.delete(url);
+    return res.json(result);
+  } catch (err: any) {
+    activeProductFetches.delete(url);
+    console.error(`[Auto-Fill] Error executing product fetch for ${url}:`, err);
+    return res.status(400).json({ error: err?.message || "Failed to fetch or validate product details." });
   }
 }
 

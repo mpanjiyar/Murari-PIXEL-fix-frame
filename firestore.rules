@@ -147,5 +147,18 @@ service cloud.firestore {
       allow update: if isValidId(configId) && isValidHomepageConfig(incoming());
       allow delete: if isValidId(configId);
     }
+
+    // Collection: Sync Status (Platform seeding / verification)
+    match /sync_status/{statusId} {
+      allow read, write: if true;
+    }
+
+    match /syncStatus/{statusId} {
+      allow read, write: if true;
+    }
+
+    match /sync-status/{statusId} {
+      allow read, write: if true;
+    }
   }
 }

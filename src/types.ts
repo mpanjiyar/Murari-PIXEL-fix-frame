@@ -64,6 +64,9 @@ export interface AffiliateLink {
   imageUrl: string;
   discountCode?: string;
   price?: string;
+  originalPrice?: string;
+  discountPercentage?: string;
+  availability?: string;
   clicks: number;
   clickHistory?: Record<string, number>;
   last_clicked?: string;

@@ -109,6 +109,17 @@
         "category": { "type": "string" }
       },
       "required": ["id", "name", "price"]
+    },
+    "SyncStatus": {
+      "title": "SyncStatus",
+      "description": "Platform sync status information.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "status": { "type": "string" },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["id"]
     }
   },
   "firestore": {
@@ -135,6 +146,18 @@
     "/site_config/{configId}": {
       "schema": "HomepageConfig",
       "description": "Collection storing dynamic homepage content configurations and sections."
+    },
+    "/sync_status/{statusId}": {
+      "schema": "SyncStatus",
+      "description": "Seeding sync status collection used by the platform."
+    },
+    "/syncStatus/{statusId}": {
+      "schema": "SyncStatus",
+      "description": "Seeding sync status collection used by the platform."
+    },
+    "/sync-status/{statusId}": {
+      "schema": "SyncStatus",
+      "description": "Seeding sync status collection used by the platform."
     }
   }
 }

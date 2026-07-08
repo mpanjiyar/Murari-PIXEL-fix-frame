@@ -1740,7 +1740,7 @@ export default function App() {
         const product = isLegacy ? cachedEntry : cachedEntry.product;
         if (product) {
           console.info(`[Auto-Fill] Cache hit (priority resolved) for URL: "${urlToFetch}"`, product);
-          const { title, description, imageUrl, category } = product;
+          const { title, description, imageUrl, category, price, originalPrice, discountPercentage, availability } = product;
 
           let finalDescription = description;
 
@@ -1752,7 +1752,10 @@ export default function App() {
             const updatedDescription = (shouldOverwrite || !prev.data.description?.trim()) ? (finalDescription || prev.data.description || '') : (prev.data.description || finalDescription || '');
             const updatedImageUrl = (shouldOverwrite || !prev.data.imageUrl?.trim()) ? (imageUrl || prev.data.imageUrl || '') : (prev.data.imageUrl || imageUrl || '');
             const updatedCategory = (shouldOverwrite || !prev.data.category?.trim() || prev.data.category === 'accessories') ? (category || prev.data.category || 'accessories') : (prev.data.category || category || 'accessories');
-            const updatedPrice = '';
+            const updatedPrice = (shouldOverwrite || !prev.data.price?.trim()) ? (price || prev.data.price || '') : (prev.data.price || price || '');
+            const updatedOriginalPrice = (shouldOverwrite || !prev.data.originalPrice?.trim()) ? (originalPrice || prev.data.originalPrice || '') : (prev.data.originalPrice || originalPrice || '');
+            const updatedDiscountPercentage = (shouldOverwrite || !prev.data.discountPercentage?.trim()) ? (discountPercentage || prev.data.discountPercentage || '') : (prev.data.discountPercentage || discountPercentage || '');
+            const updatedAvailability = (shouldOverwrite || !prev.data.availability?.trim()) ? (availability || prev.data.availability || '') : (prev.data.availability || availability || '');
 
             return {
               ...prev,
@@ -1763,6 +1766,9 @@ export default function App() {
                 imageUrl: updatedImageUrl,
                 category: updatedCategory,
                 price: updatedPrice,
+                originalPrice: updatedOriginalPrice,
+                discountPercentage: updatedDiscountPercentage,
+                availability: updatedAvailability,
               }
             };
           });
@@ -1859,8 +1865,8 @@ export default function App() {
       }
 
       if (resData && resData.success && resData.product) {
-        const { title, description, imageUrl, category } = resData.product;
-        console.info("[Auto-Fill] Successfully extracted product metadata:", { title, imageUrl, category });
+        const { title, description, imageUrl, category, price, originalPrice, discountPercentage, availability } = resData.product;
+        console.info("[Auto-Fill] Successfully extracted product metadata:", { title, imageUrl, category, price, originalPrice, discountPercentage, availability });
         
         // Cache the product data for subsequent edits/views of this URL
         amazonCacheRef.current.set(urlToFetch, {
@@ -1881,7 +1887,10 @@ export default function App() {
           const updatedDescription = (shouldOverwrite || !data.description?.trim()) ? (finalDescription || data.description || '') : (data.description || finalDescription || '');
           const updatedImageUrl = (shouldOverwrite || !data.imageUrl?.trim()) ? (imageUrl || data.imageUrl || '') : (data.imageUrl || imageUrl || '');
           const updatedCategory = (shouldOverwrite || !data.category?.trim() || data.category === 'accessories') ? (category || data.category || 'accessories') : (data.category || category || 'accessories');
-          const updatedPrice = '';
+          const updatedPrice = (shouldOverwrite || !data.price?.trim()) ? (price || data.price || '') : (data.price || price || '');
+          const updatedOriginalPrice = (shouldOverwrite || !data.originalPrice?.trim()) ? (originalPrice || data.originalPrice || '') : (data.originalPrice || originalPrice || '');
+          const updatedDiscountPercentage = (shouldOverwrite || !data.discountPercentage?.trim()) ? (discountPercentage || data.discountPercentage || '') : (data.discountPercentage || discountPercentage || '');
+          const updatedAvailability = (shouldOverwrite || !data.availability?.trim()) ? (availability || data.availability || '') : (data.availability || availability || '');
 
           return {
             ...prev,
@@ -1892,6 +1901,9 @@ export default function App() {
               imageUrl: updatedImageUrl,
               category: updatedCategory,
               price: updatedPrice,
+              originalPrice: updatedOriginalPrice,
+              discountPercentage: updatedDiscountPercentage,
+              availability: updatedAvailability,
             }
           };
         });
@@ -7574,13 +7586,16 @@ export default function App() {
                             </span>
                           ))}
                           
-                          {item.clicks ? (
-                            <span className={`px-1.5 py-0.5 rounded-full text-[8px] font-mono font-bold tracking-wide ${
-                              currentTheme === 'light' ? 'bg-slate-100 text-slate-500 border border-slate-200/50' : 'bg-white/5 text-zinc-400 border border-white/5'
-                            }`}>
-                              🔥 {item.clicks}
+                          {isAuthorized && (
+                            <span className={`px-1.5 py-0.5 rounded-full text-[8px] font-mono font-bold tracking-wider inline-flex items-center gap-1 border ${
+                              currentTheme === 'light'
+                                ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                            }`} title="Real-time performance feedback (Admin only)">
+                              <span className="w-1 h-1 rounded-full bg-amber-500 animate-pulse inline-block" />
+                              <span>{item.clicks || 0} CLICKS</span>
                             </span>
-                          ) : null}
+                          )}
                         </div>
 
                         {/* Administrative Controls */}
@@ -11681,6 +11696,9 @@ export default function App() {
                           imageUrl: toDirectDriveUrl(editingItem.data.imageUrl || ''),
                           discountCode: editingItem.data.discountCode || '',
                           price: editingItem.data.price || '',
+                          originalPrice: editingItem.data.originalPrice || '',
+                          discountPercentage: editingItem.data.discountPercentage || '',
+                          availability: editingItem.data.availability || '',
                           clicks: typeof editingItem.data.clicks === 'number' ? editingItem.data.clicks : 0,
                           clickHistory: editingItem.data.clickHistory || {},
                           last_clicked: editingItem.data.last_clicked || '',
@@ -12382,6 +12400,7 @@ export default function App() {
                               )}
                             </button>
                           </div>
+                          
                           {/* Minimal modern status bar */}
                           {isFetchingAmazon && (
                             <div className="w-full h-1 bg-slate-100 dark:bg-zinc-800/85 rounded-full overflow-hidden mt-1">
