@@ -573,6 +573,7 @@ export default function App() {
   }, [activeTab]);
 
   // Client dynamic visual database (uploaded by client / managed inside dashboard)
+  const [isGalleryLoading, setIsGalleryLoading] = useState(true);
   const [galleryItems, setGalleryItems] = useState<GalleryItem[]>(() => {
     const saved = localStorage.getItem('mp_gallery_items');
     if (saved) {
@@ -936,6 +937,7 @@ export default function App() {
     }
   };
 
+  const [isAffiliateLoading, setIsAffiliateLoading] = useState(true);
   const [affiliateLinks, setAffiliateLinks] = useState<AffiliateLink[]>(() => {
     const saved = localStorage.getItem('mp_affiliate_links');
     if (saved) {
@@ -1214,9 +1216,11 @@ export default function App() {
       links.sort((a, b) => a.id.localeCompare(b.id));
 
       setAffiliateLinks(links);
+      setIsAffiliateLoading(false);
     }, (error) => {
       console.error("Firestore onSnapshot error for affiliate_links: ", error);
       handleFirestoreError(error, OperationType.GET, 'affiliate_links');
+      setIsAffiliateLoading(false);
     });
 
     let isInitialConfig = true;
@@ -1413,8 +1417,10 @@ export default function App() {
           setGalleryItems(data.galleryItems);
         }
       }
+      setIsGalleryLoading(false);
     }, (err) => {
       console.error("Gallery items snap error: ", err);
+      setIsGalleryLoading(false);
     });
 
     const unsubTestimonials = onSnapshot(doc(db, 'site_config', 'testimonials'), (docSnap) => {
@@ -6128,7 +6134,46 @@ export default function App() {
             </div>
 
             {/* Pictures layout list */}
-            {filteredItems.length === 0 ? (
+            {isGalleryLoading ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {[...Array(6)].map((_, i) => (
+                  <div
+                    key={`gallery-sk-${i}`}
+                    className={`rounded-2xl border aspect-square relative overflow-hidden flex flex-col justify-end p-4 animate-pulse ${
+                      currentTheme === 'light'
+                        ? 'bg-slate-50 border-slate-200/60 shadow-xs'
+                        : 'bg-zinc-950/40 border-white/5 shadow-md'
+                    }`}
+                  >
+                    {/* Top left pseudo tags */}
+                    <div className="absolute top-3 left-3 flex gap-1">
+                      <div className={`w-14 h-4 rounded font-mono ${
+                        currentTheme === 'light' ? 'bg-slate-200' : 'bg-zinc-800'
+                      }`} />
+                    </div>
+                    {/* Main content placeholders */}
+                    <div className="space-y-2 relative z-10">
+                      <div className={`w-16 h-3 rounded font-mono ${
+                        currentTheme === 'light' ? 'bg-slate-200' : 'bg-zinc-800/80'
+                      }`} />
+                      <div className={`w-4/5 h-5 rounded ${
+                        currentTheme === 'light' ? 'bg-slate-300' : 'bg-zinc-800'
+                      }`} />
+                      <div className={`pt-2 border-t flex justify-between items-center ${
+                        currentTheme === 'light' ? 'border-slate-200' : 'border-white/5'
+                      }`}>
+                        <div className={`w-20 h-3 rounded ${
+                          currentTheme === 'light' ? 'bg-slate-200' : 'bg-zinc-800/60'
+                        }`} />
+                        <div className={`w-12 h-3 rounded ${
+                          currentTheme === 'light' ? 'bg-slate-200' : 'bg-zinc-800/60'
+                        }`} />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : filteredItems.length === 0 ? (
               <div className="py-20 text-center font-mono text-zinc-500 text-xs flex flex-col items-center gap-3">
                 <span>No files found under this filter registry database yet.</span>
                 {isAuthorized && (
@@ -7365,8 +7410,75 @@ export default function App() {
               animate="show"
               className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
             >
-              {filteredAffiliateLinks
-                .map((item, index) => {
+              {isAffiliateLoading ? (
+                [...Array(3)].map((_, i) => (
+                  <div
+                    key={`affiliate-sk-${i}`}
+                    className={`rounded-3xl border overflow-hidden flex flex-col justify-between h-full shadow-sm animate-pulse ${
+                      currentTheme === 'light'
+                        ? 'bg-white border-slate-200'
+                        : 'bg-zinc-950 border-white/5'
+                    }`}
+                  >
+                    {/* Header bar */}
+                    <div className={`px-4 py-3 border-b flex items-center justify-between gap-2 ${
+                      currentTheme === 'light' ? 'bg-slate-50/50 border-slate-200/50' : 'bg-black/15 border-white/5'
+                    }`}>
+                      <div className="flex gap-1.5">
+                        <div className={`w-20 h-4 rounded-full ${
+                          currentTheme === 'light' ? 'bg-slate-200' : 'bg-zinc-800'
+                        }`} />
+                        <div className={`w-10 h-4 rounded-full ${
+                          currentTheme === 'light' ? 'bg-slate-100' : 'bg-zinc-900'
+                        }`} />
+                      </div>
+                      <div className={`w-14 h-4 rounded-lg ${
+                        currentTheme === 'light' ? 'bg-slate-200' : 'bg-zinc-800'
+                      }`} />
+                    </div>
+
+                    {/* Image Area */}
+                    <div className={`aspect-video w-full relative ${
+                      currentTheme === 'light' ? 'bg-slate-100 border-b border-slate-200/50' : 'bg-zinc-900 border-b border-white/5'
+                    }`}>
+                      <div className="absolute top-2.5 left-3 w-16 h-4 rounded bg-amber-500/20" />
+                    </div>
+
+                    {/* Content Section */}
+                    <div className="flex-1 flex flex-col justify-between p-4 space-y-3 text-left">
+                      <div className="space-y-2">
+                        <div className={`w-5/6 h-4 rounded ${
+                          currentTheme === 'light' ? 'bg-slate-300' : 'bg-zinc-800'
+                        }`} />
+                        <div className={`w-1/2 h-4 rounded ${
+                          currentTheme === 'light' ? 'bg-slate-200' : 'bg-zinc-900'
+                        }`} />
+                      </div>
+                      
+                      <div className="space-y-1.5 pt-1">
+                        <div className={`w-full h-3 rounded ${
+                          currentTheme === 'light' ? 'bg-slate-200' : 'bg-zinc-900'
+                        }`} />
+                        <div className={`w-11/12 h-3 rounded ${
+                          currentTheme === 'light' ? 'bg-slate-200' : 'bg-zinc-900'
+                        }`} />
+                        <div className={`w-2/3 h-3 rounded ${
+                          currentTheme === 'light' ? 'bg-slate-100' : 'bg-zinc-900/60'
+                        }`} />
+                      </div>
+
+                      {/* Buy Box Button */}
+                      <div className="pt-2">
+                        <div className={`w-full h-10 rounded-xl ${
+                          currentTheme === 'light' ? 'bg-slate-200' : 'bg-zinc-800'
+                        }`} />
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                filteredAffiliateLinks
+                  .map((item, index) => {
                   const categoryBadgeColor = (cat: string) => {
                     switch (cat) {
                       case 'photography':
@@ -7587,11 +7699,12 @@ export default function App() {
                       </div>
                     </motion.div>
                   );
-                })}
+                })
+              )}
             </motion.div>
 
             {/* Zero State empty placeholder */}
-            {filteredAffiliateLinks.length === 0 && (
+            {!isAffiliateLoading && filteredAffiliateLinks.length === 0 && (
               <div className={`p-12 rounded-3xl border text-center space-y-3 ${
                 currentTheme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-white/5 border-white/5'
               }`}>
