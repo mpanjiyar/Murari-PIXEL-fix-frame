@@ -1267,13 +1267,15 @@ async function expandAndValidateUrl(url: string): Promise<{ targetUrl: string; r
       });
       clearTimeout(timeoutId);
 
+      const isAmazon = /amazon\.[a-z.]+|amzn\.[a-z.]+/i.test(currentUrl) || currentUrl.toLowerCase().includes("amazon.") || currentUrl.toLowerCase().includes("amzn.");
+
       // Check for dead link
-      if (response.status === 404) {
+      if (response.status === 404 && !isAmazon) {
         isLive = false;
         validationError = `Dead link detected or missing product page (HTTP 404 at "${currentUrl}").`;
         break;
       }
-      if (response.status >= 500) {
+      if (response.status >= 500 && !isAmazon) {
         isLive = false;
         validationError = `Product page returned server error (HTTP ${response.status}).`;
         break;
@@ -1293,6 +1295,11 @@ async function expandAndValidateUrl(url: string): Promise<{ targetUrl: string; r
       }
     } catch (err: any) {
       console.warn(`[Expand URL] Hop failed: ${err?.message || "unknown"}. Retrying with HEAD...`);
+      const isAmazon = /amazon\.[a-z.]+|amzn\.[a-z.]+/i.test(currentUrl) || currentUrl.toLowerCase().includes("amazon.") || currentUrl.toLowerCase().includes("amzn.");
+      if (isAmazon) {
+        console.info(`[Expand URL] Bypassing GET expansion fail for Amazon URL: "${currentUrl}"`);
+        break;
+      }
       try {
         const controller2 = new AbortController();
         const timeoutId2 = setTimeout(() => controller2.abort(), 3000);
@@ -1307,7 +1314,7 @@ async function expandAndValidateUrl(url: string): Promise<{ targetUrl: string; r
         });
         clearTimeout(timeoutId2);
 
-        if (response2.status === 404) {
+        if (response2.status === 404 && !isAmazon) {
           isLive = false;
           validationError = `Dead link detected or missing product page (HTTP 404 at "${currentUrl}").`;
           break;
@@ -1327,6 +1334,10 @@ async function expandAndValidateUrl(url: string): Promise<{ targetUrl: string; r
         }
       } catch (headErr: any) {
         console.error(`[Expand URL] HEAD expansion failed: ${headErr?.message || "unknown"}`);
+        if (isAmazon) {
+          console.info(`[Expand URL] Bypassing HEAD expansion fail for Amazon URL: "${currentUrl}"`);
+          break;
+        }
         isLive = false;
         validationError = `Unreachable link: ${headErr?.message || "connection failed"}`;
         break;
@@ -1452,6 +1463,7 @@ async function handleFetchProduct(req: express.Request, res: express.Response) {
     }
 
     // Try Gemini extraction with search grounding
+    let aiErrorMsg: string | null = null;
     const ai = getGeminiClient();
     if (ai) {
       try {
@@ -1594,6 +1606,7 @@ ${htmlContent ? `HTML Scraping Snippet:\n${htmlContent}` : "Note: Direct scrapin
         }
       } catch (geminiErr: any) {
         console.warn(`[Gemini] Error during metadata extraction: ${geminiErr?.message || "unknown"}`);
+        aiErrorMsg = geminiErr?.message || "unknown error";
       }
     }
 
@@ -1643,7 +1656,11 @@ ${htmlContent ? `HTML Scraping Snippet:\n${htmlContent}` : "Note: Direct scrapin
     fallbackProduct.discountPercentage = discountPercentage || "";
     fallbackProduct.availability = availability;
 
-    return { success: true, product: fallbackProduct, isFallback: true, warning: trackingWarning };
+    const finalWarning = trackingWarning 
+      ? `${trackingWarning}${aiErrorMsg ? ` (Gemini API Fallback Active: ${aiErrorMsg})` : ""}` 
+      : (aiErrorMsg ? `Gemini API Fallback Active: ${aiErrorMsg}` : null);
+
+    return { success: true, product: fallbackProduct, isFallback: true, warning: finalWarning };
   })();
 
   // Cache the execution promise so concurrent hits get the same active promise

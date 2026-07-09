@@ -1909,7 +1909,38 @@ export default function App() {
           timestamp: Date.now()
         });
 
-        let finalDescription = description;
+        let finalTitle = title || '';
+        if (!finalTitle.trim()) {
+          try {
+            const urlObj = new URL(urlToFetch);
+            const pathname = urlObj.pathname;
+            const parts = pathname.split('/').filter(p => p.length > 4 && !p.includes('.') && !['dp', 'gp', 'product', 'd', 'asin'].includes(p.toLowerCase()));
+            if (parts.length > 0) {
+              finalTitle = parts[0].replace(/_|-/g, ' ').trim();
+            }
+          } catch (_) {}
+          if (!finalTitle.trim()) {
+            const asinMatch = urlToFetch.match(/\/dp\/([A-Z0-9]{10})/i) || urlToFetch.match(/\/gp\/product\/([A-Z0-9]{10})/i);
+            if (asinMatch) finalTitle = `Amazon Product (ASIN: ${asinMatch[1]})`;
+          }
+          if (!finalTitle.trim()) {
+            finalTitle = "Curated Product Deal";
+          }
+        }
+
+        // Capitalize words beautifully
+        finalTitle = finalTitle
+          .split(' ')
+          .map(w => w ? (w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()) : '')
+          .filter(Boolean)
+          .join(' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+
+        let finalDescription = description || '';
+        if (!finalDescription.trim()) {
+          finalDescription = "Highly recommended product. Click to view full pricing, specs, and stock availability on our curated associate channel!";
+        }
 
         setEditingItem(prev => {
           if (!prev) return null;
@@ -1917,7 +1948,7 @@ export default function App() {
           const shouldOverwrite = autoFillMode === 'overwrite';
           const data = prev.data || {};
 
-          const updatedTitle = (shouldOverwrite || !data.title?.trim()) ? (cleanTitle(title) || data.title || '') : (data.title || cleanTitle(title) || '');
+          const updatedTitle = (shouldOverwrite || !data.title?.trim()) ? (cleanTitle(finalTitle) || data.title || '') : (data.title || cleanTitle(finalTitle) || '');
           const updatedDescription = (shouldOverwrite || !data.description?.trim()) ? (finalDescription || data.description || '') : (data.description || finalDescription || '');
           const updatedImageUrl = (shouldOverwrite || !data.imageUrl?.trim()) ? (imageUrl || data.imageUrl || '') : (data.imageUrl || imageUrl || '');
           const updatedCategory = (shouldOverwrite || !data.category?.trim() || data.category === 'accessories') ? (category || data.category || 'accessories') : (data.category || category || 'accessories');
