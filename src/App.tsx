@@ -1199,9 +1199,43 @@ export default function App() {
   useEffect(() => {
     let isInitialLinks = true;
     const unsubLinks = onSnapshot(collection(db, 'affiliate_links'), (snapshot) => {
+      if (snapshot.empty) {
+        console.info("[onSnapshot] affiliate_links collection is empty in Firestore. Seeding default deals...");
+        INITIAL_AFFILIATE_LINKS.forEach(async (link) => {
+          try {
+            await setDoc(doc(db, 'affiliate_links', link.id), link);
+          } catch (e) {
+            console.error("Error seeding initial affiliate link: ", e);
+          }
+        });
+        setAffiliateLinks(INITIAL_AFFILIATE_LINKS);
+        setIsAffiliateLoading(false);
+        return;
+      }
+
       const links: AffiliateLink[] = [];
       snapshot.forEach((snapshotDoc) => {
-        const data = snapshotDoc.data() as AffiliateLink;
+        const rawData = snapshotDoc.data() as any;
+        
+        // Normalize any alternative schema naming to guarantee title, description, and imageUrl exist
+        const data: AffiliateLink = {
+          id: rawData.id || snapshotDoc.id,
+          title: rawData.title || rawData.name || 'Untitled Curated Deal',
+          description: rawData.description || rawData.text || rawData.summary || '',
+          category: rawData.category || 'accessories',
+          url: rawData.url || '',
+          imageUrl: rawData.imageUrl || rawData.photoUrl || rawData.image || '',
+          discountCode: rawData.discountCode || '',
+          price: rawData.price || '',
+          originalPrice: rawData.originalPrice || '',
+          discountPercentage: rawData.discountPercentage || '',
+          availability: rawData.availability || '',
+          clicks: typeof rawData.clicks === 'number' ? rawData.clicks : 0,
+          clickHistory: rawData.clickHistory || {},
+          last_clicked: rawData.last_clicked || '',
+          daily_click_count: rawData.daily_click_count || {}
+        };
+
         if (data.url === 'https://amazon.in/dp/B5HXQD29') {
           const corrected = { ...data, url: 'https://amazon.in/dp/B09S2MN8JH' };
           links.push(corrected);
