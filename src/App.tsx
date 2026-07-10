@@ -1601,7 +1601,7 @@ export default function App() {
   const [softwareLicenseSearch, setSoftwareLicenseSearch] = useState('');
 
   // Cleans product titles, removing any remaining double escaped or HTML entity noise while preserving the full title and model/specification details.
-  // Professionally simplifies the titles and strictly limits them to a maximum of 15 words.
+  // Professionally simplifies the titles and limits them to a maximum of 25 words to preserve technical specifications.
   const cleanTitle = (rawTitle: string): string => {
     if (!rawTitle) return '';
     
@@ -1640,20 +1640,27 @@ export default function App() {
       .replace(/\s*\|\s*(?:Amazon|Flipkart|Shop|Store|Best Buy|Ebay)(?:\.(?:com|in|co\.uk|org|net))?\s*$/i, "")
       .replace(/\s*-\s*(?:Amazon|Flipkart|Shop|Store|Best Buy|Ebay)(?:\.(?:com|in|co\.uk|org|net))?\s*$/i, "");
 
-    // 3. Remove common keyword-stuffed fluff phrases to keep the title professional and clear
+    // 3. Remove common keyword-stuffed promotional fluff and redundant badges
     clean = clean
-      .replace(/\s+for\s+(?:laptops?|pc|desktops?|gaming|workstations?|macbooks?|notebooks?|cameras?|smartphones?|ps5|xbox|consoles?)(?:\s*(?:\/|or|,)\s*(?:laptops?|pc|desktops?|gaming|workstations?|macbooks?|notebooks?|cameras?|smartphones?|ps5|xbox|consoles?))*/gi, "")
-      .replace(/\s+(?:compatible\s+with|suited\s+for|designed\s+for|optimized\s+for|ideal\s+for)\s+[^,\-\(\[\|]+/gi, "")
       .replace(/\s+[\(\[]\s*(?:pack\s+of\s+\d+|renewed|refurbished|imported|international\s+version|color:\s*[\w\s]+)\s*[\)\]]/gi, "")
       .replace(/\s+[\-\|\:]\s*(?:best\s+choice|high\s+quality|premium\s+edition|professional\s+use|multipurpose|all\s+in\s+one).*$/i, "");
+
+    const promoFluff = [
+      /FREE Shipping/gi, /FREE Delivery/gi, /Eligible for FREE Shipping/gi,
+      /With Coupon/gi, /Best Seller/gi, /Top Rated/gi, /Special Offer/gi,
+      /Limited Time Deal/gi, /Deal of the Day/gi, /Prime Day Deal/gi
+    ];
+    for (const regex of promoFluff) {
+      clean = clean.replace(regex, "");
+    }
 
     // Clean trailing punctuation
     clean = clean.replace(/[\s\-|:|;|,]+$/, "").trim();
 
-    // 4. Enforce strict 15-word maximum limit with smart clean termination
+    // 4. Enforce professional 25-word maximum limit with smart clean termination
     const words = clean.split(/\s+/).filter(Boolean);
-    if (words.length > 15) {
-      let truncated = words.slice(0, 15).join(' ');
+    if (words.length > 25) {
+      let truncated = words.slice(0, 25).join(' ');
       // Clean up any trailing connectors, hyphens, or punctuation at the end of the words
       truncated = truncated.replace(/[\s\-|:|;|,|/|\\|&]+$/, "").trim();
       return truncated + '...';
@@ -1909,38 +1916,7 @@ export default function App() {
           timestamp: Date.now()
         });
 
-        let finalTitle = title || '';
-        if (!finalTitle.trim()) {
-          try {
-            const urlObj = new URL(urlToFetch);
-            const pathname = urlObj.pathname;
-            const parts = pathname.split('/').filter(p => p.length > 4 && !p.includes('.') && !['dp', 'gp', 'product', 'd', 'asin'].includes(p.toLowerCase()));
-            if (parts.length > 0) {
-              finalTitle = parts[0].replace(/_|-/g, ' ').trim();
-            }
-          } catch (_) {}
-          if (!finalTitle.trim()) {
-            const asinMatch = urlToFetch.match(/\/dp\/([A-Z0-9]{10})/i) || urlToFetch.match(/\/gp\/product\/([A-Z0-9]{10})/i);
-            if (asinMatch) finalTitle = `Amazon Product (ASIN: ${asinMatch[1]})`;
-          }
-          if (!finalTitle.trim()) {
-            finalTitle = "Curated Product Deal";
-          }
-        }
-
-        // Capitalize words beautifully
-        finalTitle = finalTitle
-          .split(' ')
-          .map(w => w ? (w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()) : '')
-          .filter(Boolean)
-          .join(' ')
-          .replace(/\s+/g, ' ')
-          .trim();
-
-        let finalDescription = description || '';
-        if (!finalDescription.trim()) {
-          finalDescription = "Highly recommended product. Click to view full pricing, specs, and stock availability on our curated associate channel!";
-        }
+        let finalDescription = description;
 
         setEditingItem(prev => {
           if (!prev) return null;
@@ -1948,7 +1924,7 @@ export default function App() {
           const shouldOverwrite = autoFillMode === 'overwrite';
           const data = prev.data || {};
 
-          const updatedTitle = (shouldOverwrite || !data.title?.trim()) ? (cleanTitle(finalTitle) || data.title || '') : (data.title || cleanTitle(finalTitle) || '');
+          const updatedTitle = (shouldOverwrite || !data.title?.trim()) ? (cleanTitle(title) || data.title || '') : (data.title || cleanTitle(title) || '');
           const updatedDescription = (shouldOverwrite || !data.description?.trim()) ? (finalDescription || data.description || '') : (data.description || finalDescription || '');
           const updatedImageUrl = (shouldOverwrite || !data.imageUrl?.trim()) ? (imageUrl || data.imageUrl || '') : (data.imageUrl || imageUrl || '');
           const updatedCategory = (shouldOverwrite || !data.category?.trim() || data.category === 'accessories') ? (category || data.category || 'accessories') : (data.category || category || 'accessories');
