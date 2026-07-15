@@ -34,9 +34,12 @@ service cloud.firestore {
         && (!('daily_click_count' in data) || data.daily_click_count is map);
     }
 
-    function isValidCategoryMap(data) {
-      return data.id is string && data.id.size() <= 128
-        && 'labels' in data && data.labels is map;
+    function isValidAffiliateConfig(data, configId) {
+      return configId == 'labels'
+        ? (data.id is string && data.id.size() <= 128 && 'labels' in data && data.labels is map)
+        : (configId == 'status'
+          ? (data.status is string && data.status.size() <= 50 && data.lastRefreshTimestamp is string && data.lastRefreshTimestamp.size() <= 100)
+          : false);
     }
 
     function isValidSocialLink(data) {
@@ -119,8 +122,8 @@ service cloud.firestore {
     // Collection: Affiliate Config
     match /affiliate_config/{configId} {
       allow read: if true;
-      allow create: if isValidId(configId) && isValidCategoryMap(incoming());
-      allow update: if isValidId(configId) && isValidCategoryMap(incoming());
+      allow create: if isValidId(configId) && isValidAffiliateConfig(incoming(), configId);
+      allow update: if isValidId(configId) && isValidAffiliateConfig(incoming(), configId);
       allow delete: if isValidId(configId);
     }
 
@@ -146,19 +149,6 @@ service cloud.firestore {
       allow create: if isValidId(configId) && isValidHomepageConfig(incoming());
       allow update: if isValidId(configId) && isValidHomepageConfig(incoming());
       allow delete: if isValidId(configId);
-    }
-
-    // Collection: Sync Status (Platform seeding / verification)
-    match /sync_status/{statusId} {
-      allow read, write: if true;
-    }
-
-    match /syncStatus/{statusId} {
-      allow read, write: if true;
-    }
-
-    match /sync-status/{statusId} {
-      allow read, write: if true;
     }
   }
 }

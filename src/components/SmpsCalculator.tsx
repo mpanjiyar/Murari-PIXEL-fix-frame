@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Cpu, 
@@ -21,783 +21,846 @@ import {
   ArrowRight,
   Search,
   ChevronDown,
-  X
+  X,
+  ShieldCheck,
+  AlertTriangle
 } from 'lucide-react';
+import { 
+  CPU_DATABASE, 
+  GPU_DATABASE, 
+  CHIPSET_DATABASE, 
+  CpuModel, 
+  GpuModel, 
+  MotherboardChipset 
+} from './HardwareDb';
 import WhatsAppIcon from './WhatsAppIcon';
 
-// Premium Hardware Power Specs Database
-interface CpuModel {
-  id: string;
-  name: string;
-  tdp: number;
-  peak: number;
-  socket: string;
-  series: string;
-}
-
-interface GpuModel {
-  id: string;
-  name: string;
-  wattage: number;
-  vram: string;
-  series: string;
-}
-
-const CPU_DATABASE: CpuModel[] = [
-  // Intel Core Ultra Series (LGA1851)
-  { id: 'ultra-9-285k', name: 'Intel Core Ultra 9 285K', tdp: 125, peak: 250, socket: 'LGA1851', series: 'Intel Core Ultra' },
-  { id: 'ultra-7-265k', name: 'Intel Core Ultra 7 265K', tdp: 125, peak: 240, socket: 'LGA1851', series: 'Intel Core Ultra' },
-  { id: 'ultra-5-245k', name: 'Intel Core Ultra 5 245K', tdp: 125, peak: 159, socket: 'LGA1851', series: 'Intel Core Ultra' },
-  { id: 'ultra-9-285', name: 'Intel Core Ultra 9 285', tdp: 65, peak: 200, socket: 'LGA1851', series: 'Intel Core Ultra' },
-  { id: 'ultra-7-265', name: 'Intel Core Ultra 7 265', tdp: 65, peak: 195, socket: 'LGA1851', series: 'Intel Core Ultra' },
-  { id: 'ultra-5-245', name: 'Intel Core Ultra 5 245', tdp: 65, peak: 145, socket: 'LGA1851', series: 'Intel Core Ultra' },
-
-  // Intel Core 14th & 13th Gen (LGA1700)
-  { id: 'i9-14900ks', name: 'Intel Core i9-14900KS (Extreme Edition)', tdp: 150, peak: 320, socket: 'LGA1700', series: 'Intel Core 14th/13th Gen' },
-  { id: 'i9-14900k', name: 'Intel Core i9-14900K / 13900K', tdp: 125, peak: 253, socket: 'LGA1700', series: 'Intel Core 14th/13th Gen' },
-  { id: 'i7-14700k', name: 'Intel Core i7-14700K / 13700K', tdp: 125, peak: 253, socket: 'LGA1700', series: 'Intel Core 14th/13th Gen' },
-  { id: 'i5-14600k', name: 'Intel Core i5-14600K / 13600K', tdp: 125, peak: 181, socket: 'LGA1700', series: 'Intel Core 14th/13th Gen' },
-  { id: 'i9-14900', name: 'Intel Core i9-14900 / 13900', tdp: 65, peak: 219, socket: 'LGA1700', series: 'Intel Core 14th/13th Gen' },
-  { id: 'i7-14700', name: 'Intel Core i7-14700 / 13700', tdp: 65, peak: 219, socket: 'LGA1700', series: 'Intel Core 14th/13th Gen' },
-  { id: 'i5-14500', name: 'Intel Core i5-14500 / 13500', tdp: 65, peak: 154, socket: 'LGA1700', series: 'Intel Core 14th/13th Gen' },
-  { id: 'i5-14400', name: 'Intel Core i5-14400 / 13400', tdp: 65, peak: 110, socket: 'LGA1700', series: 'Intel Core 14th/13th Gen' },
-  { id: 'i3-14100', name: 'Intel Core i3-14100 / 13100', tdp: 60, peak: 89, socket: 'LGA1700', series: 'Intel Core 14th/13th Gen' },
-
-  // Intel Core 12th Gen (LGA1700)
-  { id: 'i9-12900ks', name: 'Intel Core i9-12900KS', tdp: 150, peak: 260, socket: 'LGA1700', series: 'Intel Core 12th Gen' },
-  { id: 'i9-12900k', name: 'Intel Core i9-12900K', tdp: 125, peak: 241, socket: 'LGA1700', series: 'Intel Core 12th Gen' },
-  { id: 'i7-12700k', name: 'Intel Core i7-12700K', tdp: 125, peak: 190, socket: 'LGA1700', series: 'Intel Core 12th Gen' },
-  { id: 'i5-12600k', name: 'Intel Core i5-12600K', tdp: 125, peak: 150, socket: 'LGA1700', series: 'Intel Core 12th Gen' },
-  { id: 'i9-12900', name: 'Intel Core i9-12900', tdp: 65, peak: 202, socket: 'LGA1700', series: 'Intel Core 12th Gen' },
-  { id: 'i7-12700', name: 'Intel Core i7-12700', tdp: 65, peak: 180, socket: 'LGA1700', series: 'Intel Core 12th Gen' },
-  { id: 'i5-12400', name: 'Intel Core i5-12400', tdp: 65, peak: 117, socket: 'LGA1700', series: 'Intel Core 12th Gen' },
-  { id: 'i3-12100', name: 'Intel Core i3-12100', tdp: 58, peak: 89, socket: 'LGA1700', series: 'Intel Core 12th Gen' },
-  
-  // Intel Core 11th & 10th Gen (LGA1200)
-  { id: 'i9-11900k', name: 'Intel Core i9-11900K', tdp: 125, peak: 250, socket: 'LGA1200', series: 'Intel Core 11th/10th Gen' },
-  { id: 'i7-11700k', name: 'Intel Core i7-11700K', tdp: 125, peak: 220, socket: 'LGA1200', series: 'Intel Core 11th/10th Gen' },
-  { id: 'i5-11600k', name: 'Intel Core i5-11600K', tdp: 125, peak: 182, socket: 'LGA1200', series: 'Intel Core 11th/10th Gen' },
-  { id: 'i5-11400', name: 'Intel Core i5-11400', tdp: 65, peak: 154, socket: 'LGA1200', series: 'Intel Core 11th/10th Gen' },
-  { id: 'i9-10900k', name: 'Intel Core i9-10900K', tdp: 125, peak: 250, socket: 'LGA1200', series: 'Intel Core 11th/10th Gen' },
-  { id: 'i7-10700k', name: 'Intel Core i7-10700K', tdp: 125, peak: 229, socket: 'LGA1200', series: 'Intel Core 11th/10th Gen' },
-  { id: 'i5-10600k', name: 'Intel Core i5-10600K', tdp: 125, peak: 182, socket: 'LGA1200', series: 'Intel Core 11th/10th Gen' },
-  { id: 'i5-10400', name: 'Intel Core i5-10400', tdp: 65, peak: 134, socket: 'LGA1200', series: 'Intel Core 11th/10th Gen' },
-
-  // Intel Core 9th & 8th Gen (LGA1151-v2)
-  { id: 'i9-9900ks', name: 'Intel Core i9-9900KS (Special Edition)', tdp: 127, peak: 250, socket: 'LGA1151-v2', series: 'Intel Core 9th/8th Gen' },
-  { id: 'i9-9900k', name: 'Intel Core i9-9900K', tdp: 95, peak: 210, socket: 'LGA1151-v2', series: 'Intel Core 9th/8th Gen' },
-  { id: 'i7-9700k', name: 'Intel Core i7-9700K', tdp: 95, peak: 190, socket: 'LGA1151-v2', series: 'Intel Core 9th/8th Gen' },
-  { id: 'i5-9600k', name: 'Intel Core i5-9600K', tdp: 95, peak: 140, socket: 'LGA1151-v2', series: 'Intel Core 9th/8th Gen' },
-  { id: 'i5-9400', name: 'Intel Core i5-9400', tdp: 65, peak: 95, socket: 'LGA1151-v2', series: 'Intel Core 9th/8th Gen' },
-  { id: 'i3-9100', name: 'Intel Core i3-9100', tdp: 65, peak: 80, socket: 'LGA1151-v2', series: 'Intel Core 9th/8th Gen' },
-  { id: 'i7-8700k', name: 'Intel Core i7-8700K', tdp: 95, peak: 145, socket: 'LGA1151-v2', series: 'Intel Core 9th/8th Gen' },
-  { id: 'i5-8400', name: 'Intel Core i5-8400', tdp: 65, peak: 90, socket: 'LGA1151-v2', series: 'Intel Core 9th/8th Gen' },
-
-  // Intel Legacy Core (LGA1151 / LGA1150 / LGA1155 / LGA1366 / LGA775)
-  { id: 'i7-7700k', name: 'Intel Core i7-7700K', tdp: 91, peak: 130, socket: 'LGA1151', series: 'Intel Legacy Core' },
-  { id: 'i5-7600k', name: 'Intel Core i5-7600K', tdp: 91, peak: 115, socket: 'LGA1151', series: 'Intel Legacy Core' },
-  { id: 'i7-6700k', name: 'Intel Core i7-6700K', tdp: 91, peak: 120, socket: 'LGA1151', series: 'Intel Legacy Core' },
-  { id: 'i5-6600k', name: 'Intel Core i5-6600K', tdp: 91, peak: 110, socket: 'LGA1151', series: 'Intel Legacy Core' },
-  { id: 'i7-4790k', name: 'Intel Core i7-4790K (Haswell Devil\'s Canyon)', tdp: 88, peak: 125, socket: 'LGA1150', series: 'Intel Legacy Core' },
-  { id: 'i7-4770k', name: 'Intel Core i7-4770K (Haswell Flagship)', tdp: 84, peak: 115, socket: 'LGA1150', series: 'Intel Legacy Core' },
-  { id: 'i5-4690k', name: 'Intel Core i5-4690K', tdp: 88, peak: 110, socket: 'LGA1150', series: 'Intel Legacy Core' },
-  { id: 'i5-4460', name: 'Intel Core i5-4460', tdp: 84, peak: 105, socket: 'LGA1150', series: 'Intel Legacy Core' },
-  { id: 'i7-3770k', name: 'Intel Core i7-3770K (Ivy Bridge)', tdp: 77, peak: 110, socket: 'LGA1155', series: 'Intel Legacy Core' },
-  { id: 'i5-3570k', name: 'Intel Core i5-3570K', tdp: 77, peak: 100, socket: 'LGA1155', series: 'Intel Legacy Core' },
-  { id: 'i7-2600k', name: 'Intel Core i7-2600K (Sandy Bridge)', tdp: 95, peak: 125, socket: 'LGA1155', series: 'Intel Legacy Core' },
-  { id: 'i5-2500k', name: 'Intel Core i5-2500K', tdp: 95, peak: 115, socket: 'LGA1155', series: 'Intel Legacy Core' },
-  { id: 'i7-920', name: 'Intel Core i7-920 (Bloomsfield Classic)', tdp: 130, peak: 165, socket: 'LGA1366', series: 'Intel Legacy Core' },
-  { id: 'q6600', name: 'Intel Core 2 Quad Q6600 (Kentsfield Legend)', tdp: 95, peak: 120, socket: 'LGA775', series: 'Intel Legacy Core' },
-  { id: 'e8400', name: 'Intel Core 2 Duo E8400', tdp: 65, peak: 75, socket: 'LGA775', series: 'Intel Legacy Core' },
-
-  // Intel Xeon Workstation / Server HEDT
-  { id: 'xeon-w9-3495x', name: 'Intel Xeon w9-3495X (Sapphire Rapids)', tdp: 350, peak: 420, socket: 'LGA4677', series: 'Intel Xeon Server/HEDT' },
-  { id: 'xeon-w7-2495x', name: 'Intel Xeon w7-2495X', tdp: 225, peak: 300, socket: 'LGA4677', series: 'Intel Xeon Server/HEDT' },
-  { id: 'xeon-gold-6258r', name: 'Intel Xeon Gold 6258R', tdp: 205, peak: 270, socket: 'LGA3647', series: 'Intel Xeon Server/HEDT' },
-  { id: 'xeon-e5-2697v4', name: 'Intel Xeon E5-2697 v4 (18 Cores)', tdp: 145, peak: 180, socket: 'LGA2011-3', series: 'Intel Xeon Server/HEDT' },
-  { id: 'xeon-e5-2680v3', name: 'Intel Xeon E5-2680 v3', tdp: 120, peak: 150, socket: 'LGA2011-3', series: 'Intel Xeon Server/HEDT' },
-  { id: 'xeon-e5-2670', name: 'Intel Xeon E5-2670 v2 (Budget Server)', tdp: 115, peak: 145, socket: 'LGA2011', series: 'Intel Xeon Server/HEDT' },
-  { id: 'xeon-x5690', name: 'Intel Xeon X5690 Six-Core Legacy', tdp: 130, peak: 160, socket: 'LGA1366', series: 'Intel Xeon Server/HEDT' },
-
-  // AMD Ryzen 9000 Series (AM5)
-  { id: 'r9-9950x', name: 'AMD Ryzen 9 9950X', tdp: 170, peak: 230, socket: 'AM5', series: 'AMD Ryzen 9000 Series' },
-  { id: 'r9-9900x', name: 'AMD Ryzen 9 9900X', tdp: 120, peak: 162, socket: 'AM5', series: 'AMD Ryzen 9000 Series' },
-  { id: 'r7-9800x3d', name: 'AMD Ryzen 7 9800X3D (Extreme Gaming)', tdp: 120, peak: 162, socket: 'AM5', series: 'AMD Ryzen 9000 Series' },
-  { id: 'r7-9700x', name: 'AMD Ryzen 7 9700X', tdp: 65, peak: 88, socket: 'AM5', series: 'AMD Ryzen 9000 Series' },
-  { id: 'r5-9600x', name: 'AMD Ryzen 5 9600X', tdp: 65, peak: 88, socket: 'AM5', series: 'AMD Ryzen 9000 Series' },
-  
-  // AMD Ryzen 7000 Series (AM5)
-  { id: 'r9-7950x3d', name: 'AMD Ryzen 9 7950X3D (V-Cache)', tdp: 120, peak: 162, socket: 'AM5', series: 'AMD Ryzen 7000 Series' },
-  { id: 'r9-7900x3d', name: 'AMD Ryzen 9 7900X3D', tdp: 120, peak: 162, socket: 'AM5', series: 'AMD Ryzen 7000 Series' },
-  { id: 'r7-7800x3d', name: 'AMD Ryzen 7 7800X3D (Gaming King)', tdp: 120, peak: 162, socket: 'AM5', series: 'AMD Ryzen 7000 Series' },
-  { id: 'r9-7950x', name: 'AMD Ryzen 9 7950X', tdp: 170, peak: 230, socket: 'AM5', series: 'AMD Ryzen 7000 Series' },
-  { id: 'r9-7900x', name: 'AMD Ryzen 9 7900X', tdp: 170, peak: 230, socket: 'AM5', series: 'AMD Ryzen 7000 Series' },
-  { id: 'r7-7700x', name: 'AMD Ryzen 7 7700X', tdp: 105, peak: 142, socket: 'AM5', series: 'AMD Ryzen 7000 Series' },
-  { id: 'r5-7600x', name: 'AMD Ryzen 5 7600X', tdp: 105, peak: 142, socket: 'AM5', series: 'AMD Ryzen 7000 Series' },
-  { id: 'r7-7700', name: 'AMD Ryzen 7 7700', tdp: 65, peak: 88, socket: 'AM5', series: 'AMD Ryzen 7000 Series' },
-  { id: 'r5-7600', name: 'AMD Ryzen 5 7600', tdp: 65, peak: 88, socket: 'AM5', series: 'AMD Ryzen 7000 Series' },
-  { id: 'r5-7500f', name: 'AMD Ryzen 5 7500F (OEM Special)', tdp: 65, peak: 85, socket: 'AM5', series: 'AMD Ryzen 7000 Series' },
-
-  // AMD Ryzen 5000 Series (AM4)
-  { id: 'r9-5950x', name: 'AMD Ryzen 9 5950X', tdp: 105, peak: 142, socket: 'AM4', series: 'AMD Ryzen 5000 Series' },
-  { id: 'r9-5900x', name: 'AMD Ryzen 9 5900X', tdp: 105, peak: 142, socket: 'AM4', series: 'AMD Ryzen 5000 Series' },
-  { id: 'r7-5800x3d', name: 'AMD Ryzen 7 5800X3D (AM4 Upgrade)', tdp: 105, peak: 142, socket: 'AM4', series: 'AMD Ryzen 5000 Series' },
-  { id: 'r7-5700x3d', name: 'AMD Ryzen 7 5700X3D (Budget Gaming)', tdp: 105, peak: 140, socket: 'AM4', series: 'AMD Ryzen 5000 Series' },
-  { id: 'r7-5800x', name: 'AMD Ryzen 7 5800X', tdp: 105, peak: 142, socket: 'AM4', series: 'AMD Ryzen 5000 Series' },
-  { id: 'r7-5700x', name: 'AMD Ryzen 7 5700X', tdp: 65, peak: 78, socket: 'AM4', series: 'AMD Ryzen 5000 Series' },
-  { id: 'r5-5600x', name: 'AMD Ryzen 5 5600X', tdp: 65, peak: 88, socket: 'AM4', series: 'AMD Ryzen 5000 Series' },
-  { id: 'r5-5600', name: 'AMD Ryzen 5 5600', tdp: 65, peak: 78, socket: 'AM4', series: 'AMD Ryzen 5000 Series' },
-  { id: 'r5-5500', name: 'AMD Ryzen 5 5500', tdp: 65, peak: 75, socket: 'AM4', series: 'AMD Ryzen 5000 Series' },
-
-  // AMD Ryzen Legacy & APUs (AM4 / FM2+ / AM3+)
-  { id: 'r7-3800x', name: 'AMD Ryzen 7 3800X', tdp: 105, peak: 142, socket: 'AM4', series: 'AMD Ryzen Legacy & APUs' },
-  { id: 'r7-3700x', name: 'AMD Ryzen 7 3700X', tdp: 65, peak: 88, socket: 'AM4', series: 'AMD Ryzen Legacy & APUs' },
-  { id: 'r5-3600x', name: 'AMD Ryzen 5 3600X', tdp: 95, peak: 115, socket: 'AM4', series: 'AMD Ryzen Legacy & APUs' },
-  { id: 'r5-3600', name: 'AMD Ryzen 5 3600', tdp: 65, peak: 80, socket: 'AM4', series: 'AMD Ryzen Legacy & APUs' },
-  { id: 'r7-2700x', name: 'AMD Ryzen 7 2700X', tdp: 105, peak: 145, socket: 'AM4', series: 'AMD Ryzen Legacy & APUs' },
-  { id: 'r5-2600', name: 'AMD Ryzen 5 2600', tdp: 65, peak: 80, socket: 'AM4', series: 'AMD Ryzen Legacy & APUs' },
-  { id: 'r7-1800x', name: 'AMD Ryzen 7 1800X', tdp: 95, peak: 140, socket: 'AM4', series: 'AMD Ryzen Legacy & APUs' },
-  { id: 'r5-1600', name: 'AMD Ryzen 5 1600 (AF Edition)', tdp: 65, peak: 80, socket: 'AM4', series: 'AMD Ryzen Legacy & APUs' },
-  { id: 'ryzen-5600g', name: 'AMD Ryzen 5 5600G (Radeon APU)', tdp: 65, peak: 85, socket: 'AM4', series: 'AMD Ryzen Legacy & APUs' },
-  { id: 'ryzen-3200g', name: 'AMD Ryzen 3 3200G (Radeon APU)', tdp: 65, peak: 75, socket: 'AM4', series: 'AMD Ryzen Legacy & APUs' },
-  { id: 'fx-9590', name: 'AMD FX-9590 (Space Heater Legend)', tdp: 220, peak: 320, socket: 'AM3+', series: 'AMD Ryzen Legacy & APUs' },
-  { id: 'fx-8350', name: 'AMD FX-8350 Octa-Core', tdp: 125, peak: 180, socket: 'AM3+', series: 'AMD Ryzen Legacy & APUs' },
-  { id: 'fx-6300', name: 'AMD FX-6300 Six-Core', tdp: 95, peak: 130, socket: 'AM3+', series: 'AMD Ryzen Legacy & APUs' },
-  { id: 'phenom-1100t', name: 'AMD Phenom II X6 1100T Black Edition', tdp: 125, peak: 160, socket: 'AM3', series: 'AMD Ryzen Legacy & APUs' },
-  { id: 'a10-7850k', name: 'AMD A10-7850K APU', tdp: 95, peak: 115, socket: 'FM2+', series: 'AMD Ryzen Legacy & APUs' },
-
-  // AMD Threadripper HEDT
-  { id: 'tr-7995wx', name: 'AMD Ryzen Threadripper PRO 7995WX', tdp: 350, peak: 480, socket: 'sTR5', series: 'AMD Threadripper HEDT' },
-  { id: 'tr-7980x', name: 'AMD Ryzen Threadripper 7980X', tdp: 350, peak: 450, socket: 'sTR5', series: 'AMD Threadripper HEDT' },
-  { id: 'tr-3990x', name: 'AMD Ryzen Threadripper 3990X (64 Cores)', tdp: 280, peak: 380, socket: 'sTRX4', series: 'AMD Threadripper HEDT' },
-  { id: 'tr-3970x', name: 'AMD Ryzen Threadripper 3970X', tdp: 280, peak: 350, socket: 'sTRX4', series: 'AMD Threadripper HEDT' },
-  { id: 'tr-2990wx', name: 'AMD Ryzen Threadripper 2990WX (32 Cores)', tdp: 250, peak: 320, socket: 'TR4', series: 'AMD Threadripper HEDT' },
-  { id: 'tr-1950x', name: 'AMD Ryzen Threadripper 1950X', tdp: 180, peak: 250, socket: 'TR4', series: 'AMD Threadripper HEDT' },
-
-  // Low Power / Entry Level
-  { id: 'pentium-g7400', name: 'Intel Pentium Gold G7400', tdp: 46, peak: 58, socket: 'LGA1700', series: 'Low Power / Entry Level' },
-  { id: 'celeron-g6900', name: 'Intel Celeron G6900', tdp: 46, peak: 55, socket: 'LGA1700', series: 'Low Power / Entry Level' },
-  { id: 'amd-athlon', name: 'AMD Athlon 3000G / Core 2 Duo', tdp: 35, peak: 45, socket: 'AM4/LGA775', series: 'Low Power / Entry Level' },
-  { id: 'athlon-640', name: 'AMD Athlon II X4 640 Legacy Quad', tdp: 95, peak: 115, socket: 'AM3', series: 'Low Power / Entry Level' },
-  { id: 'e6600', name: 'Intel Core 2 Duo E6600 Classic Duo', tdp: 65, peak: 75, socket: 'LGA775', series: 'Low Power / Entry Level' },
-];
-
-const GPU_DATABASE: GpuModel[] = [
-  // NVIDIA RTX 50 Series (Next Gen)
-  { id: 'rtx-5090', name: 'NVIDIA GeForce RTX 5090 (Blackwell Flagship)', wattage: 600, vram: '32GB', series: 'NVIDIA RTX 50 Series' },
-  { id: 'rtx-5080', name: 'NVIDIA GeForce RTX 5080 (Blackwell Elite)', wattage: 400, vram: '16GB', series: 'NVIDIA RTX 50 Series' },
-  { id: 'rtx-5070ti', name: 'NVIDIA GeForce RTX 5070 Ti', wattage: 275, vram: '16GB', series: 'NVIDIA RTX 50 Series' },
-  { id: 'rtx-5070', name: 'NVIDIA GeForce RTX 5070', wattage: 250, vram: '12GB', series: 'NVIDIA RTX 50 Series' },
-  { id: 'rtx-5060ti', name: 'NVIDIA GeForce RTX 5060 Ti', wattage: 175, vram: '12GB', series: 'NVIDIA RTX 50 Series' },
-  { id: 'rtx-5060', name: 'NVIDIA GeForce RTX 5060', wattage: 125, vram: '8GB', series: 'NVIDIA RTX 50 Series' },
-
-  // NVIDIA RTX 40 Series
-  { id: 'rtx-4090', name: 'NVIDIA GeForce RTX 4090', wattage: 450, vram: '24GB', series: 'NVIDIA RTX 40 Series' },
-  { id: 'rtx-4080s', name: 'NVIDIA GeForce RTX 4080 Super', wattage: 320, vram: '16GB', series: 'NVIDIA RTX 40 Series' },
-  { id: 'rtx-4080', name: 'NVIDIA GeForce RTX 4080', wattage: 320, vram: '16GB', series: 'NVIDIA RTX 40 Series' },
-  { id: 'rtx-4075s', name: 'NVIDIA GeForce RTX 4070 Ti Super', wattage: 285, vram: '16GB', series: 'NVIDIA RTX 40 Series' },
-  { id: 'rtx-4070ti', name: 'NVIDIA GeForce RTX 4070 Ti', wattage: 285, vram: '12GB', series: 'NVIDIA RTX 40 Series' },
-  { id: 'rtx-4070s', name: 'NVIDIA GeForce RTX 4070 Super', wattage: 220, vram: '12GB', series: 'NVIDIA RTX 40 Series' },
-  { id: 'rtx-4070', name: 'NVIDIA GeForce RTX 4070', wattage: 200, vram: '12GB', series: 'NVIDIA RTX 40 Series' },
-  { id: 'rtx-4060t-16', name: 'NVIDIA GeForce RTX 4060 Ti 16GB', wattage: 165, vram: '16GB', series: 'NVIDIA RTX 40 Series' },
-  { id: 'rtx-4060t', name: 'NVIDIA GeForce RTX 4060 Ti 8GB', wattage: 160, vram: '8GB', series: 'NVIDIA RTX 40 Series' },
-  { id: 'rtx-4060', name: 'NVIDIA GeForce RTX 4060', wattage: 115, vram: '8GB', series: 'NVIDIA RTX 40 Series' },
-
-  // NVIDIA RTX 30 Series
-  { id: 'rtx-3090ti', name: 'NVIDIA GeForce RTX 3090 Ti', wattage: 450, vram: '24GB', series: 'NVIDIA RTX 30 Series' },
-  { id: 'rtx-3090', name: 'NVIDIA GeForce RTX 3090', wattage: 350, vram: '24GB', series: 'NVIDIA RTX 30 Series' },
-  { id: 'rtx-3080ti', name: 'NVIDIA GeForce RTX 3080 Ti', wattage: 350, vram: '12GB', series: 'NVIDIA RTX 30 Series' },
-  { id: 'rtx-3080-12', name: 'NVIDIA GeForce RTX 3080 12GB', wattage: 350, vram: '12GB', series: 'NVIDIA RTX 30 Series' },
-  { id: 'rtx-3080', name: 'NVIDIA GeForce RTX 3080 10GB', wattage: 320, vram: '10GB', series: 'NVIDIA RTX 30 Series' },
-  { id: 'rtx-3075s', name: 'NVIDIA GeForce RTX 3070 Ti', wattage: 290, vram: '8GB', series: 'NVIDIA RTX 30 Series' },
-  { id: 'rtx-3070', name: 'NVIDIA GeForce RTX 3070', wattage: 220, vram: '8GB', series: 'NVIDIA RTX 30 Series' },
-  { id: 'rtx-3060ti', name: 'NVIDIA GeForce RTX 3060 Ti', wattage: 200, vram: '8GB', series: 'NVIDIA RTX 30 Series' },
-  { id: 'rtx-3060-12', name: 'NVIDIA GeForce RTX 3060 12GB', wattage: 170, vram: '12GB', series: 'NVIDIA RTX 30 Series' },
-  { id: 'rtx-3060-8', name: 'NVIDIA GeForce RTX 3060 8GB', wattage: 170, vram: '8GB', series: 'NVIDIA RTX 30 Series' },
-  { id: 'rtx-3050-8', name: 'NVIDIA GeForce RTX 3050 8GB', wattage: 130, vram: '8GB', series: 'NVIDIA RTX 30 Series' },
-  { id: 'rtx-3050-6', name: 'NVIDIA GeForce RTX 3050 6GB', wattage: 70, vram: '6GB', series: 'NVIDIA RTX 30 Series' },
-
-  // NVIDIA RTX 20 Series
-  { id: 'rtx-2080ti', name: 'NVIDIA GeForce RTX 2080 Ti', wattage: 250, vram: '11GB', series: 'NVIDIA RTX 20 Series' },
-  { id: 'rtx-2080s', name: 'NVIDIA GeForce RTX 2080 Super', wattage: 250, vram: '8GB', series: 'NVIDIA RTX 20 Series' },
-  { id: 'rtx-2080', name: 'NVIDIA GeForce RTX 2080', wattage: 215, vram: '8GB', series: 'NVIDIA RTX 20 Series' },
-  { id: 'rtx-2070s', name: 'NVIDIA GeForce RTX 2070 Super', wattage: 215, vram: '8GB', series: 'NVIDIA RTX 20 Series' },
-  { id: 'rtx-2070', name: 'NVIDIA GeForce RTX 2070', wattage: 175, vram: '8GB', series: 'NVIDIA RTX 20 Series' },
-  { id: 'rtx-2060s', name: 'NVIDIA GeForce RTX 2060 Super', wattage: 175, vram: '8GB', series: 'NVIDIA RTX 20 Series' },
-  { id: 'rtx-2060', name: 'NVIDIA GeForce RTX 2060', wattage: 160, vram: '6GB', series: 'NVIDIA RTX 20 Series' },
-
-  // NVIDIA GTX Series
-  { id: 'gtx-1080ti', name: 'NVIDIA GeForce GTX 1080 Ti (Pascal King)', wattage: 250, vram: '11GB', series: 'NVIDIA GTX Series' },
-  { id: 'gtx-1080', name: 'NVIDIA GeForce GTX 1080', wattage: 180, vram: '8GB', series: 'NVIDIA GTX Series' },
-  { id: 'gtx-1070ti', name: 'NVIDIA GeForce GTX 1070 Ti', wattage: 180, vram: '8GB', series: 'NVIDIA GTX Series' },
-  { id: 'gtx-1070', name: 'NVIDIA GeForce GTX 1070', wattage: 150, vram: '8GB', series: 'NVIDIA GTX Series' },
-  { id: 'gtx-1060-6', name: 'NVIDIA GeForce GTX 1060 6GB', wattage: 120, vram: '6GB', series: 'NVIDIA GTX Series' },
-  { id: 'gtx-1050ti', name: 'NVIDIA GeForce GTX 1050 Ti', wattage: 75, vram: '4GB', series: 'NVIDIA GTX Series' },
-  { id: 'gtx-1660s', name: 'NVIDIA GeForce GTX 1660 Super', wattage: 125, vram: '6GB', series: 'NVIDIA GTX Series' },
-  { id: 'gtx-1660ti', name: 'NVIDIA GeForce GTX 1660 Ti', wattage: 120, vram: '6GB', series: 'NVIDIA GTX Series' },
-  { id: 'gtx-1650s', name: 'NVIDIA GeForce GTX 1650 Super', wattage: 100, vram: '4GB', series: 'NVIDIA GTX Series' },
-  { id: 'gtx-1650', name: 'NVIDIA GeForce GTX 1650', wattage: 75, vram: '4GB', series: 'NVIDIA GTX Series' },
-  { id: 'gtx-980ti', name: 'NVIDIA GeForce GTX 980 Ti (Maxwell Flagship)', wattage: 250, vram: '6GB', series: 'NVIDIA GTX Series' },
-  { id: 'gtx-980', name: 'NVIDIA GeForce GTX 980', wattage: 165, vram: '4GB', series: 'NVIDIA GTX Series' },
-  { id: 'gtx-970', name: 'NVIDIA GeForce GTX 970 (Classic 3.5GB)', wattage: 145, vram: '4GB', series: 'NVIDIA GTX Series' },
-  { id: 'gtx-960', name: 'NVIDIA GeForce GTX 960', wattage: 120, vram: '2GB/4GB', series: 'NVIDIA GTX Series' },
-  { id: 'gtx-780ti', name: 'NVIDIA GeForce GTX 780 Ti (Kepler Beast)', wattage: 250, vram: '3GB', series: 'NVIDIA GTX Series' },
-  { id: 'gtx-770', name: 'NVIDIA GeForce GTX 770', wattage: 230, vram: '2GB', series: 'NVIDIA GTX Series' },
-  { id: 'gtx-750ti', name: 'NVIDIA GeForce GTX 750 Ti', wattage: 60, vram: '2GB', series: 'NVIDIA GTX Series' },
-  { id: 'gtx-680', name: 'NVIDIA GeForce GTX 680', wattage: 195, vram: '2GB', series: 'NVIDIA GTX Series' },
-  { id: 'gtx-580', name: 'NVIDIA GeForce GTX 580 (Fermi Thermonuclear)', wattage: 244, vram: '1.5GB', series: 'NVIDIA GTX Series' },
-  { id: 'gtx-480', name: 'NVIDIA GeForce GTX 480 (Fermi Grill)', wattage: 250, vram: '1.5GB', series: 'NVIDIA GTX Series' },
-
-  // AMD Radeon RX 7000 Series
-  { id: 'rx-7900xtx', name: 'AMD Radeon RX 7900 XTX', wattage: 355, vram: '24GB', series: 'AMD RX 7000 Series' },
-  { id: 'rx-7900xt', name: 'AMD Radeon RX 7900 XT', wattage: 315, vram: '20GB', series: 'AMD RX 7000 Series' },
-  { id: 'rx-7900gre', name: 'AMD Radeon RX 7900 GRE', wattage: 260, vram: '16GB', series: 'AMD RX 7000 Series' },
-  { id: 'rx-7800xt', name: 'AMD Radeon RX 7800 XT', wattage: 263, vram: '16GB', series: 'AMD RX 7000 Series' },
-  { id: 'rx-7700xt', name: 'AMD Radeon RX 7700 XT', wattage: 245, vram: '12GB', series: 'AMD RX 7000 Series' },
-  { id: 'rx-7600xt', name: 'AMD Radeon RX 7600 XT', wattage: 190, vram: '16GB', series: 'AMD RX 7000 Series' },
-  { id: 'rx-7600', name: 'AMD Radeon RX 7600', wattage: 165, vram: '8GB', series: 'AMD RX 7000 Series' },
-
-  // AMD Radeon RX 6000 Series
-  { id: 'rx-6950xt', name: 'AMD Radeon RX 6950 XT', wattage: 335, vram: '16GB', series: 'AMD RX 6000 Series' },
-  { id: 'rx-6900xt', name: 'AMD Radeon RX 6900 XT', wattage: 300, vram: '16GB', series: 'AMD RX 6000 Series' },
-  { id: 'rx-6800xt', name: 'AMD Radeon RX 6800 XT', wattage: 300, vram: '16GB', series: 'AMD RX 6000 Series' },
-  { id: 'rx-6800', name: 'AMD Radeon RX 6800', wattage: 250, vram: '16GB', series: 'AMD RX 6000 Series' },
-  { id: 'rx-6750xt', name: 'AMD Radeon RX 6750 XT', wattage: 250, vram: '12GB', series: 'AMD RX 6000 Series' },
-  { id: 'rx-6700xt', name: 'AMD Radeon RX 6700 XT', wattage: 230, vram: '12GB', series: 'AMD RX 6000 Series' },
-  { id: 'rx-6650xt', name: 'AMD Radeon RX 6650 XT', wattage: 180, vram: '8GB', series: 'AMD RX 6000 Series' },
-  { id: 'rx-6600xt', name: 'AMD Radeon RX 6600 XT', wattage: 160, vram: '8GB', series: 'AMD RX 6000 Series' },
-  { id: 'rx-6600', name: 'AMD Radeon RX 6600', wattage: 132, vram: '8GB', series: 'AMD RX 6000 Series' },
-  { id: 'rx-6500xt', name: 'AMD Radeon RX 6500 XT', wattage: 107, vram: '4GB', series: 'AMD RX 6000 Series' },
-  { id: 'rx-6400', name: 'AMD Radeon RX 6400 Low Profile', wattage: 53, vram: '4GB', series: 'AMD RX 6000 Series' },
-
-  // AMD Radeon RX 5000 Series
-  { id: 'rx-5700xt', name: 'AMD Radeon RX 5700 XT', wattage: 225, vram: '8GB', series: 'AMD RX 5000 Series' },
-  { id: 'rx-5700', name: 'AMD Radeon RX 5700', wattage: 180, vram: '8GB', series: 'AMD RX 5000 Series' },
-  { id: 'rx-5600xt', name: 'AMD Radeon RX 5600 XT', wattage: 160, vram: '6GB', series: 'AMD RX 5000 Series' },
-  { id: 'rx-5500xt', name: 'AMD Radeon RX 5500 XT', wattage: 130, vram: '8GB', series: 'AMD RX 5000 Series' },
-
-  // AMD Radeon Legacy
-  { id: 'rx-vega-64-liquid', name: 'AMD Radeon RX Vega 64 Liquid Cooled', wattage: 345, vram: '8GB HBM2', series: 'AMD Radeon Legacy' },
-  { id: 'rx-vega-64', name: 'AMD Radeon RX Vega 64 Standard', wattage: 295, vram: '8GB HBM2', series: 'AMD Radeon Legacy' },
-  { id: 'rx-vega-56', name: 'AMD Radeon RX Vega 56', wattage: 210, vram: '8GB HBM2', series: 'AMD Radeon Legacy' },
-  { id: 'rx-590', name: 'AMD Radeon RX 590', wattage: 225, vram: '8GB', series: 'AMD Radeon Legacy' },
-  { id: 'rx-580', name: 'AMD Radeon RX 580 (Polaris Core)', wattage: 185, vram: '8GB', series: 'AMD Radeon Legacy' },
-  { id: 'rx-570', name: 'AMD Radeon RX 570', wattage: 150, vram: '8GB', series: 'AMD Radeon Legacy' },
-  { id: 'rx-480', name: 'AMD Radeon RX 480', wattage: 150, vram: '8GB', series: 'AMD Radeon Legacy' },
-  { id: 'r9-fury-x', name: 'AMD Radeon R9 Fury X (Fiji)', wattage: 275, vram: '4GB HBM', series: 'AMD Radeon Legacy' },
-  { id: 'r9-390x2', name: 'AMD Radeon R9 390X (Hawaii XT Flagship)', wattage: 275, vram: '8GB', series: 'AMD Radeon Legacy' },
-  { id: 'r9-290x', name: 'AMD Radeon R9 290X Classic', wattage: 290, vram: '4GB', series: 'AMD Radeon Legacy' },
-  { id: 'hd-7970', name: 'AMD Radeon HD 7970 GHz Edition', wattage: 250, vram: '3GB', series: 'AMD Radeon Legacy' },
-  { id: 'hd-6970', name: 'AMD Radeon HD 6970 Dual Fan', wattage: 250, vram: '2GB', series: 'AMD Radeon Legacy' },
-
-  // Intel Arc Graphics
-  { id: 'arc-b580', name: 'Intel Arc B580 (Battlemage Next-Gen)', wattage: 190, vram: '12GB', series: 'Intel Arc Graphics' },
-  { id: 'arc-b480', name: 'Intel Arc B480 (Battlemage mainstream)', wattage: 150, vram: '8GB', series: 'Intel Arc Graphics' },
-  { id: 'arc-a770', name: 'Intel Arc A770 High Performance', wattage: 225, vram: '16GB', series: 'Intel Arc Graphics' },
-  { id: 'arc-a750', name: 'Intel Arc A750', wattage: 225, vram: '8GB', series: 'Intel Arc Graphics' },
-  { id: 'arc-a580', name: 'Intel Arc A580', wattage: 185, vram: '8GB', series: 'Intel Arc Graphics' },
-  { id: 'arc-a380', name: 'Intel Arc A380 Low Profile', wattage: 75, vram: '6GB', series: 'Intel Arc Graphics' },
-  
-  // Integrated / None
-  { id: 'integrated-gp', name: 'Integrated Motherboard/CPU Graphics only', wattage: 0, vram: 'Shared', series: 'Integrated' },
-];
-
-const MOTHERBOARD_DRAW = {
-  'eatx': 80,
-  'atx': 50,
-  'matx': 40,
-  'itx': 30
-};
-
-const MEMORY_DRAW = {
-  'ddr5': 6,
-  'ddr4': 4,
-  'ddr3': 3,
-};
-
-const STORAGE_DRAW = {
-  'nvme': 8,
-  'sata_ssd': 5,
-  'hdd': 10
-};
-
-const COOLING_DRAW = {
-  'air_dual': 12,
-  'air_single': 6,
-  'aio_360': 35,
-  'aio_240': 25,
-  'aio_120': 15,
-  'custom_loop': 55
-};
-
-const STANDARD_PSU_SIZES = [350, 450, 550, 650, 750, 850, 1000, 1200, 1500, 1600];
-
 interface SmpsCalculatorProps {
-  currentTheme: 'light' | 'dark';
+  currentTheme: 'light' | 'dark' | 'mono';
 }
 
 export default function SmpsCalculator({ currentTheme }: SmpsCalculatorProps) {
-  // Calculator States - Default to unselected/0W for direct fulfillment of instructions
-  const [selectedCpuId, setSelectedCpuId] = useState<string>('');
-  const [selectedGpuId, setSelectedGpuId] = useState<string>('');
-  const [motherboardType, setMotherboardType] = useState<'eatx' | 'atx' | 'matx' | 'itx' | ''>('');
-  const [ramType, setRamType] = useState<'ddr5' | 'ddr4' | 'ddr3' | ''>('');
-  const [ramSticks, setRamSticks] = useState<number>(0);
-  const [nvmeCount, setNvmeCount] = useState<number>(0);
-  const [sataSsdCount, setSataSsdCount] = useState<number>(0);
-  const [hddCount, setHddCount] = useState<number>(0);
-  const [coolingType, setCoolingType] = useState<keyof typeof COOLING_DRAW | ''>('');
-  const [caseFans, setCaseFans] = useState<number>(0);
-  const [rgbStrips, setRgbStrips] = useState<number>(0);
-  const [rgbController, setRgbController] = useState<boolean>(false);
-  const [overclockCpu, setOverclockCpu] = useState<boolean>(false);
-  const [overclockGpu, setOverclockGpu] = useState<boolean>(false);
-  const [usbHighDrawCount, setUsbHighDrawCount] = useState<number>(0); 
-  const [safetyMargin, setSafetyMargin] = useState<number>(25); // percentage: 10%-50%
+  // Theme helpers
+  const isDark = currentTheme === 'dark' || currentTheme === 'mono';
+  const isMono = currentTheme === 'mono';
 
-  // Search UI states for real-time filtering
-  const [cpuSearch, setCpuSearch] = useState<string>('');
-  const [gpuSearch, setGpuSearch] = useState<string>('');
-  const [isCpuOpen, setIsCpuOpen] = useState<boolean>(false);
-  const [isGpuOpen, setIsGpuOpen] = useState<boolean>(false);
+  // 1. Processors (CPU) State
+  const [selectedCpuId, setSelectedCpuId] = useState<string>(''); // Empty by default
+  const [isCpuOpen, setIsCpuOpen] = useState(false);
+  const [cpuSearch, setCpuSearch] = useState('');
+  const [cpuCategory, setCpuCategory] = useState<string>('all');
+  const [overclockCpu, setOverclockCpu] = useState(false);
 
-  // Reset Calculator To Strict 0W Default
-  const handleReset = () => {
-    setSelectedCpuId('');
-    setSelectedGpuId('');
-    setMotherboardType('');
-    setRamType('');
-    setRamSticks(0);
-    setNvmeCount(0);
-    setSataSsdCount(0);
-    setHddCount(0);
-    setCoolingType('');
-    setCaseFans(0);
-    setRgbStrips(0);
-    setRgbController(false);
-    setOverclockCpu(false);
-    setOverclockGpu(false);
-    setUsbHighDrawCount(0);
-    setSafetyMargin(25);
-    setCpuSearch('');
-    setGpuSearch('');
-    setIsCpuOpen(false);
-    setIsGpuOpen(false);
-  };
+  // 2. Graphics (GPU) State
+  const [selectedGpuId, setSelectedGpuId] = useState<string>(''); // Empty by default
+  const [isGpuOpen, setIsGpuOpen] = useState(false);
+  const [gpuSearch, setGpuSearch] = useState('');
+  const [gpuCategory, setGpuCategory] = useState<string>('all');
+  const [overclockGpu, setOverclockGpu] = useState(false);
 
-  // Find Models
+  // Refs and Click-Outside handler for dropdowns
+  const cpuRef = useRef<HTMLDivElement>(null);
+  const gpuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (cpuRef.current && !cpuRef.current.contains(event.target as Node)) {
+        setIsCpuOpen(false);
+      }
+      if (gpuRef.current && !gpuRef.current.contains(event.target as Node)) {
+        setIsGpuOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  // 3. Motherboard State (Linked dynamically to socket compatibility!)
+  const [selectedChipsetId, setSelectedChipsetId] = useState<string>('b650');
+  const [customFormFactor, setCustomFormFactor] = useState<'EATX' | 'ATX' | 'mATX' | 'ITX' | ''>('');
+
+  // 4. Memory (RAM) State
+  const [ramType, setRamType] = useState<'ddr5' | 'ddr4' | 'ddr3' | ''>('ddr5');
+  const [ramSticks, setRamSticks] = useState<number>(2);
+  const [ramProfile, setRamProfile] = useState<'standard' | 'xmp' | 'rgb'>('xmp');
+
+  // 5. Storage State (Counters)
+  const [nvmeGen5Count, setNvmeGen5Count] = useState(0);
+  const [nvmeGen4Count, setNvmeGen4Count] = useState(1);
+  const [sataSsdCount, setSataSsdCount] = useState(0);
+  const [hdd7200Count, setHdd7200Count] = useState(0);
+  const [hdd5400Count, setHdd5400Count] = useState(0);
+  const [sasEnterpriseCount, setSasEnterpriseCount] = useState(0);
+
+  // 6. Cooling Equipment
+  const [coolingType, setCoolingType] = useState<string>('aio_240');
+  const [caseFanType, setCaseFanType] = useState<'std_120' | 'argb_120' | 'std_140' | 'argb_140' | 'industrial'>('argb_120');
+  const [caseFans, setCaseFans] = useState(3);
+
+  // 7. Aesthetics & Add-ons
+  const [rgbStrips, setRgbStrips] = useState(2);
+  const [rgbController, setRgbController] = useState(true);
+  const [usbHighDrawCount, setUsbHighDrawCount] = useState(1);
+
+  // PCIe Expanders
+  const [hasSoundCard, setHasSoundCard] = useState(false);
+  const [hasCaptureCard, setHasCaptureCard] = useState(false);
+  const [hasWifiCard, setHasWifiCard] = useState(false);
+
+  // Headroom Overheads
+  const [safetyMargin, setSafetyMargin] = useState<number>(25);
+
+  // Selected Entities
   const selectedCpu = useMemo(() => CPU_DATABASE.find(c => c.id === selectedCpuId) || null, [selectedCpuId]);
   const selectedGpu = useMemo(() => GPU_DATABASE.find(g => g.id === selectedGpuId) || null, [selectedGpuId]);
 
-  // Wattage Calculation Breakdown
-  const wattageBreakdown = useMemo(() => {
-    // If no core components are chosen, let's keep all secondary elements from bloating 
-    // unless they explicitly increment them, ensuring safe, logical starting point.
-    const cpuPower = selectedCpu ? (selectedCpu.peak + (overclockCpu ? 50 : 0)) : 0;
-    const gpuPower = selectedGpu ? (selectedGpu.wattage + (overclockGpu && selectedGpu.wattage > 0 ? 80 : 0)) : 0;
-    const moboPower = motherboardType ? MOTHERBOARD_DRAW[motherboardType] : 0;
-    const ramPower = (ramType && ramSticks > 0) ? (ramSticks * MEMORY_DRAW[ramType]) : 0;
-    const storagePower = (nvmeCount * STORAGE_DRAW.nvme) + (sataSsdCount * STORAGE_DRAW.sata_ssd) + (hddCount * STORAGE_DRAW.hdd);
-    const coolingPower = coolingType ? (COOLING_DRAW[coolingType] + (caseFans * 3)) : (caseFans * 3);
-    const accessoryPower = (rgbStrips * 5) + (rgbController ? 8 : 0) + (usbHighDrawCount * 10);
+  // AUTO-FILTER Motherboard compatibility based on selected CPU socket
+  const compatibleChipsets = useMemo(() => {
+    if (!selectedCpu) return CHIPSET_DATABASE;
+    return CHIPSET_DATABASE.filter(board => board.socket === selectedCpu.socket);
+  }, [selectedCpu]);
 
-    const totalPeak = cpuPower + gpuPower + moboPower + ramPower + storagePower + coolingPower + accessoryPower;
-    
-    return {
-      cpu: cpuPower,
-      gpu: gpuPower,
-      mobo: moboPower,
-      ram: ramPower,
-      storage: storagePower,
-      cooling: coolingPower,
-      accessories: accessoryPower,
-      totalPeak
-    };
-  }, [
-    selectedCpu, selectedGpu, overclockCpu, overclockGpu, motherboardType, 
-    ramType, ramSticks, nvmeCount, sataSsdCount, hddCount, coolingType, 
-    caseFans, rgbStrips, rgbController, usbHighDrawCount
-  ]);
-
-  // Recommended PSU Calculation with safety overhead margin
-  const recommendedPower = useMemo(() => {
-    if (wattageBreakdown.totalPeak === 0) {
-      return { rawRecommended: 0, suggestedPsuSize: 0 };
+  // Adjust compatibility automatically when CPU socket changes
+  useEffect(() => {
+    if (selectedCpu) {
+      const isStillCompatible = compatibleChipsets.some(chip => chip.id === selectedChipsetId);
+      if (!isStillCompatible && compatibleChipsets.length > 0) {
+        setSelectedChipsetId(compatibleChipsets[0].id);
+        setCustomFormFactor('');
+      }
     }
-    const rawRecommended = wattageBreakdown.totalPeak * (1 + safetyMargin / 100);
-    // Find next size standard SMPS rating
-    const suggestedPsuSize = STANDARD_PSU_SIZES.find(size => size >= rawRecommended) || 1600;
+  }, [selectedCpu, compatibleChipsets, selectedChipsetId]);
 
-    return {
-      rawRecommended: Math.ceil(rawRecommended),
-      suggestedPsuSize
-    };
-  }, [wattageBreakdown.totalPeak, safetyMargin]);
+  const selectedChipset = useMemo(() => CHIPSET_DATABASE.find(board => board.id === selectedChipsetId) || null, [selectedChipsetId]);
 
-  // Dynamic advice based on current loaded state
-  const isFormEmpty = wattageBreakdown.totalPeak === 0;
+  // Smart baseline form factor
+  const activeFormFactor = customFormFactor || (selectedChipset ? selectedChipset.formFactor : 'ATX');
 
-  // Generate WhatsApp inquiry text
-  const handleWhatsAppInquiry = () => {
-    if (isFormEmpty) return;
-    const psuRatingStr = recommendedPower.suggestedPsuSize >= 1000 
-      ? '80+ Platinum/Titanium Enterprise' 
-      : recommendedPower.suggestedPsuSize >= 750 
-        ? '80+ Gold Certified Modular' 
-        : '80+ Bronze / Gold Workstation Class';
-
-    const buildSpecs = [
-      selectedCpu ? `- CPU: ${selectedCpu.name} (${wattageBreakdown.cpu}W peak)` : null,
-      selectedGpu ? `- GPU: ${selectedGpu.name} (${wattageBreakdown.gpu}W peak)` : null,
-      motherboardType ? `- Motherboard: ${motherboardType.toUpperCase()} (${wattageBreakdown.mobo}W)` : null,
-      ramType ? `- RAM: ${ramSticks}x ${ramType.toUpperCase()} (${wattageBreakdown.ram}W)` : null,
-      (nvmeCount > 0 || sataSsdCount > 0 || hddCount > 0) ? `- Drives: ${nvmeCount}x NVMe, ${sataSsdCount}x SATA, ${hddCount}x HDD` : null,
-      coolingType ? `- Cooling: ${coolingType.toUpperCase()} (+${caseFans} High Performance Fans)` : null,
-    ].filter(Boolean).join('\n');
-
-    const messageText = `Hi Murari (Pixel Fix Specialist),\n\nI just designed my custom desktop configuration on your high-precision SMPS Power Calculator!\n\n📋 COMPONENT PROFILE:\n${buildSpecs}\n\n⚡ LOAD PROFILE REPORT:\n- Continuous Combined Peak draw: ~${wattageBreakdown.totalPeak}W\n- Hardware Buffer Margin: +${safetyMargin}%\n- Suggested Target PSU Class: ${recommendedPower.suggestedPsuSize}W (${psuRatingStr})\n\nCould you offer a quotation for door-to-door professional PC assembly or certified SMPS diagnostic and installation services in Assam? I'd love to connect!`;
-    
-    const encoded = encodeURIComponent(messageText);
-    window.open(`https://wa.me/918638875231?text=${encoded}`, '_blank');
-  };
-
-  // 80 Plus Efficiency tier suggestion based on Recommended supply rating
-  const psuEfficiencyAdvice = useMemo(() => {
-    const size = recommendedPower.suggestedPsuSize;
-    if (size === 0) {
-      return {
-        tier: 'Standard / 80 PLUS Rated',
-        desc: 'Select computer hardware options to map appropriate tier recommendations.',
-        color: 'from-slate-400 to-zinc-400'
-      };
-    }
-    if (size >= 1000) {
-      return {
-        tier: '80 PLUS Platinum / Titanium',
-        desc: 'Uncompromising efficiency for heavy rendering clusters or multi-GPU configurations. Restricts line loss to under 8%.',
-        color: 'from-slate-300 to-emerald-400'
-      };
-    } else if (size >= 750) {
-      return {
-        tier: '80 PLUS Gold Certified',
-        desc: 'Optimized efficiency for modular gaming machines. Offers excellent lifespan, protection under high temperature peaks, and low ripples.',
-        color: 'from-amber-400 to-yellow-500'
-      };
-    } else if (size >= 550) {
-      return {
-        tier: '80 PLUS Bronze / Gold',
-        desc: 'Fabulous daily efficiency rating for mid-tier gaming environments or visual workspaces.',
-        color: 'from-amber-700 to-amber-500'
-      };
-    } else {
-      return {
-        tier: '80 PLUS Standard / Bronze',
-        desc: 'Energy efficient baseline for silent multi-media center operations or office workstations.',
-        color: 'from-zinc-400 to-zinc-500'
-      };
-    }
-  }, [recommendedPower.suggestedPsuSize]);
-
-  // Grouped Databases filtered dynamically for real-time search autocompletes
+  // Filtered lists for processors
   const filteredCpus = useMemo(() => {
-    const q = cpuSearch.trim().toLowerCase();
-    if (!q) return CPU_DATABASE;
-    return CPU_DATABASE.filter(c => 
-      c.name.toLowerCase().includes(q) || 
-      c.socket.toLowerCase().includes(q) || 
-      c.series.toLowerCase().includes(q)
-    );
-  }, [cpuSearch]);
+    return CPU_DATABASE.filter(cpu => {
+      const matchesSearch = cpu.name.toLowerCase().includes(cpuSearch.toLowerCase()) || 
+                            cpu.socket.toLowerCase().includes(cpuSearch.toLowerCase()) ||
+                            cpu.series.toLowerCase().includes(cpuSearch.toLowerCase());
+      const matchesCategory = cpuCategory === 'all' || cpu.category === cpuCategory;
+      return matchesSearch && matchesCategory;
+    });
+  }, [cpuSearch, cpuCategory]);
 
   const groupedCpus = useMemo(() => {
-    const groups: Record<string, CpuModel[]> = {};
-    filteredCpus.forEach(c => {
-      groups[c.series] = groups[c.series] || [];
-      groups[c.series].push(c);
+    const groups: { [key: string]: CpuModel[] } = {};
+    filteredCpus.forEach(cpu => {
+      if (!groups[cpu.series]) {
+        groups[cpu.series] = [];
+      }
+      groups[cpu.series].push(cpu);
     });
     return groups;
   }, [filteredCpus]);
 
+  // Filtered lists for Graphics
   const filteredGpus = useMemo(() => {
-    const q = gpuSearch.trim().toLowerCase();
-    if (!q) return GPU_DATABASE;
-    return GPU_DATABASE.filter(g => 
-      g.name.toLowerCase().includes(q) || 
-      g.series.toLowerCase().includes(q) ||
-      g.vram.toLowerCase().includes(q)
-    );
-  }, [gpuSearch]);
+    return GPU_DATABASE.filter(gpu => {
+      const matchesSearch = gpu.name.toLowerCase().includes(gpuSearch.toLowerCase()) || 
+                            gpu.vram.toLowerCase().includes(gpuSearch.toLowerCase()) ||
+                            gpu.series.toLowerCase().includes(gpuSearch.toLowerCase());
+      const matchesCategory = gpuCategory === 'all' || gpu.category === gpuCategory;
+      return matchesSearch && matchesCategory;
+    });
+  }, [gpuSearch, gpuCategory]);
 
   const groupedGpus = useMemo(() => {
-    const groups: Record<string, GpuModel[]> = {};
-    filteredGpus.forEach(g => {
-      groups[g.series] = groups[g.series] || [];
-      groups[g.series].push(g);
+    const groups: { [key: string]: GpuModel[] } = {};
+    filteredGpus.forEach(gpu => {
+      if (!groups[gpu.series]) {
+        groups[gpu.series] = [];
+      }
+      groups[gpu.series].push(gpu);
     });
     return groups;
   }, [filteredGpus]);
 
-  // Structural Styles dependent on current theme
-  const isDark = currentTheme === 'dark';
-  const containerBg = isDark 
-    ? 'bg-zinc-950/90 border-zinc-900/80 shadow-2xl backdrop-blur-xl' 
-    : 'bg-white border-slate-200/90 shadow-2xl shadow-slate-100/50';
+  // Power Calculation Formulas
+  const wattageBreakdown = useMemo(() => {
+    // 1. Processor (CPU) Draw
+    let cpuDraw = 0;
+    if (selectedCpu) {
+      cpuDraw = selectedCpu.peak;
+      if (overclockCpu) cpuDraw += 50; // extra overclock overhead
+    }
+
+    // 2. Graphics (GPU) Draw
+    let gpuDraw = 0;
+    if (selectedGpu) {
+      gpuDraw = selectedGpu.wattage;
+      if (overclockGpu) gpuDraw += 80;
+    }
+
+    // 3. Motherboard Draw
+    let moboDraw = 0;
+    if (selectedChipset) {
+      const motherboardBaselines = { EATX: 45, ATX: 35, mATX: 25, ITX: 18 };
+      moboDraw = motherboardBaselines[activeFormFactor] || 30;
+      if (selectedChipset.overclockSupport) {
+        moboDraw += 15; // beefier VRM power draw
+      }
+    }
+
+    // 4. Memory (RAM) Draw
+    let ramDraw = 0;
+    if (ramType) {
+      const baseRamDraw = { ddr5: 4, ddr4: 3, ddr3: 3 }[ramType];
+      let perStickDraw = baseRamDraw;
+      if (ramProfile === 'xmp') perStickDraw += 2.5; // XMP/EXPO dynamic overhead
+      if (ramProfile === 'rgb') perStickDraw += 4.5; // High-wattage RGB heatsinks
+      ramDraw = ramSticks * perStickDraw;
+    }
+
+    // 5. Storage Draw
+    const nvmeGen5Draw = nvmeGen5Count * 12;
+    const nvmeGen4Draw = nvmeGen4Count * 7.5;
+    const sataSsdDraw = sataSsdCount * 4;
+    const hdd7200Draw = hdd7200Count * 10;
+    const hdd5400Draw = hdd5400Count * 6;
+    const sasEnterpriseDraw = sasEnterpriseCount * 15;
+    const storageDraw = nvmeGen5Draw + nvmeGen4Draw + sataSsdDraw + hdd7200Draw + hdd5400Draw + sasEnterpriseDraw;
+
+    // 6. Cooling Draw
+    let coolingDraw = 0;
+    const coolingBaseline = {
+      stock: 4,
+      air_single: 6,
+      air_dual: 12,
+      aio_120: 15,
+      aio_240: 22,
+      aio_360: 30,
+      custom_loop: 35,
+      extreme_loop: 60
+    }[coolingType] || 0;
+    coolingDraw += coolingBaseline;
+
+    // Fans Draw
+    const fanBaseline = {
+      std_120: 2.0,
+      argb_120: 3.5,
+      std_140: 2.5,
+      argb_140: 4.5,
+      industrial: 8.0
+    }[caseFanType] || 2.5;
+    coolingDraw += caseFans * fanBaseline;
+
+    // 7. Peripherals & Aesthetics
+    let accessoriesDraw = 0;
+    accessoriesDraw += rgbStrips * 4.5;
+    if (rgbController) accessoriesDraw += 8;
+    accessoriesDraw += usbHighDrawCount * 10;
+
+    // PCIe add-on cards
+    if (hasSoundCard) accessoriesDraw += 10;
+    if (hasCaptureCard) accessoriesDraw += 15;
+    if (hasWifiCard) accessoriesDraw += 12;
+
+    const totalPeak = Math.round(cpuDraw + gpuDraw + moboDraw + ramDraw + storageDraw + coolingDraw + accessoriesDraw);
+
+    return {
+      cpu: cpuDraw,
+      gpu: gpuDraw,
+      mobo: moboDraw,
+      ram: ramDraw,
+      storage: storageDraw,
+      cooling: coolingDraw,
+      accessories: accessoriesDraw,
+      totalPeak
+    };
+  }, [
+    selectedCpu, overclockCpu,
+    selectedGpu, overclockGpu,
+    selectedChipset, activeFormFactor,
+    ramType, ramSticks, ramProfile,
+    nvmeGen5Count, nvmeGen4Count, sataSsdCount, hdd7200Count, hdd5400Count, sasEnterpriseCount,
+    coolingType, caseFanType, caseFans,
+    rgbStrips, rgbController, usbHighDrawCount,
+    hasSoundCard, hasCaptureCard, hasWifiCard
+  ]);
+
+  const recommendedPower = useMemo(() => {
+    if (wattageBreakdown.totalPeak === 0) {
+      return { rawRecommended: 0, suggestedPsuSize: 0 };
+    }
+    const rawRecommended = Math.round(wattageBreakdown.totalPeak * (1 + safetyMargin / 100));
+    // Round to nearest logical power supply increment (e.g. 450W, 550W, 650W, 750W, 850W, 1000W, 1200W, 1300W, 1600W)
+    const incrementalSizes = [450, 500, 550, 600, 650, 700, 750, 800, 850, 1000, 1200, 1300, 1600];
+    let suggestedPsuSize = 1600;
+    for (const size of incrementalSizes) {
+      if (size >= rawRecommended) {
+        suggestedPsuSize = size;
+        break;
+      }
+    }
+    return { rawRecommended, suggestedPsuSize };
+  }, [wattageBreakdown.totalPeak, safetyMargin]);
+
+  // Is Form Empty?
+  const isFormEmpty = wattageBreakdown.totalPeak === 0;
+
+  // Real-time transient spike calculation (vital for next-gen RTX GPUs!)
+  const estimatedTransientSpike = useMemo(() => {
+    if (!selectedGpu) return wattageBreakdown.totalPeak;
+    const basePeak = wattageBreakdown.totalPeak;
+    const extraGpuSpike = Math.round(selectedGpu.wattage * (selectedGpu.transientMultiplier - 1));
+    return basePeak + extraGpuSpike;
+  }, [selectedGpu, wattageBreakdown]);
+
+  // 80 Plus Certification Recommendations
+  const psuEfficiencyAdvice = useMemo(() => {
+    const peak = wattageBreakdown.totalPeak;
+    if (peak === 0) {
+      return { tier: '80 Plus Standard', color: 'from-zinc-400 to-zinc-500', desc: 'Select core silicon to evaluate efficiency requirements.' };
+    }
+    if (peak > 750) {
+      return {
+        tier: '80 Plus Platinum / Titanium',
+        color: 'from-sky-300 via-zinc-300 to-slate-400',
+        desc: 'Extreme-load rig detected. High peak draws generate substantial heat. A Titanium/Platinum unit (92%+ conversion efficiency) will save significant power, lower room temperatures, and guarantee superior clean power delivery.'
+      };
+    }
+    if (peak > 450) {
+      return {
+        tier: '80 Plus Gold Certified',
+        color: 'from-yellow-500 via-amber-400 to-yellow-600',
+        desc: 'Highly recommended for performance workstations and gaming rigs. Offers 90% peak efficiency, reducing wasted energy as room heat, and utilizes superior Japanese capacitors.'
+      };
+    }
+    return {
+      tier: '80 Plus Bronze / Silver',
+      color: 'from-amber-700 via-amber-600 to-zinc-500',
+      desc: 'Sufficient and cost-effective for budget setups. Convert energy at a secure 85% baseline. Consider upgrading to Gold if system uptime exceeds 8 hours daily.'
+    };
+  }, [wattageBreakdown.totalPeak]);
+
+  // Reset function
+  const handleReset = () => {
+    setSelectedCpuId('');
+    setSelectedGpuId('');
+    setSelectedChipsetId('');
+    setCustomFormFactor('');
+    setOverclockCpu(false);
+    setOverclockGpu(false);
+    setRamType('ddr5');
+    setRamSticks(2);
+    setRamProfile('xmp');
+    setNvmeGen5Count(0);
+    setNvmeGen4Count(1);
+    setSataSsdCount(0);
+    setHdd7200Count(0);
+    setHdd5400Count(0);
+    setSasEnterpriseCount(0);
+    setCoolingType('aio_240');
+    setCaseFanType('argb_120');
+    setCaseFans(3);
+    setRgbStrips(2);
+    setRgbController(true);
+    setUsbHighDrawCount(1);
+    setHasSoundCard(false);
+    setHasCaptureCard(false);
+    setHasWifiCard(false);
+    setSafetyMargin(25);
+  };
+
+  // WhatsApp helper
+  const handleWhatsAppInquiry = () => {
+    const cpuName = selectedCpu ? selectedCpu.name : 'Integrated / None';
+    const gpuName = selectedGpu ? selectedGpu.name : 'Integrated / None';
+    const chipset = selectedChipset ? selectedChipset.name : 'Generic ATX';
+    const ramText = ramType ? `${ramSticks}x DDR${ramType === 'ddr5' ? '5' : ramType === 'ddr4' ? '4' : '3'} (${ramProfile === 'rgb' ? 'Extreme RGB' : ramProfile === 'xmp' ? 'EXPO/XMP' : 'Standard'})` : 'None';
     
-  const textHeading = isDark ? 'text-stone-100' : 'text-slate-900';
-  const textBody = isDark ? 'text-zinc-400' : 'text-slate-500';
-  const labelTextClass = textBody;
-  const headerTextClass = textHeading;
-  
-  const cardBg = isDark 
-    ? 'bg-zinc-900/30 border-zinc-850/50' 
-    : 'bg-slate-50/50 border-slate-200/60';
-  const controlCardBg = cardBg;
+    const text = `Hi, I am interested in Murari's Assam Doorstep Assembly integration! Here is my custom PC setup from SMPS PSU Calculator:
+- CPU: ${cpuName} ${overclockCpu ? '(Overclocked)' : ''}
+- GPU: ${gpuName} ${overclockGpu ? '(Turbo Mode)' : ''}
+- Motherboard: ${chipset} (${activeFormFactor})
+- Memory: ${ramText}
+- Peak Wattage Draw: ${wattageBreakdown.totalPeak}W
+- Recommended Power Supply Capacity: ${recommendedPower.suggestedPsuSize}W
+Please advise on matching cabinetry cable routing, custom cooling loop, and doorstep integration!`;
 
-  const innerCardBg = isDark 
-    ? 'bg-zinc-950/60 border-zinc-900/80' 
-    : 'bg-white border-slate-150 shadow-sm';
+    const url = `https://wa.me/918453421375?text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank');
+  };
 
-  const selectStyle = isDark
-    ? 'bg-zinc-950 border-zinc-800 text-zinc-100 focus:border-[#FF5500] hover:border-zinc-700'
-    : 'bg-white border-slate-200 text-slate-900 focus:border-[#FF5500] hover:border-slate-300';
-  const selectElementStyle = selectStyle;
+  // Aesthetic constants based on theme
+  const containerStyle = isMono
+    ? 'bg-black border border-white text-white p-4 sm:p-6 md:p-8 rounded-3xl font-mono'
+    : isDark
+      ? 'bg-zinc-950/90 border border-zinc-900/80 shadow-2xl backdrop-blur-xl p-4 sm:p-6 md:p-8 rounded-3xl text-zinc-100'
+      : 'bg-white border border-slate-200/90 shadow-2xl shadow-slate-100/50 p-4 sm:p-6 md:p-8 rounded-3xl text-slate-900';
 
-  const badgeAccent = isDark 
-    ? 'bg-[#FF5500]/10 text-[#FF5500] border-[#FF5500]/20' 
-    : 'bg-[#FF5500]/5 text-[#FF5500] border-[#FF5500]/15';
+  const cardStyle = isMono
+    ? 'border border-white/20 bg-neutral-950 p-4 rounded-2xl relative overflow-hidden text-left'
+    : isDark
+      ? 'border border-zinc-900/60 bg-zinc-900/20 p-4 rounded-2xl relative overflow-hidden text-left'
+      : 'border border-slate-150 bg-slate-50/50 p-4 rounded-2xl relative overflow-hidden text-left';
+
+  const inputStyle = isMono
+    ? 'bg-black border border-white/40 text-white rounded-lg p-2 text-xs focus:border-white font-mono outline-none'
+    : isDark
+      ? 'bg-zinc-950 border border-zinc-800 text-zinc-200 rounded-lg p-2.5 text-xs focus:border-[#FF5500] focus:ring-1 focus:ring-[#FF5500] outline-none transition-colors'
+      : 'bg-white border border-slate-200 text-slate-800 rounded-lg p-2.5 text-xs focus:border-[#FF5500] focus:ring-1 focus:ring-[#FF5500] outline-none transition-colors shadow-sm';
+
+  const counterBtnStyle = isMono
+    ? 'p-1 rounded border border-white/40 text-white hover:border-white'
+    : isDark
+      ? 'p-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300'
+      : 'p-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-600';
+
+  // Dynamic color variables for technical background
+  const strokeColorPrimary = isMono ? 'rgba(255,255,255,0.15)' : isDark ? 'rgba(255,85,0,0.15)' : 'rgba(255,85,0,0.06)';
+  const strokeColorSecondary = isMono ? 'rgba(255,255,255,0.1)' : isDark ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.06)';
+  const strokeColorGrid = isMono ? 'rgba(255,255,255,0.02)' : isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)';
+  const textColorAccent = isMono ? 'text-white/20' : isDark ? 'text-[#FF5500]/20' : 'text-[#FF5500]/15';
+  const textSecondaryAccent = isMono ? 'text-white/10' : isDark ? 'text-indigo-500/20' : 'text-indigo-500/15';
 
   return (
-    <div className={`p-6 md:p-10 rounded-[32px] border ${containerBg} space-y-8 relative overflow-hidden`} id="smps-wattage-calculator">
-      {/* Visual Ambient Light Gradients */}
-      <div className="absolute top-0 right-0 w-80 h-80 bg-[#FF5500]/10 rounded-full blur-[100px] pointer-events-none" />
-      <div className="absolute -left-20 -bottom-20 w-80 h-80 bg-indigo-500/5 rounded-full blur-[100px] pointer-events-none" />
+    <div className={`${containerStyle} w-full transition-colors duration-200 relative`} id="smps-calculator-root">
+      
+      {/* Modern, Tech-Inspired PSU background layer */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none rounded-3xl z-0 select-none">
+        <style dangerouslySetInnerHTML={{ __html: `
+          @keyframes electric-flow-fast {
+            0% { stroke-dashoffset: 120; }
+            100% { stroke-dashoffset: 0; }
+          }
+          @keyframes electric-flow-slow {
+            0% { stroke-dashoffset: 240; }
+            100% { stroke-dashoffset: 0; }
+          }
+          @keyframes pulse-glow-bg {
+            0%, 100% { opacity: 0.15; }
+            50% { opacity: 0.45; }
+          }
+          @keyframes lightning-flash {
+            0%, 90%, 100% { opacity: 0.05; }
+            92% { opacity: 0.25; }
+            93% { opacity: 0.1; }
+            94% { opacity: 0.35; }
+            95% { opacity: 0.05; }
+          }
+          @keyframes particle-float-1 {
+            0% { transform: translate(10%, 90%) scale(1); opacity: 0; }
+            10% { opacity: 0.3; }
+            90% { opacity: 0.3; }
+            100% { transform: translate(15%, 20%) scale(1.5); opacity: 0; }
+          }
+          @keyframes particle-float-2 {
+            0% { transform: translate(80%, 80%) scale(1.2); opacity: 0; }
+            15% { opacity: 0.25; }
+            85% { opacity: 0.25; }
+            100% { transform: translate(75%, 15%) scale(0.8); opacity: 0; }
+          }
+          @keyframes particle-float-3 {
+            0% { transform: translate(45%, 95%) scale(0.8); opacity: 0; }
+            20% { opacity: 0.35; }
+            80% { opacity: 0.35; }
+            100% { transform: translate(50%, 10%) scale(1.4); opacity: 0; }
+          }
+          @keyframes particle-float-4 {
+            0% { transform: translate(25%, 85%) scale(1.5); opacity: 0; }
+            10% { opacity: 0.2; }
+            90% { opacity: 0.2; }
+            100% { transform: translate(30%, 30%) scale(1); opacity: 0; }
+          }
+          .anim-flow-fast {
+            stroke-dasharray: 10, 20;
+            animation: electric-flow-fast 4s linear infinite;
+          }
+          .anim-flow-slow {
+            stroke-dasharray: 15, 35;
+            animation: electric-flow-slow 8s linear infinite;
+          }
+          .anim-pulse-glow {
+            animation: pulse-glow-bg 4s ease-in-out infinite;
+          }
+          .anim-lightning {
+            animation: lightning-flash 7s ease-in-out infinite;
+          }
+          .anim-particle-1 { animation: particle-float-1 14s linear infinite; }
+          .anim-particle-2 { animation: particle-float-2 18s linear infinite; }
+          .anim-particle-3 { animation: particle-float-3 15s linear infinite; }
+          .anim-particle-4 { animation: particle-float-4 22s linear infinite; }
+        ` }} />
 
-      {/* Top Header Section */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 border-b border-zinc-500/10 pb-6">
-        <div className="text-left space-y-2">
-          <div className="flex items-center gap-2">
-            <span className="flex h-2 w-2 relative">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#FF5500] opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-[#FF5500]"></span>
-            </span>
-            <span className="font-mono text-[10px] tracking-widest uppercase font-black text-[#FF5500]">
-              Certified Pixel Fix Hardware Diagnostic Suite
-            </span>
-          </div>
-          <h2 className={`text-2xl md:text-3xl font-black uppercase tracking-tight ${textHeading}`}>
-            SMPS PSU Calculator
-          </h2>
-          <p className={`text-xs md:text-sm max-w-2xl ${textBody}`}>
-            Estimate peak computer system load dynamically. Add components to map perfect continuous voltage supply ratings & safety headroom options in Assam.
-          </p>
+        {/* 1. Grid pattern for blueprint/circuit feeling */}
+        <svg className="absolute inset-0 w-full h-full opacity-65" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <pattern id="psu-grid" width="40" height="40" patternUnits="userSpaceOnUse">
+              <path d="M 40 0 L 0 0 0 40" fill="none" stroke={strokeColorGrid} strokeWidth="1" />
+              <circle cx="0" cy="0" r="1.5" fill={strokeColorGrid} opacity="0.5" />
+            </pattern>
+          </defs>
+          <rect width="100%" height="100%" fill="url(#psu-grid)" />
+        </svg>
+
+        {/* 2. Circuit Board traces & Electric flow lines */}
+        <svg className="absolute inset-0 w-full h-full" xmlns="http://www.w3.org/2000/svg">
+          {/* Top side traces */}
+          <path d="M -50 80 L 120 80 L 180 140 L 350 140 L 410 80 L 600 80" fill="none" stroke={strokeColorPrimary} strokeWidth="1.5" className="opacity-40" />
+          <path d="M -50 80 L 120 80 L 180 140 L 350 140 L 410 80 L 600 80" fill="none" stroke={isMono ? '#fff' : '#FF5500'} strokeWidth="1.5" className="anim-flow-fast opacity-50" />
+          
+          <path d="M 150 0 L 150 60 L 210 120 L 210 240" fill="none" stroke={strokeColorSecondary} strokeWidth="1" className="opacity-30" />
+          <path d="M 150 0 L 150 60 L 210 120 L 210 240" fill="none" stroke={isMono ? '#fff' : '#6366f1'} strokeWidth="1" className="anim-flow-slow opacity-40" />
+
+          {/* Left/Middle traces */}
+          <path d="M 40 450 L 140 450 L 200 510 L 200 680 L 300 780" fill="none" stroke={strokeColorPrimary} strokeWidth="1" className="opacity-30" />
+          <path d="M 40 450 L 140 450 L 200 510 L 200 680 L 300 780" fill="none" stroke={isMono ? '#fff' : '#FF5500'} strokeWidth="1" className="anim-flow-slow opacity-40" />
+
+          {/* Right side traces */}
+          <path d="M 1100 200 L 980 200 L 920 260 L 920 400 L 980 460 L 1150 460" fill="none" stroke={strokeColorSecondary} strokeWidth="1.5" className="opacity-40" />
+          <path d="M 1100 200 L 980 200 L 920 260 L 920 400 L 980 460 L 1150 460" fill="none" stroke={isMono ? '#fff' : '#6366f1'} strokeWidth="1.5" className="anim-flow-fast opacity-50" />
+
+          {/* Bottom side traces */}
+          <path d="M 200 1300 L 450 1300 L 510 1240 L 800 1240 M 800 1240 L 860 1300 L 1050 1300" fill="none" stroke={strokeColorPrimary} strokeWidth="1.2" className="opacity-30" />
+          <path d="M 200 1300 L 450 1300 L 510 1240 L 800 1240 M 800 1240 L 860 1300 L 1050 1300" fill="none" stroke={isMono ? '#fff' : '#FF5500'} strokeWidth="1.2" className="anim-flow-slow opacity-40" />
+
+          {/* Glowing junction points (PCB solder pads) */}
+          <circle cx="120" cy="80" r="3.5" fill={isMono ? '#fff' : '#FF5500'} className="anim-pulse-glow" />
+          <circle cx="180" cy="140" r="3" fill={isMono ? '#fff' : '#6366f1'} />
+          <circle cx="350" cy="140" r="3" fill={isMono ? '#fff' : '#FF5500'} />
+          <circle cx="410" cy="80" r="3.5" fill={isMono ? '#fff' : '#6366f1'} className="anim-pulse-glow" />
+          <circle cx="980" cy="200" r="3.5" fill={isMono ? '#fff' : '#6366f1'} />
+          <circle cx="920" cy="260" r="3" fill={isMono ? '#fff' : '#FF5500'} />
+          <circle cx="920" cy="400" r="3" fill={isMono ? '#fff' : '#6366f1'} />
+          <circle cx="980" cy="460" r="3.5" fill={isMono ? '#fff' : '#FF5500'} className="anim-pulse-glow" />
+        </svg>
+
+        {/* 3. Subtle electric wave patterns (flowing sine waves representing alternate current AC to DC) */}
+        <div className="absolute top-[25%] left-0 right-0 h-48 opacity-20 pointer-events-none">
+          <svg className="w-full h-full" viewBox="0 0 1440 200" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+            <path 
+              d="M0,100 C150,150 300,50 450,100 C600,150 750,50 900,100 C1050,150 1200,50 1350,100 C1400,116 1420,116 1440,100" 
+              fill="none" 
+              stroke={isMono ? '#fff' : '#FF5500'} 
+              strokeWidth="2.5" 
+              strokeDasharray="8, 16"
+              className="anim-flow-fast"
+            />
+            <path 
+              d="M0,120 C180,60 360,180 540,120 C720,60 900,180 1080,120 C1260,60 1380,150 1440,120" 
+              fill="none" 
+              stroke={isMono ? '#fff' : '#6366f1'} 
+              strokeWidth="1.5" 
+              strokeDasharray="12, 24"
+              className="anim-flow-slow"
+            />
+          </svg>
         </div>
 
+        {/* 4. Moving/Floating Energy Particles */}
+        <div className="absolute inset-0">
+          <div className={`absolute w-1.5 h-1.5 rounded-full ${isMono ? 'bg-white' : 'bg-[#FF5500]'} blur-[1px] anim-particle-1`} />
+          <div className={`absolute w-2.5 h-2.5 rounded-full ${isMono ? 'bg-white/80' : 'bg-indigo-500'} blur-[1px] anim-particle-2`} />
+          <div className={`absolute w-1 h-1 rounded-full ${isMono ? 'bg-white/60' : 'bg-amber-400'} blur-[0.5px] anim-particle-3`} />
+          <div className={`absolute w-2 h-2 rounded-full ${isMono ? 'bg-white/70' : 'bg-indigo-400'} blur-[1.5px] anim-particle-4`} />
+        </div>
+
+        {/* 5. Electricity icons, PSU watt symbols, voltage graphics, lightning accents */}
+        {/* Top Right background graphics */}
+        <div className={`absolute top-10 right-10 ${textSecondaryAccent} font-mono text-[9px] select-none tracking-widest leading-normal space-y-1 text-right md:block hidden`}>
+          <div>INPUT: AC 100-240V ~ 50-60Hz</div>
+          <div>DC OUTPUT: +12V | +5V | +3.3V</div>
+          <div className="flex items-center justify-end gap-1 font-bold text-[10px]">
+            <Zap className="w-3 h-3 text-[#FF5500] anim-pulse-glow" />
+            <span>80 PLUS GOLD SIMULATION</span>
+          </div>
+        </div>
+
+        {/* Middle Left graphics */}
+        <div className={`absolute top-[40%] left-6 ${textColorAccent} font-mono text-[8px] select-none tracking-wider space-y-1 md:block hidden`}>
+          <div className="font-black text-[10px] tracking-widest">SMPS ATX 3.1 COMPLIANT</div>
+          <div>TRANSIENT PEAK LOAD CAP: 200%</div>
+          <div>12V-2x6 HIGH POWER CONNECTOR</div>
+        </div>
+
+        {/* Subtle Lightning symbol in background */}
+        <div className="absolute bottom-16 right-16 opacity-5 pointer-events-none">
+          <svg width="200" height="200" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="0.5" className="anim-lightning">
+            <path d="M13 2L3 14H12L11 22L21 10H12L13 2Z" fill="currentColor" />
+          </svg>
+        </div>
+
+        {/* Subtle PSU Fan structure in bottom-left */}
+        <div className="absolute bottom-6 left-6 opacity-5 pointer-events-none">
+          <svg width="150" height="150" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="0.75" className="animate-spin" style={{ animationDuration: '40s' }}>
+            <circle cx="50" cy="50" r="45" />
+            <circle cx="50" cy="50" r="20" />
+            <circle cx="50" cy="50" r="5" />
+            {Array.from({ length: 9 }).map((_, i) => {
+              const angle = (i * 360) / 9;
+              return (
+                <path 
+                  key={i} 
+                  d={`M 50 50 L ${50 + 45 * Math.cos((angle * Math.PI) / 180)} ${50 + 45 * Math.sin((angle * Math.PI) / 180)}`} 
+                  strokeDasharray="4 2"
+                />
+              );
+            })}
+          </svg>
+        </div>
+      </div>
+
+      {/* Title Header */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-zinc-500/10 pb-6 mb-6 relative z-10">
+        <div className="text-left space-y-1">
+          <div className="flex items-center gap-2">
+            <Activity className="w-5 h-5 text-[#FF5500] animate-pulse" />
+            <h1 className={`text-xl md:text-2xl font-black uppercase tracking-tight ${isMono ? 'font-mono' : 'font-sans'}`}>
+              SMPS PSU Power Calculator
+            </h1>
+          </div>
+          <p className={`text-xs ${isDark ? 'text-zinc-500' : 'text-slate-400'}`}>
+            Professional diagnostic builder simulating transient load thresholds, safety overhead constraints, and chipset socket dependencies.
+          </p>
+        </div>
+        
         <button
-          type="button"
           onClick={handleReset}
-          disabled={isFormEmpty}
-          className={`px-4 py-2.5 rounded-xl border font-mono text-xs font-bold transition-all duration-200 flex items-center gap-2 self-start md:self-center bg-transparent ${
-            isFormEmpty 
-              ? 'opacity-30 cursor-not-allowed border-zinc-500/10 text-zinc-500' 
-              : 'border-red-500/20 text-red-500 hover:bg-red-500/5 hover:border-red-500/40 active:scale-95 cursor-pointer shadow-sm'
+          className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-all border ${
+            isMono 
+              ? 'border-white text-white hover:bg-white hover:text-black font-mono' 
+              : 'border-[#FF5500]/20 bg-[#FF5500]/5 text-[#FF5500] hover:bg-[#FF5500]/10 active:scale-95'
           }`}
-          title="Reset calculations to 0W"
         >
           <RotateCcw className="w-3.5 h-3.5" />
-          <span>Reset Calculator</span>
+          <span>Reset Configuration</span>
         </button>
       </div>
 
-      {/* Main Grid Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+      {/* Main Grid Wrapper */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 relative z-10">
         
-        {/* Dynamic Interactive Input HUD (Left: 7cols) */}
+        {/* Input Configuration Deck (Left: 7cols) */}
         <div className="lg:col-span-7 space-y-5">
           
-          {/* Card 1: Processing Silicon Blocks */}
-          <motion.div
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.1, ease: 'easeOut' }}
-            className={`p-4 rounded-2xl border ${controlCardBg} space-y-4`}
+          {/* Card 1: Silicon Processing Units (CPU & GPU) */}
+          <div 
+            className={`${cardStyle.replace('overflow-hidden', 'overflow-visible')} ${isCpuOpen || isGpuOpen ? 'z-40' : 'z-10'}`} 
+            id="silicon-core-engines-section"
           >
-            <div className="flex items-center gap-2 border-b border-zinc-500/5 pb-2">
+            <div className="flex items-center gap-2 border-b border-zinc-500/5 pb-2.5 mb-4">
               <Cpu className="w-4 h-4 text-[#FF5500]" />
-              <h3 className={`text-xs font-bold uppercase tracking-widest ${headerTextClass}`}>
-                1. Core Processors &amp; Video Setup
+              <h3 className={`text-xs font-extrabold uppercase tracking-widest ${isMono ? 'font-mono' : 'font-sans'}`}>
+                1. Silicon Core Engines
               </h3>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               
-              {/* CPU Core Selector */}
-              <div className="space-y-1.5 text-left relative">
-                <label className={`text-[10px] font-extrabold uppercase tracking-wide flex items-center justify-between ${labelTextClass}`}>
+              {/* CPU Selector Search */}
+              <div ref={cpuRef} className={`space-y-1.5 text-left relative ${isCpuOpen ? 'z-50' : 'z-20'}`}>
+                <label className="text-[10px] font-extrabold uppercase tracking-wide flex justify-between">
                   <span>Processor (CPU)</span>
-                  {selectedCpu && <span className="font-mono text-[9px] text-[#FF5500]">{selectedCpu.socket}</span>}
+                  {selectedCpu && <span className="text-[9px] text-[#FF5500] font-mono">{selectedCpu.socket}</span>}
                 </label>
 
-                {/* Custom Searchable CPU Dropdown */}
                 <div className="relative">
-                  {/* Trigger Button */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsCpuOpen(!isCpuOpen);
-                      setIsGpuOpen(false); // Close the other dropdown
+                  <input
+                    type="text"
+                    value={isCpuOpen ? cpuSearch : (selectedCpu ? selectedCpu.name : '')}
+                    onFocus={() => {
+                      setIsCpuOpen(true);
+                      setIsGpuOpen(false);
+                      setCpuSearch(selectedCpu ? selectedCpu.name : '');
                     }}
-                    className={`w-full p-2.5 rounded-xl border outline-none text-xs transition-colors flex items-center justify-between font-sans ${selectElementStyle} text-left select-none`}
-                  >
-                    <span className="truncate pr-4">
-                      {selectedCpu ? `${selectedCpu.name} (${selectedCpu.peak}W)` : '-- Select CPU / Power Off (0W) --'}
-                    </span>
-                    <div className="flex items-center gap-1.5 shrink-0 pl-1">
-                      {selectedCpuId && (
-                        <span 
-                          onClick={(e) => {
-                            e.stopPropagation();
+                    onChange={(e) => {
+                      setCpuSearch(e.target.value);
+                      setIsCpuOpen(true);
+                    }}
+                    placeholder="Search Processor..."
+                    className={`w-full p-3 pl-11 pr-24 rounded-xl text-xs transition-all ${
+                      isMono 
+                        ? 'bg-black border border-white/40 text-white font-mono focus:border-white outline-none' 
+                        : isDark 
+                          ? 'bg-zinc-950 border border-zinc-800 text-zinc-200 focus:border-[#FF5500] focus:ring-1 focus:ring-[#FF5500] outline-none' 
+                          : 'bg-white border border-slate-200 text-slate-800 focus:border-[#FF5500] focus:ring-1 focus:ring-[#FF5500] outline-none shadow-sm'
+                    } text-left font-bold relative z-40 cursor-text hover:border-[#FF5500]/50`}
+                  />
+                  {/* Cpu icon inside the input on the left */}
+                  <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none z-40">
+                    <Cpu className="w-4 h-4 text-[#FF5500]" />
+                  </div>
+                  {/* Search / Chevron / Clear icon on the right */}
+                  <div className="absolute right-3.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5 z-40">
+                    {selectedCpu && !isCpuOpen && (
+                      <span className="text-[9px] bg-[#FF5500]/10 border border-[#FF5500]/20 text-[#FF5500] px-1.5 py-0.5 rounded font-mono font-bold select-none">
+                        {selectedCpu.socket}
+                      </span>
+                    )}
+                    {(isCpuOpen ? cpuSearch : selectedCpu) ? (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (isCpuOpen) {
+                            setCpuSearch('');
+                          } else {
                             setSelectedCpuId('');
                             setCpuSearch('');
-                          }}
-                          className="p-1 rounded-md hover:bg-red-500/10 text-red-500 transition-colors cursor-pointer"
-                          title="Clear Selection"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </span>
-                      )}
-                      <ChevronDown className={`w-3.5 h-3.5 text-zinc-500 transition-transform duration-200 ${isCpuOpen ? 'rotate-180' : ''}`} />
-                    </div>
-                  </button>
+                          }
+                        }}
+                        className="p-1 rounded-full hover:bg-zinc-500/10 text-zinc-400 cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5 text-zinc-500 hover:text-[#FF5500]" />
+                      </button>
+                    ) : (
+                      <Search className="w-3.5 h-3.5 text-zinc-500" />
+                    )}
+                  </div>
 
-                  {/* Dropdown Panel */}
+                  {/* Closed on click outside via useEffect ref */}
+
+                  {/* Inline Dropdown for CPU */}
                   <AnimatePresence>
                     {isCpuOpen && (
-                      <>
-                        {/* Fullscreen transparent backdrop overlay underneath */}
-                        <div 
-                          className="fixed inset-0 z-40 bg-transparent" 
-                          onClick={() => setIsCpuOpen(false)} 
-                        />
-                        
-                        <motion.div
-                          initial={{ opacity: 0, y: 8, scale: 0.98 }}
-                          animate={{ opacity: 1, y: 0, scale: 1 }}
-                          exit={{ opacity: 0, y: 8, scale: 0.98 }}
-                          transition={{ duration: 0.15 }}
-                          className={`absolute left-0 right-0 mt-2 p-3 rounded-2xl border shadow-xl z-50 max-h-80 overflow-hidden flex flex-col ${
-                            currentTheme === 'light' 
-                              ? 'bg-white border-slate-200/90 shadow-slate-200/50' 
-                              : 'bg-zinc-950/98 backdrop-blur-md border-zinc-800/80'
-                          }`}
-                        >
-                          {/* Search box header */}
-                          <div className="relative mb-2 shrink-0">
-                            <Search className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-zinc-500 pointer-events-none" />
-                            <input
-                              type="text"
-                              value={cpuSearch}
-                              onChange={(e) => setCpuSearch(e.target.value)}
-                              placeholder="Search processors (i9, Ryzen 7, AM4...)"
-                              className={`w-full py-2 pl-8 pr-8 rounded-xl text-xs outline-none border focus:border-[#FF5500] transition-colors ${
-                                currentTheme === 'light' 
-                                  ? 'bg-slate-50 border-slate-200 text-slate-800 focus:bg-white' 
-                                  : 'bg-zinc-900 border-zinc-850 text-zinc-100 focus:bg-zinc-900/80'
+                      <motion.div
+                        initial={{ opacity: 0, y: 10, scale: 0.98 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 10, scale: 0.98 }}
+                        transition={{ duration: 0.15 }}
+                        className={`absolute left-0 right-0 top-full mt-1.5 max-h-80 rounded-2xl border shadow-2xl flex flex-col overflow-hidden z-40 ${
+                          isMono 
+                            ? 'bg-black border-white text-white font-mono' 
+                            : isDark 
+                              ? 'bg-zinc-950 border-zinc-800 text-zinc-100' 
+                              : 'bg-white border-slate-200 text-slate-800'
+                        }`}
+                      >
+                        {/* Categories horizontal scroll pills */}
+                        <div className={`p-2 shrink-0 flex gap-1.5 overflow-x-auto pb-1.5 scrollbar-none border-b ${
+                          isMono ? 'border-white/20' : 'border-zinc-500/5 bg-zinc-500/5'
+                        }`}>
+                          {[
+                            { id: 'all', label: 'All Series' },
+                            { id: 'intel-ultra', label: 'Intel Ultra' },
+                            { id: 'intel-core', label: 'Intel Core' },
+                            { id: 'amd-ryzen-9000', label: 'Ryzen 9000' },
+                            { id: 'amd-ryzen-7000-5000', label: 'Ryzen 7000/5000' },
+                            { id: 'hedt-server', label: 'HEDT / Server' },
+                            { id: 'budget-legacy', label: 'Budget / Legacy' }
+                          ].map(tab => (
+                            <button
+                              key={tab.id}
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCpuCategory(tab.id);
+                              }}
+                              className={`text-[9px] font-bold px-2 py-1 rounded-md shrink-0 transition-colors uppercase tracking-wider ${
+                                cpuCategory === tab.id 
+                                  ? 'bg-[#FF5500] text-white shadow-sm' 
+                                  : isMono 
+                                    ? 'hover:bg-neutral-800 border border-white/20 text-white font-mono' 
+                                    : isDark 
+                                      ? 'bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200'
+                                      : 'bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800'
                               }`}
-                              autoFocus
-                            />
-                            {cpuSearch && (
-                              <button
-                                type="button"
-                                onClick={() => setCpuSearch('')}
-                                className="absolute right-2.5 top-2.5 p-0.5 rounded-full hover:bg-zinc-500/10 text-zinc-400"
-                              >
-                                <X className="w-3 h-3" />
-                              </button>
-                            )}
-                          </div>
+                            >
+                              {tab.label}
+                            </button>
+                          ))}
+                        </div>
 
-                          {/* List content */}
-                          <div className="overflow-y-auto flex-1 max-h-56 pr-1 space-y-3.5 custom-scrollbar">
-                            {/* Direct 0W option */}
-                            <div>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setSelectedCpuId('');
-                                  setCpuSearch('');
-                                  setIsCpuOpen(false);
-                                }}
-                                className={`w-full p-2 text-left text-xs font-mono rounded-lg transition-colors flex items-center justify-between ${
-                                  !selectedCpuId 
-                                    ? 'text-[#FF5500] bg-[#FF5500]/5 font-bold' 
-                                    : currentTheme === 'light' 
-                                      ? 'text-slate-600 hover:bg-slate-50' 
-                                      : 'text-zinc-400 hover:bg-zinc-900/40'
-                                }`}
-                              >
-                                <span>-- No CPU / Power Off (0W) --</span>
-                                {!selectedCpuId && <Check className="w-3.5 h-3.5" />}
-                              </button>
+                        {/* Dropdown Scroll List */}
+                        <div className={`flex-1 overflow-y-auto p-2 space-y-2 custom-scrollbar ${
+                          isMono ? 'bg-black' : isDark ? 'bg-zinc-950' : 'bg-white'
+                        }`}>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedCpuId('');
+                              setCpuSearch('');
+                              setIsCpuOpen(false);
+                            }}
+                            className={`w-full p-2.5 text-left text-xs rounded-xl flex items-center justify-between border transition-all ${
+                              !selectedCpuId 
+                                ? 'border-[#FF5500] bg-[#FF5500]/10 text-[#FF5500] font-black' 
+                                : isMono
+                                  ? 'border-white/20 text-zinc-400 hover:border-white bg-black'
+                                  : isDark
+                                    ? 'border-zinc-800/50 hover:bg-zinc-900 text-zinc-400 bg-zinc-950/40 hover:border-zinc-700'
+                                    : 'border-slate-200 hover:bg-slate-50 text-slate-500 hover:text-slate-800 bg-white shadow-sm'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                              <span className="font-semibold text-[11px]">None / Integrated Graphics Only</span>
                             </div>
+                            {!selectedCpuId && <Check className="w-3.5 h-3.5 text-[#FF5500]" />}
+                          </button>
 
-                            {Object.keys(groupedCpus).length === 0 ? (
-                              <div className="text-zinc-500 text-[11px] font-mono py-6 text-center">
-                                No matching processors found
-                              </div>
-                            ) : (
-                              (Object.entries(groupedCpus) as [string, CpuModel[]][]).map(([series, list]) => (
-                                <div key={series} className="space-y-1">
-                                  <div className="text-[9px] font-extrabold font-mono uppercase tracking-wider text-zinc-500 px-2 py-0.5 border-b border-zinc-500/5">
-                                    {series}
-                                  </div>
-                                  <div className="space-y-0.5 pt-1">
-                                    {list.map(cpu => (
-                                      <button
-                                        key={cpu.id}
-                                        type="button"
-                                        onClick={() => {
-                                          setSelectedCpuId(cpu.id);
-                                          setCpuSearch('');
-                                          setIsCpuOpen(false);
-                                          if (!motherboardType) setMotherboardType('atx'); // smart default motherboard
-                                        }}
-                                        className={`w-full px-2 py-1.5 text-left text-xs rounded-lg transition-all flex items-center justify-between ${
-                                          selectedCpuId === cpu.id
-                                            ? 'text-white bg-[#FF5500] font-black pointer-events-none'
-                                            : currentTheme === 'light'
-                                              ? 'text-slate-700 hover:bg-slate-100/80 hover:text-[#FF5500]'
-                                              : 'text-zinc-300 hover:bg-zinc-900/60 hover:text-white'
-                                        }`}
-                                      >
-                                        <div className="flex flex-col text-left">
-                                          <span className="font-medium line-clamp-1">{cpu.name}</span>
-                                          <span className={`text-[9px] font-mono ${selectedCpuId === cpu.id ? 'text-orange-100' : 'text-zinc-500'}`}>
-                                            {cpu.socket} • TDP: {cpu.tdp}W
-                                          </span>
-                                        </div>
-                                        <span className="font-mono text-[9px] shrink-0 ml-2 bg-black/10 px-1.5 py-0.5 rounded font-bold">
-                                          {cpu.peak}W Peak
-                                        </span>
-                                      </button>
-                                    ))}
-                                  </div>
+                          {Object.keys(groupedCpus).length === 0 ? (
+                            <div className="text-zinc-500 text-[11px] py-6 text-center flex flex-col items-center justify-center gap-1.5">
+                              <Search className="w-6 h-6 opacity-20" />
+                              <span>No matching processors found</span>
+                              <span className="text-[9px] text-zinc-600">Try modifying your search filter</span>
+                            </div>
+                          ) : (
+                            (Object.entries(groupedCpus) as [string, CpuModel[]][]).map(([series, list]) => (
+                              <div key={series} className="space-y-1">
+                                <div className="text-[9px] font-black uppercase tracking-wider text-zinc-500 px-1.5 py-0.5 bg-zinc-500/5 rounded">
+                                  {series}
                                 </div>
-                              ))
-                            )}
-                          </div>
-                        </motion.div>
-                      </>
+                                <div className="space-y-1">
+                                  {list.map(cpu => (
+                                    <button
+                                      key={cpu.id}
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedCpuId(cpu.id);
+                                        setCpuSearch(cpu.name);
+                                        setIsCpuOpen(false);
+                                      }}
+                                      className={`w-full p-2.5 text-left rounded-lg transition-all flex items-center justify-between border ${
+                                        selectedCpuId === cpu.id
+                                          ? 'border-[#FF5500] bg-[#FF5500]/10 text-[#FF5500] dark:text-[#FF5500] font-bold'
+                                          : isMono
+                                            ? 'border-white/10 hover:border-white bg-neutral-950 text-white font-mono'
+                                            : isDark
+                                              ? 'border-zinc-900 bg-zinc-900/40 hover:bg-zinc-900/80 text-zinc-300 hover:border-zinc-700'
+                                              : 'border-slate-150 bg-slate-50/60 hover:bg-slate-50 text-slate-700 hover:border-slate-300'
+                                      }`}
+                                    >
+                                      <div className="flex flex-col text-left truncate pr-2">
+                                        <span className={`text-[11px] font-bold truncate ${selectedCpuId === cpu.id && !isMono ? 'text-[#FF5500]' : ''}`}>
+                                          {cpu.name}
+                                        </span>
+                                        <span className="text-[9px] text-zinc-500 truncate mt-0.5 font-medium">
+                                          {cpu.socket} • TDP: {cpu.tdp}W
+                                        </span>
+                                      </div>
+                                      <span className={`font-mono text-[9px] px-1.5 py-0.5 rounded shrink-0 font-bold ${
+                                        selectedCpuId === cpu.id 
+                                          ? 'bg-[#FF5500] text-white' 
+                                          : 'bg-zinc-500/10 text-zinc-400'
+                                      }`}>
+                                        {cpu.peak}W Peak
+                                      </span>
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </motion.div>
                     )}
                   </AnimatePresence>
                 </div>
-                
+
                 {selectedCpu && (
-                  <motion.div 
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    className="flex justify-between items-center text-[10px] text-zinc-500 pt-0.5"
-                  >
-                    <span>TDP: {selectedCpu.tdp}W | Peak: {selectedCpu.peak}W</span>
+                  <div className="flex justify-between items-center text-[10px] text-zinc-500 pt-0.5">
+                    <span>Peak draw: {selectedCpu.peak}W</span>
                     <label className="flex items-center gap-1 cursor-pointer">
                       <input
                         type="checkbox"
@@ -806,180 +869,219 @@ export default function SmpsCalculator({ currentTheme }: SmpsCalculatorProps) {
                         className="rounded border-zinc-700 accent-[#FF5500] w-3 h-3 cursor-pointer"
                       />
                       <span className="hover:text-[#FF5500] transition-colors select-none">
-                        OC mode (+50W)
+                        CPU Overclock (+50W)
                       </span>
                     </label>
-                  </motion.div>
+                  </div>
                 )}
               </div>
 
-              {/* GPU Video Selector */}
-              <div className="space-y-1.5 text-left relative">
-                <label className={`text-[10px] font-extrabold uppercase tracking-wide flex items-center justify-between ${labelTextClass}`}>
+              {/* GPU Selector Search */}
+              <div ref={gpuRef} className={`space-y-1.5 text-left relative ${isGpuOpen ? 'z-50' : 'z-10'}`}>
+                <label className="text-[10px] font-extrabold uppercase tracking-wide flex justify-between">
                   <span>Graphics (GPU)</span>
-                  {selectedGpu && <span className="font-mono text-[9px] text-indigo-400">{selectedGpu.vram}</span>}
+                  {selectedGpu && <span className="text-[9px] text-[#FF5500] font-mono">{selectedGpu.vram} VRAM</span>}
                 </label>
 
-                {/* Custom Searchable GPU Dropdown */}
                 <div className="relative">
-                  {/* Trigger Button */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsGpuOpen(!isGpuOpen);
-                      setIsCpuOpen(false); // Close the other dropdown
+                  <input
+                    type="text"
+                    value={isGpuOpen ? gpuSearch : (selectedGpu ? selectedGpu.name : '')}
+                    onFocus={() => {
+                      setIsGpuOpen(true);
+                      setIsCpuOpen(false);
+                      setGpuSearch(selectedGpu ? selectedGpu.name : '');
                     }}
-                    className={`w-full p-2.5 rounded-xl border outline-none text-xs transition-colors flex items-center justify-between font-sans ${selectElementStyle} text-left select-none`}
-                  >
-                    <span className="truncate pr-4">
-                      {selectedGpu ? `${selectedGpu.name} (${selectedGpu.wattage}W)` : '-- Select GPU / Integrated (0W) --'}
-                    </span>
-                    <div className="flex items-center gap-1.5 shrink-0 pl-1">
-                      {selectedGpuId && (
-                        <span 
-                          onClick={(e) => {
-                            e.stopPropagation();
+                    onChange={(e) => {
+                      setGpuSearch(e.target.value);
+                      setIsGpuOpen(true);
+                    }}
+                    placeholder="Search Graphics Card..."
+                    className={`w-full p-3 pl-11 pr-24 rounded-xl text-xs transition-all ${
+                      isMono 
+                        ? 'bg-black border border-white/40 text-white font-mono focus:border-white outline-none' 
+                        : isDark 
+                          ? 'bg-zinc-950 border border-zinc-800 text-zinc-200 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none' 
+                          : 'bg-white border border-slate-200 text-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none shadow-sm'
+                    } text-left font-bold relative z-40 cursor-text hover:border-indigo-500/50`}
+                  />
+                  {/* Gpu icon inside the input on the left */}
+                  <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none z-40">
+                    <Zap className="w-4 h-4 text-indigo-500" />
+                  </div>
+                  {/* Search / Chevron / Clear icon on the right */}
+                  <div className="absolute right-3.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5 z-40">
+                    {selectedGpu && !isGpuOpen && (
+                      <span className="text-[9px] bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 px-1.5 py-0.5 rounded font-mono font-bold select-none">
+                        {selectedGpu.vram}
+                      </span>
+                    )}
+                    {(isGpuOpen ? gpuSearch : selectedGpu) ? (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (isGpuOpen) {
+                            setGpuSearch('');
+                          } else {
                             setSelectedGpuId('');
                             setGpuSearch('');
-                          }}
-                          className="p-1 rounded-md hover:bg-red-500/10 text-red-500 transition-colors cursor-pointer"
-                          title="Clear Selection"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </span>
-                      )}
-                      <ChevronDown className={`w-3.5 h-3.5 text-zinc-500 transition-transform duration-200 ${isGpuOpen ? 'rotate-180' : ''}`} />
-                    </div>
-                  </button>
+                          }
+                        }}
+                        className="p-1 rounded-full hover:bg-zinc-500/10 text-zinc-400 cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5 text-zinc-500 hover:text-indigo-500" />
+                      </button>
+                    ) : (
+                      <Search className="w-3.5 h-3.5 text-zinc-500" />
+                    )}
+                  </div>
 
-                  {/* Dropdown Panel */}
+                  {/* Closed on click outside via useEffect ref */}
+
+                  {/* Inline Dropdown for GPU */}
                   <AnimatePresence>
                     {isGpuOpen && (
-                      <>
-                        {/* Fullscreen transparent backdrop overlay underneath */}
-                        <div 
-                          className="fixed inset-0 z-40 bg-transparent" 
-                          onClick={() => setIsGpuOpen(false)} 
-                        />
-                        
-                        <motion.div
-                          initial={{ opacity: 0, y: 8, scale: 0.98 }}
-                          animate={{ opacity: 1, y: 0, scale: 1 }}
-                          exit={{ opacity: 0, y: 8, scale: 0.98 }}
-                          transition={{ duration: 0.15 }}
-                          className={`absolute left-0 right-0 mt-2 p-3 rounded-2xl border shadow-xl z-50 max-h-80 overflow-hidden flex flex-col ${
-                            currentTheme === 'light' 
-                              ? 'bg-white border-slate-200/90 shadow-slate-200/50' 
-                              : 'bg-zinc-950/98 backdrop-blur-md border-zinc-800/80'
-                          }`}
-                        >
-                          {/* Search box header */}
-                          <div className="relative mb-2 shrink-0">
-                            <Search className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-zinc-500 pointer-events-none" />
-                            <input
-                              type="text"
-                              value={gpuSearch}
-                              onChange={(e) => setGpuSearch(e.target.value)}
-                              placeholder="Search graphics cards (RTX 5090, RX 7800...)"
-                              className={`w-full py-2 pl-8 pr-8 rounded-xl text-xs outline-none border focus:border-[#FF5500] transition-colors ${
-                                currentTheme === 'light' 
-                                  ? 'bg-slate-50 border-slate-200 text-slate-800 focus:bg-white' 
-                                  : 'bg-zinc-900 border-zinc-850 text-zinc-100 focus:bg-zinc-900/80'
+                      <motion.div
+                        initial={{ opacity: 0, y: 10, scale: 0.98 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 10, scale: 0.98 }}
+                        transition={{ duration: 0.15 }}
+                        className={`absolute left-0 right-0 top-full mt-1.5 max-h-80 rounded-2xl border shadow-2xl flex flex-col overflow-hidden z-40 ${
+                          isMono 
+                            ? 'bg-black border-white text-white font-mono' 
+                            : isDark 
+                              ? 'bg-zinc-950 border-zinc-800 text-zinc-100' 
+                              : 'bg-white border-slate-200 text-slate-800'
+                        }`}
+                      >
+                        {/* Categories horizontal scroll pills */}
+                        <div className={`p-2 shrink-0 flex gap-1.5 overflow-x-auto pb-1.5 scrollbar-none border-b ${
+                          isMono ? 'border-white/20' : 'border-zinc-500/5 bg-zinc-500/5'
+                        }`}>
+                          {[
+                            { id: 'all', label: 'All GPUs' },
+                            { id: 'nvidia-rtx-50', label: 'RTX 50-Series' },
+                            { id: 'nvidia-rtx-40', label: 'RTX 40-Series' },
+                            { id: 'nvidia-rtx-30-20', label: 'RTX 30/20' },
+                            { id: 'amd-radeon-7000', label: 'RX 7000' },
+                            { id: 'amd-radeon-6000-5000', label: 'RX 6000/5000' },
+                            { id: 'arc-legacy', label: 'Arc / Classic' }
+                          ].map(tab => (
+                            <button
+                              key={tab.id}
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setGpuCategory(tab.id);
+                              }}
+                              className={`text-[9px] font-bold px-2 py-1 rounded-md shrink-0 transition-colors uppercase tracking-wider ${
+                                gpuCategory === tab.id 
+                                  ? 'bg-indigo-500 text-white shadow-sm' 
+                                  : isMono 
+                                    ? 'hover:bg-neutral-800 border border-white/20 text-white font-mono' 
+                                    : isDark 
+                                      ? 'bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200'
+                                      : 'bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800'
                               }`}
-                              autoFocus
-                            />
-                            {gpuSearch && (
-                              <button
-                                type="button"
-                                onClick={() => setGpuSearch('')}
-                                className="absolute right-2.5 top-2.5 p-0.5 rounded-full hover:bg-zinc-500/10 text-zinc-400"
-                              >
-                                <X className="w-3 h-3" />
-                              </button>
-                            )}
-                          </div>
+                            >
+                              {tab.label}
+                            </button>
+                          ))}
+                        </div>
 
-                          {/* List content */}
-                          <div className="overflow-y-auto flex-1 max-h-56 pr-1 space-y-3.5 custom-scrollbar">
-                            {/* Direct 0W option */}
-                            <div>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setSelectedGpuId('');
-                                  setGpuSearch('');
-                                  setIsGpuOpen(false);
-                                }}
-                                className={`w-full p-2 text-left text-xs font-mono rounded-lg transition-colors flex items-center justify-between ${
-                                  !selectedGpuId 
-                                    ? 'text-[#FF5500] bg-[#FF5500]/5 font-bold' 
-                                    : currentTheme === 'light' 
-                                      ? 'text-slate-600 hover:bg-slate-50' 
-                                      : 'text-zinc-400 hover:bg-zinc-900/40'
-                                }`}
-                              >
-                                <span>-- No GPU / Integrated (0W) --</span>
-                                {!selectedGpuId && <Check className="w-3.5 h-3.5" />}
-                              </button>
+                        {/* Dropdown Scroll List */}
+                        <div className={`flex-1 overflow-y-auto p-2 space-y-2 custom-scrollbar ${
+                          isMono ? 'bg-black' : isDark ? 'bg-zinc-950' : 'bg-white'
+                        }`}>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedGpuId('');
+                              setGpuSearch('');
+                              setIsGpuOpen(false);
+                            }}
+                            className={`w-full p-2.5 text-left text-xs rounded-xl flex items-center justify-between border transition-all ${
+                              !selectedGpuId 
+                                ? 'border-indigo-500 bg-indigo-500/10 text-indigo-500 font-black' 
+                                : isMono
+                                  ? 'border-white/20 text-zinc-400 hover:border-white bg-black'
+                                  : isDark
+                                    ? 'border-zinc-800/50 hover:bg-zinc-900 text-zinc-400 bg-zinc-950/40 hover:border-zinc-700'
+                                    : 'border-slate-200 hover:bg-slate-50 text-slate-500 hover:text-slate-800 bg-white shadow-sm'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                              <span className="font-semibold text-[11px]">None / Integrated Silicon only</span>
                             </div>
+                            {!selectedGpuId && <Check className="w-3.5 h-3.5 text-indigo-500" />}
+                          </button>
 
-                            {Object.keys(groupedGpus).length === 0 ? (
-                              <div className="text-zinc-500 text-[11px] font-mono py-6 text-center">
-                                No matching graphics cards found
-                              </div>
-                            ) : (
-                              (Object.entries(groupedGpus) as [string, GpuModel[]][]).map(([series, list]) => (
-                                <div key={series} className="space-y-1">
-                                  <div className="text-[9px] font-extrabold font-mono uppercase tracking-wider text-zinc-500 px-2 py-0.5 border-b border-zinc-500/5">
-                                    {series}
-                                  </div>
-                                  <div className="space-y-0.5 pt-1">
-                                    {list.map(gpu => (
-                                      <button
-                                        key={gpu.id}
-                                        type="button"
-                                        onClick={() => {
-                                          setSelectedGpuId(gpu.id);
-                                          setGpuSearch('');
-                                          setIsGpuOpen(false);
-                                        }}
-                                        className={`w-full px-2 py-1.5 text-left text-xs rounded-lg transition-all flex items-center justify-between ${
-                                          selectedGpuId === gpu.id
-                                            ? 'text-white bg-[#FF5500] font-black pointer-events-none'
-                                            : currentTheme === 'light'
-                                              ? 'text-slate-700 hover:bg-slate-100/80 hover:text-[#FF5500]'
-                                              : 'text-zinc-300 hover:bg-zinc-900/60 hover:text-white'
-                                        }`}
-                                      >
-                                        <div className="flex flex-col text-left">
-                                          <span className="font-medium line-clamp-1">{gpu.name}</span>
-                                          <span className={`text-[9px] font-mono ${selectedGpuId === gpu.id ? 'text-orange-100' : 'text-zinc-500'}`}>
-                                            VRAM: {gpu.vram}
-                                          </span>
-                                        </div>
-                                        <span className="font-mono text-[9px] shrink-0 ml-2 bg-black/10 px-1.5 py-0.5 rounded font-bold font-mono">
-                                          {gpu.wattage}W
-                                        </span>
-                                      </button>
-                                    ))}
-                                  </div>
+                          {Object.keys(groupedGpus).length === 0 ? (
+                            <div className="text-zinc-500 text-[11px] py-6 text-center flex flex-col items-center justify-center gap-1.5">
+                              <Search className="w-6 h-6 opacity-20" />
+                              <span>No matching graphics cards found</span>
+                              <span className="text-[9px] text-zinc-600">Try modifying your search filter</span>
+                            </div>
+                          ) : (
+                            (Object.entries(groupedGpus) as [string, GpuModel[]][]).map(([series, list]) => (
+                              <div key={series} className="space-y-1">
+                                <div className="text-[9px] font-black uppercase tracking-wider text-zinc-500 px-1.5 py-0.5 bg-zinc-500/5 rounded">
+                                  {series}
                                 </div>
-                              ))
-                            )}
-                          </div>
-                        </motion.div>
-                      </>
+                                <div className="space-y-1">
+                                  {list.map(gpu => (
+                                    <button
+                                      key={gpu.id}
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedGpuId(gpu.id);
+                                        setGpuSearch(gpu.name);
+                                        setIsGpuOpen(false);
+                                      }}
+                                      className={`w-full p-2.5 text-left rounded-lg transition-all flex items-center justify-between border ${
+                                        selectedGpuId === gpu.id
+                                          ? 'border-indigo-500 bg-indigo-500/10 text-indigo-500 dark:text-indigo-400 font-bold'
+                                          : isMono
+                                            ? 'border-white/10 hover:border-white bg-neutral-950 text-white font-mono'
+                                            : isDark
+                                              ? 'border-zinc-900 bg-zinc-900/40 hover:bg-zinc-900/80 text-zinc-300 hover:border-zinc-700'
+                                              : 'border-slate-150 bg-slate-50/60 hover:bg-slate-50 text-slate-700 hover:border-slate-300'
+                                      }`}
+                                    >
+                                      <div className="flex flex-col text-left truncate pr-2">
+                                        <span className={`text-[11px] font-bold truncate ${selectedGpuId === gpu.id && !isMono ? 'text-indigo-400' : ''}`}>
+                                          {gpu.name}
+                                        </span>
+                                        <span className="text-[9px] text-zinc-500 truncate mt-0.5 font-medium">
+                                          VRAM: {gpu.vram}
+                                        </span>
+                                      </div>
+                                      <span className={`font-mono text-[9px] px-1.5 py-0.5 rounded shrink-0 font-bold ${
+                                        selectedGpuId === gpu.id 
+                                          ? 'bg-indigo-500 text-white' 
+                                          : 'bg-zinc-500/10 text-zinc-400'
+                                      }`}>
+                                        {gpu.wattage}W
+                                      </span>
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </motion.div>
                     )}
                   </AnimatePresence>
                 </div>
 
-                {selectedGpu && selectedGpu.wattage > 0 && (
-                  <motion.div 
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    className="flex justify-between items-center text-[10px] text-zinc-500 pt-0.5"
-                  >
-                    <span>VRAM allocation: {selectedGpu.vram}</span>
+                {selectedGpu && (
+                  <div className="flex justify-between items-center text-[10px] text-zinc-500 pt-0.5">
+                    <span>TDP draw: {selectedGpu.wattage}W</span>
                     <label className="flex items-center gap-1 cursor-pointer">
                       <input
                         type="checkbox"
@@ -988,393 +1090,581 @@ export default function SmpsCalculator({ currentTheme }: SmpsCalculatorProps) {
                         className="rounded border-zinc-700 accent-[#FF5500] w-3 h-3 cursor-pointer"
                       />
                       <span className="hover:text-[#FF5500] transition-colors select-none">
-                        Turbo Core (+80W)
+                        Turbo / OC (+80W)
                       </span>
                     </label>
-                  </motion.div>
+                  </div>
                 )}
               </div>
 
             </div>
-          </motion.div>
+          </div>
 
-          {/* Card 2: Platform Connection System */}
-          <motion.div
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.2, ease: 'easeOut' }}
-            className={`p-4 rounded-2xl border ${controlCardBg} space-y-4`}
-          >
-            <div className="flex items-center gap-2 border-b border-zinc-500/5 pb-2">
-              <Layers className="w-4 h-4 text-indigo-400" />
-              <h3 className={`text-xs font-bold uppercase tracking-widest ${headerTextClass}`}>
-                2. Motherboard &amp; System Memory
+          {/* Card 2: Motherboard Chipset Compatibility Matching & RAM */}
+          <div className={cardStyle}>
+            <div className="flex items-center gap-2 border-b border-zinc-500/5 pb-2.5 mb-4">
+              <Layers className="w-4 h-4 text-emerald-500" />
+              <h3 className={`text-xs font-extrabold uppercase tracking-widest ${isMono ? 'font-mono' : 'font-sans'}`}>
+                2. Platform Connection (Board &amp; RAM)
               </h3>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               
-              {/* Motherboard Selection */}
+              {/* Motherboard Chipset Selection */}
               <div className="space-y-1.5 text-left">
-                <label className={`text-[10px] font-extrabold uppercase tracking-wide block ${labelTextClass}`}>
-                  Motherboard Form Factor
-                </label>
-                <div className="grid grid-cols-4 gap-1">
-                  {(['eatx', 'atx', 'matx', 'itx'] as const).map((type) => (
-                    <button
-                      key={type}
-                      type="button"
-                      onClick={() => setMotherboardType(type)}
-                      className={`py-2 text-[10px] font-bold uppercase border rounded-xl transition-all active:scale-95 ${
-                        motherboardType === type
-                          ? 'border-[#FF5500] bg-[#FF5500]/10 text-[#FF5500] font-black shadow-sm'
-                          : currentTheme === 'light'
-                            ? 'border-slate-200 text-slate-600 bg-white hover:bg-slate-50'
-                            : 'border-zinc-800 text-zinc-400 bg-black/20 hover:bg-zinc-900/40'
-                      }`}
-                    >
-                      {type}
-                    </button>
-                  ))}
-                </div>
-                <span className="text-[9px] text-zinc-500 block">
-                  {motherboardType ? `System baseline draw: ${MOTHERBOARD_DRAW[motherboardType]}W` : 'De-selected / Passive system board (0W)'}
-                </span>
-              </div>
-
-              {/* Memory / RAM selection */}
-              <div className="space-y-1.5 text-left">
-                <label className={`text-[10px] font-extrabold uppercase tracking-wide block ${labelTextClass}`}>
-                  RAM Generation &amp; Slots
-                </label>
-                <div className="flex items-center gap-2">
-                  <select
-                    value={ramType}
-                    onChange={(e) => {
-                      const newType = e.target.value as 'ddr5' | 'ddr4' | 'ddr3' | '';
-                      setRamType(newType);
-                      if (newType && ramSticks === 0) setRamSticks(2); // intelligent autoselect
-                      if (!newType) setRamSticks(0);
-                    }}
-                    className={`flex-1 p-2.5 rounded-xl border outline-none text-xs transition-colors cursor-pointer ${selectElementStyle}`}
-                  >
-                    <option value="">-- No Memory Module (0W) --</option>
-                    <option value="ddr5">DDR5 High-Frequency</option>
-                    <option value="ddr4">DDR4 Mainstream</option>
-                    <option value="ddr3">DDR3 Legacy</option>
-                  </select>
-
-                  {ramType && (
-                    <motion.div 
-                      initial={{ scale: 0.9, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      className={`flex items-center border rounded-xl p-1 bg-opacity-40 shrink-0 ${
-                        currentTheme === 'light' ? 'bg-slate-100 border-slate-200' : 'bg-black/30 border-zinc-800'
-                      }`}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => setRamSticks(Math.max(1, ramSticks - 1))}
-                        className="p-1 px-1.5 text-zinc-500 hover:text-[#FF5500] active:scale-90 transition-transform"
-                      >
-                        <Minus className="w-3 h-3" />
-                      </button>
-                      <span className="px-1 text-xs font-black font-mono w-4 text-center">{ramSticks}</span>
-                      <button
-                        type="button"
-                        onClick={() => setRamSticks(Math.min(8, ramSticks + 1))}
-                        className="p-1 px-1.5 text-zinc-500 hover:text-[#FF5500] active:scale-90 transition-transform"
-                      >
-                        <Plus className="w-3 h-3" />
-                      </button>
-                    </motion.div>
+                <div className="flex justify-between items-center">
+                  <label className="text-[10px] font-extrabold uppercase tracking-wide">
+                    Motherboard Chipset
+                  </label>
+                  {selectedCpu && (
+                    <span className="text-[8px] bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 px-1.5 py-0.5 rounded-md font-mono">
+                      {selectedCpu.socket} Compatible
+                    </span>
                   )}
                 </div>
-                <span className="text-[9px] text-zinc-500 block">
-                  {ramType ? `RAM consumption: ${ramSticks * MEMORY_DRAW[ramType]}W total` : 'Passive channel (0W)'}
-                </span>
-              </div>
 
-            </div>
-          </motion.div>
-
-          {/* Card 3: Disk Drives & Ventilation Arrays */}
-          <motion.div
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.3, ease: 'easeOut' }}
-            className={`p-4 rounded-2xl border ${controlCardBg} space-y-4`}
-          >
-            <div className="flex items-center gap-2 border-b border-zinc-500/5 pb-2">
-              <HardDrive className="w-4 h-4 text-pink-400" />
-              <h3 className={`text-xs font-bold uppercase tracking-widest ${headerTextClass}`}>
-                3. Storage &amp; Thermal Cooling
-              </h3>
-            </div>
-
-            {/* Storage Modules layout */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {/* NVMe */}
-              <div className="flex items-center justify-between p-2 rounded-xl border border-zinc-500/10 text-left">
-                <div className="space-y-0.5">
-                  <span className={`text-[10px] font-bold uppercase ${headerTextClass} block`}>M.2 SSD (NVMe)</span>
-                  <span className="text-[9px] text-zinc-500 block">8W peak load</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => setNvmeCount(Math.max(0, nvmeCount - 1))}
-                    className="p-1 rounded bg-zinc-500/5 text-zinc-400 hover:text-[#FF5500] active:scale-90"
-                  >
-                    <Minus className="w-2.5 h-2.5" />
-                  </button>
-                  <span className="text-xs font-bold w-4 text-center font-mono">{nvmeCount}</span>
-                  <button
-                    type="button"
-                    onClick={() => setNvmeCount(Math.min(6, nvmeCount + 1))}
-                    className="p-1 rounded bg-[#FF5500]/10 text-[#FF5500] active:scale-90"
-                  >
-                    <Plus className="w-2.5 h-2.5" />
-                  </button>
-                </div>
-              </div>
-
-              {/* SATA SSD */}
-              <div className="flex items-center justify-between p-2 rounded-xl border border-zinc-500/10 text-left">
-                <div className="space-y-0.5">
-                  <span className={`text-[10px] font-bold uppercase ${headerTextClass} block`}>2.5" SATA SSD</span>
-                  <span className="text-[9px] text-zinc-500 block">5W peak load</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => setSataSsdCount(Math.max(0, sataSsdCount - 1))}
-                    className="p-1 rounded bg-zinc-500/5 text-zinc-400 hover:text-[#FF5500] active:scale-90"
-                  >
-                    <Minus className="w-2.5 h-2.5" />
-                  </button>
-                  <span className="text-xs font-bold w-4 text-center font-mono">{sataSsdCount}</span>
-                  <button
-                    type="button"
-                    onClick={() => setSataSsdCount(Math.min(6, sataSsdCount + 1))}
-                    className="p-1 rounded bg-[#FF5500]/10 text-[#FF5500] active:scale-90"
-                  >
-                    <Plus className="w-2.5 h-2.5" />
-                  </button>
-                </div>
-              </div>
-
-              {/* HDD magnetic */}
-              <div className="flex items-center justify-between p-2 rounded-xl border border-zinc-500/10 text-left">
-                <div className="space-y-0.5">
-                  <span className={`text-[10px] font-bold uppercase ${headerTextClass} block`}>Mechanical HDD</span>
-                  <span className="text-[9px] text-zinc-500 block">10W spindle draw</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => setHddCount(Math.max(0, hddCount - 1))}
-                    className="p-1 rounded bg-zinc-500/5 text-zinc-400 hover:text-[#FF5500] active:scale-90"
-                  >
-                    <Minus className="w-2.5 h-2.5" />
-                  </button>
-                  <span className="text-xs font-bold w-4 text-center font-mono">{hddCount}</span>
-                  <button
-                    type="button"
-                    onClick={() => setHddCount(Math.min(6, hddCount + 1))}
-                    className="p-1 rounded bg-[#FF5500]/10 text-[#FF5500] active:scale-90"
-                  >
-                    <Plus className="w-2.5 h-2.5" />
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Thermal / Ventilation Elements */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-zinc-500/5 pt-3">
-              {/* CPU cooler design selection */}
-              <div className="space-y-1.5 text-left">
-                <label className={`text-[10px] font-extrabold uppercase block tracking-wide ${labelTextClass}`}>
-                  Cooling Equipment (Cooler)
-                </label>
                 <select
-                  value={coolingType}
-                  onChange={(e) => setCoolingType(e.target.value as keyof typeof COOLING_DRAW | '')}
-                  className={`w-full p-2.5 rounded-xl border outline-none text-xs transition-colors cursor-pointer ${selectElementStyle}`}
+                  value={selectedChipsetId}
+                  onChange={(e) => setSelectedChipsetId(e.target.value)}
+                  className={`w-full ${inputStyle} cursor-pointer`}
                 >
-                  <option value="">-- De-selected / Passive Cooling (0W) --</option>
-                  <option value="air_single">Compact Single Tower Air (6W)</option>
-                  <option value="air_dual">Premium Dual-Tower Air Cooler (12W)</option>
-                  <option value="aio_120">Single 120/140mm Liquid AIO (15W)</option>
-                  <option value="aio_240">Standard 240/280mm Dual Liquid AIO (25W)</option>
-                  <option value="aio_360">High-end 360/420mm Triple Liquid AIO (35W)</option>
-                  <option value="custom_loop">Custom loop liquid pump system (55W)</option>
+                  {compatibleChipsets.map(chip => (
+                    <option key={chip.id} value={chip.id}>
+                      {chip.name} ({chip.socket} • {chip.tdp}W)
+                    </option>
+                  ))}
                 </select>
-              </div>
 
-              {/* Case fan increments */}
-              <div className="space-y-1.5 text-left">
-                <label className={`text-[10px] font-extrabold uppercase block tracking-wide ${labelTextClass}`}>
-                  Chassis Case Fans (Quiet / RGB)
-                </label>
-                <div className="flex items-center gap-3">
-                  <div className={`flex items-center border rounded-xl p-1 bg-opacity-40 flex-1 justify-between ${
-                    currentTheme === 'light' ? 'bg-slate-100 border-slate-200' : 'bg-black/30 border-zinc-800'
-                  }`}>
-                    <button
-                      type="button"
-                      onClick={() => setCaseFans(Math.max(0, caseFans - 1))}
-                      className="p-1.5 px-2.5 text-zinc-500 hover:text-[#FF5500] active:scale-90 transition-transform"
-                    >
-                      <Minus className="w-3.5 h-3.5" />
-                    </button>
-                    <span className="text-xs font-black font-mono">{caseFans} Fans ({caseFans * 3}W)</span>
-                    <button
-                      type="button"
-                      onClick={() => setCaseFans(Math.min(16, caseFans + 1))}
-                      className="p-1.5 px-2.5 text-zinc-500 hover:text-[#FF5500] active:scale-90 transition-transform"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                    </button>
+                {/* Form Factor Override Grid */}
+                <div className="space-y-1.5 pt-1">
+                  <span className="text-[9px] font-bold text-zinc-500 uppercase block">Form Factor Override</span>
+                  <div className="grid grid-cols-4 gap-1">
+                    {(['EATX', 'ATX', 'mATX', 'ITX'] as const).map(ff => (
+                      <button
+                        key={ff}
+                        type="button"
+                        onClick={() => setCustomFormFactor(ff)}
+                        className={`py-1.5 text-[10px] font-bold uppercase rounded-lg border transition-all ${
+                          activeFormFactor === ff
+                            ? 'border-[#FF5500] bg-[#FF5500]/10 text-[#FF5500] font-black'
+                            : isMono
+                              ? 'border-white/20 text-neutral-400 hover:border-white'
+                              : 'border-zinc-800 hover:bg-zinc-500/5 text-zinc-400'
+                        }`}
+                      >
+                        {ff}
+                      </button>
+                    ))}
                   </div>
                 </div>
               </div>
-            </div>
-          </motion.div>
 
-          {/* Card 4: High Power USBs & Strips */}
-          <motion.div
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.4, ease: 'easeOut' }}
-            className={`p-4 rounded-2xl border ${controlCardBg} space-y-4`}
-          >
-            <div className="flex items-center justify-between border-b border-zinc-500/5 pb-2">
-              <div className="flex items-center gap-2">
-                <Sliders className="w-4 h-4 text-emerald-400" />
-                <h3 className={`text-xs font-bold uppercase tracking-widest ${headerTextClass}`}>
-                  4. Accessories &amp; Aesthetic Strips
-                </h3>
-              </div>
-            </div>
+              {/* Memory Configuration */}
+              <div className="space-y-1.5 text-left">
+                <label className="text-[10px] font-extrabold uppercase tracking-wide block">
+                  System Memory (RAM)
+                </label>
+                
+                <div className="grid grid-cols-12 gap-1.5">
+                  {/* Generation Select */}
+                  <div className="col-span-8">
+                    <select
+                      value={ramType}
+                      onChange={(e) => setRamType(e.target.value as any)}
+                      className={`w-full ${inputStyle} cursor-pointer`}
+                    >
+                      <option value="">No Memory Module</option>
+                      <option value="ddr5">DDR5 High-Frequency</option>
+                      <option value="ddr4">DDR4 Mainstream</option>
+                      <option value="ddr3">DDR3 Legacy</option>
+                    </select>
+                  </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {/* RGB Strip counters */}
-              <div className="flex items-center justify-between p-2 rounded-xl border border-zinc-500/10 text-left">
-                <div className="space-y-0.5">
-                  <span className={`text-[10px] font-bold uppercase ${headerTextClass} block`}>RGB LED Strips</span>
-                  <span className="text-[9px] text-zinc-500 block">5W per strip</span>
+                  {/* Count Counter */}
+                  {ramType && (
+                    <div className="col-span-4">
+                      <div className={`flex items-center justify-between border rounded-lg p-1.5 h-[37px] ${
+                        isMono ? 'border-white/40 bg-black' : isDark ? 'border-zinc-800 bg-zinc-950' : 'border-slate-200 bg-white'
+                      }`}>
+                        <button
+                          type="button"
+                          onClick={() => setRamSticks(Math.max(1, ramSticks - 1))}
+                          className="p-1 hover:text-[#FF5500] transition-colors"
+                        >
+                          <Minus className="w-3 h-3" />
+                        </button>
+                        <span className="text-xs font-black font-mono">{ramSticks}</span>
+                        <button
+                          type="button"
+                          onClick={() => setRamSticks(Math.min(8, ramSticks + 1))}
+                          className="p-1 hover:text-[#FF5500] transition-colors"
+                        >
+                          <Plus className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <div className="flex items-center gap-1">
+
+                {ramType && (
+                  <div className="space-y-1.5 pt-1">
+                    <span className="text-[9px] font-bold text-zinc-500 uppercase block">Memory Profile</span>
+                    <div className="grid grid-cols-3 gap-1">
+                      {[
+                        { id: 'standard', label: 'Standard' },
+                        { id: 'xmp', label: 'EXPO / XMP' },
+                        { id: 'rgb', label: 'Extreme RGB' }
+                      ].map(prof => (
+                        <button
+                          key={prof.id}
+                          type="button"
+                          onClick={() => setRamProfile(prof.id as any)}
+                          className={`py-1 text-[9px] font-extrabold uppercase rounded-lg border transition-all ${
+                            ramProfile === prof.id
+                              ? 'border-[#FF5500] bg-[#FF5500]/10 text-[#FF5500]'
+                              : isMono
+                                ? 'border-white/20 text-neutral-400 hover:border-white'
+                                : 'border-zinc-800 text-zinc-400 hover:bg-zinc-500/5'
+                          }`}
+                        >
+                          {prof.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+            </div>
+          </div>
+
+          {/* Card 3: Storage Configuration (Highly Categorized!) */}
+          <div className={cardStyle}>
+            <div className="flex items-center gap-2 border-b border-zinc-500/5 pb-2.5 mb-4">
+              <HardDrive className="w-4 h-4 text-sky-400" />
+              <h3 className={`text-xs font-extrabold uppercase tracking-widest ${isMono ? 'font-mono' : 'font-sans'}`}>
+                3. Storage Arrays &amp; Drives
+              </h3>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+              {/* M.2 NVMe Gen 5 */}
+              <div className="border border-zinc-500/10 p-2.5 rounded-xl flex items-center justify-between">
+                <div className="text-left leading-tight pr-2">
+                  <span className="text-[10px] font-bold block uppercase">M.2 Gen 5 NVMe</span>
+                  <span className="text-[8px] text-zinc-500 font-mono">12W peak load</span>
+                </div>
+                <div className="flex items-center gap-1.5">
                   <button
                     type="button"
-                    onClick={() => setRgbStrips(Math.max(0, rgbStrips - 1))}
-                    className="p-1 rounded bg-zinc-500/5 text-zinc-400 hover:text-[#FF5500] active:scale-90"
+                    onClick={() => setNvmeGen5Count(Math.max(0, nvmeGen5Count - 1))}
+                    className={counterBtnStyle}
                   >
-                    <Minus className="w-2.5 h-2.5" />
+                    <Minus className="w-3 h-3" />
                   </button>
-                  <span className="text-xs font-bold w-4 text-center font-mono">{rgbStrips}</span>
+                  <span className="text-xs font-bold font-mono w-3.5 text-center">{nvmeGen5Count}</span>
                   <button
                     type="button"
-                    onClick={() => setRgbStrips(Math.min(10, rgbStrips + 1))}
-                    className="p-1 rounded bg-[#FF5500]/10 text-[#FF5500] active:scale-90"
+                    onClick={() => setNvmeGen5Count(Math.min(6, nvmeGen5Count + 1))}
+                    className={counterBtnStyle}
                   >
-                    <Plus className="w-2.5 h-2.5" />
+                    <Plus className="w-3 h-3" />
                   </button>
                 </div>
               </div>
 
-              {/* Fan / RGB Hub */}
-              <div className="flex items-center justify-between p-2 rounded-xl border border-zinc-500/10 text-left">
-                <div className="space-y-0.5">
-                  <span className={`text-[10px] font-bold uppercase ${headerTextClass} block`}>RGB Fan Hub</span>
-                  <span className="text-[9px] text-zinc-500 block">8W standalone</span>
+              {/* M.2 NVMe Gen 4/3 */}
+              <div className="border border-zinc-500/10 p-2.5 rounded-xl flex items-center justify-between">
+                <div className="text-left leading-tight pr-2">
+                  <span className="text-[10px] font-bold block uppercase">M.2 Gen 4/3 NVMe</span>
+                  <span className="text-[8px] text-zinc-500 font-mono">7.5W peak load</span>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setRgbController(!rgbController)}
-                  className={`px-3 py-1 text-[10px] font-extrabold uppercase rounded-lg transition-all border active:scale-95 ${
-                    rgbController
-                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-500'
-                      : 'bg-zinc-500/5 border-zinc-500/10 text-zinc-500'
-                  }`}
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setNvmeGen4Count(Math.max(0, nvmeGen4Count - 1))}
+                    className={counterBtnStyle}
+                  >
+                    <Minus className="w-3 h-3" />
+                  </button>
+                  <span className="text-xs font-bold font-mono w-3.5 text-center">{nvmeGen4Count}</span>
+                  <button
+                    type="button"
+                    onClick={() => setNvmeGen4Count(Math.min(10, nvmeGen4Count + 1))}
+                    className={counterBtnStyle}
+                  >
+                    <Plus className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+
+              {/* 2.5" SATA SSD */}
+              <div className="border border-zinc-500/10 p-2.5 rounded-xl flex items-center justify-between">
+                <div className="text-left leading-tight pr-2">
+                  <span className="text-[10px] font-bold block uppercase">2.5" SATA SSD</span>
+                  <span className="text-[8px] text-zinc-500 font-mono">4W peak load</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setSataSsdCount(Math.max(0, sataSsdCount - 1))}
+                    className={counterBtnStyle}
+                  >
+                    <Minus className="w-3 h-3" />
+                  </button>
+                  <span className="text-xs font-bold font-mono w-3.5 text-center">{sataSsdCount}</span>
+                  <button
+                    type="button"
+                    onClick={() => setSataSsdCount(Math.min(10, sataSsdCount + 1))}
+                    className={counterBtnStyle}
+                  >
+                    <Plus className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+
+              {/* HDD 7200 RPM */}
+              <div className="border border-zinc-500/10 p-2.5 rounded-xl flex items-center justify-between">
+                <div className="text-left leading-tight pr-2">
+                  <span className="text-[10px] font-bold block uppercase">HDD 7200 RPM</span>
+                  <span className="text-[8px] text-zinc-500 font-mono">10W spindle</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setHdd7200Count(Math.max(0, hdd7200Count - 1))}
+                    className={counterBtnStyle}
+                  >
+                    <Minus className="w-3 h-3" />
+                  </button>
+                  <span className="text-xs font-bold font-mono w-3.5 text-center">{hdd7200Count}</span>
+                  <button
+                    type="button"
+                    onClick={() => setHdd7200Count(Math.min(8, hdd7200Count + 1))}
+                    className={counterBtnStyle}
+                  >
+                    <Plus className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+
+              {/* HDD 5400 RPM */}
+              <div className="border border-zinc-500/10 p-2.5 rounded-xl flex items-center justify-between">
+                <div className="text-left leading-tight pr-2">
+                  <span className="text-[10px] font-bold block uppercase">HDD 5400 RPM</span>
+                  <span className="text-[8px] text-zinc-500 font-mono">6W spindle</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setHdd5400Count(Math.max(0, hdd5400Count - 1))}
+                    className={counterBtnStyle}
+                  >
+                    <Minus className="w-3 h-3" />
+                  </button>
+                  <span className="text-xs font-bold font-mono w-3.5 text-center">{hdd5400Count}</span>
+                  <button
+                    type="button"
+                    onClick={() => setHdd5400Count(Math.min(8, hdd5400Count + 1))}
+                    className={counterBtnStyle}
+                  >
+                    <Plus className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+
+              {/* SAS Enterprise Drives */}
+              <div className="border border-zinc-500/10 p-2.5 rounded-xl flex items-center justify-between">
+                <div className="text-left leading-tight pr-2">
+                  <span className="text-[10px] font-bold block uppercase">SAS Enterprise</span>
+                  <span className="text-[8px] text-zinc-500 font-mono">15W high-seek</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setSasEnterpriseCount(Math.max(0, sasEnterpriseCount - 1))}
+                    className={counterBtnStyle}
+                  >
+                    <Minus className="w-3 h-3" />
+                  </button>
+                  <span className="text-xs font-bold font-mono w-3.5 text-center">{sasEnterpriseCount}</span>
+                  <button
+                    type="button"
+                    onClick={() => setSasEnterpriseCount(Math.min(6, sasEnterpriseCount + 1))}
+                    className={counterBtnStyle}
+                  >
+                    <Plus className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 4: Cooling Equipment & Chassis Fans */}
+          <div className={cardStyle}>
+            <div className="flex items-center gap-2 border-b border-zinc-500/5 pb-2.5 mb-4">
+              <Wind className="w-4 h-4 text-teal-400" />
+              <h3 className={`text-xs font-extrabold uppercase tracking-widest ${isMono ? 'font-mono' : 'font-sans'}`}>
+                4. Thermal Coolers &amp; Chassis Fans
+              </h3>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              
+              {/* CPU Cooling Solution */}
+              <div className="space-y-1.5 text-left">
+                <label className="text-[10px] font-extrabold uppercase tracking-wide block">
+                  CPU Cooler Equipment
+                </label>
+                <select
+                  value={coolingType}
+                  onChange={(e) => setCoolingType(e.target.value)}
+                  className={`w-full ${inputStyle} cursor-pointer`}
                 >
-                  {rgbController ? 'ON' : 'OFF'}
-                </button>
+                  <option value="stock">Intel/AMD OEM stock cooler (4W)</option>
+                  <option value="air_single">Compact single-tower Air cooler (6W)</option>
+                  <option value="air_dual">Premium double-tower Air cooler (Noctua D15, 12W)</option>
+                  <option value="aio_120">Single 120/140mm Liquid AIO (15W)</option>
+                  <option value="aio_240">Standard 240/280mm Dual Liquid AIO (22W)</option>
+                  <option value="aio_360">High-end 360/420mm Triple Liquid AIO (30W)</option>
+                  <option value="custom_loop">Custom Loop liquid system - Single Pump (35W)</option>
+                  <option value="extreme_loop">Extreme custom loop - Dual Pumps (60W)</option>
+                </select>
               </div>
 
-              {/* USB High Draw Devices */}
-              <div className="flex items-center justify-between p-2 rounded-xl border border-zinc-500/10 text-left">
-                <div className="space-y-0.5">
-                  <span className={`text-[10px] font-bold uppercase ${headerTextClass} block`}>USB Accessories</span>
-                  <span className="text-[9px] text-zinc-500 block">Audio/VR (+10W)</span>
+              {/* Chassis Case Fans */}
+              <div className="space-y-1.5 text-left">
+                <label className="text-[10px] font-extrabold uppercase tracking-wide block">
+                  Chassis Case Fans (Quiet / ARGB)
+                </label>
+                
+                <div className="grid grid-cols-12 gap-1.5">
+                  <div className="col-span-8">
+                    <select
+                      value={caseFanType}
+                      onChange={(e) => setCaseFanType(e.target.value as any)}
+                      className={`w-full ${inputStyle} cursor-pointer`}
+                    >
+                      <option value="std_120">120mm PWM Standard (2W)</option>
+                      <option value="argb_120">120mm PWM ARGB Glow (3.5W)</option>
+                      <option value="std_140">140mm PWM Standard (2.5W)</option>
+                      <option value="argb_140">140mm PWM ARGB Glow (4.5W)</option>
+                      <option value="industrial">High-Amp Industrial PPC (8W)</option>
+                    </select>
+                  </div>
+
+                  <div className="col-span-4">
+                    <div className={`flex items-center justify-between border rounded-lg p-1.5 h-[37px] ${
+                      isMono ? 'border-white/40 bg-black' : isDark ? 'border-zinc-800 bg-zinc-950' : 'border-slate-200 bg-white'
+                    }`}>
+                      <button
+                        type="button"
+                        onClick={() => setCaseFans(Math.max(0, caseFans - 1))}
+                        className="p-1 hover:text-[#FF5500] transition-colors"
+                      >
+                        <Minus className="w-3 h-3" />
+                      </button>
+                      <span className="text-xs font-black font-mono">{caseFans}</span>
+                      <button
+                        type="button"
+                        onClick={() => setCaseFans(Math.min(18, caseFans + 1))}
+                        className="p-1 hover:text-[#FF5500] transition-colors"
+                      >
+                        <Plus className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex items-center gap-1">
+              </div>
+
+            </div>
+          </div>
+
+          {/* Card 5: Aesthetic RGB Accessories, USB Ports & Expansion PCIe Cards */}
+          <div className={cardStyle}>
+            <div className="flex items-center gap-2 border-b border-zinc-500/5 pb-2.5 mb-4">
+              <Sliders className="w-4 h-4 text-indigo-400" />
+              <h3 className={`text-xs font-extrabold uppercase tracking-widest ${isMono ? 'font-mono' : 'font-sans'}`}>
+                5. Accessories, Peripherals &amp; expansion
+              </h3>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Counters & Aesthetic Sliders */}
+              <div className="space-y-3">
+                {/* RGB LED Strips */}
+                <div className="flex justify-between items-center border-b border-zinc-500/5 pb-2">
+                  <div className="text-left leading-tight">
+                    <span className="text-[10px] font-bold block uppercase">ARGB Diffuser LED Strips</span>
+                    <span className="text-[8px] text-zinc-500 font-mono">4.5W per strip</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setRgbStrips(Math.max(0, rgbStrips - 1))}
+                      className={counterBtnStyle}
+                    >
+                      <Minus className="w-3 h-3" />
+                    </button>
+                    <span className="text-xs font-bold font-mono w-3.5 text-center">{rgbStrips}</span>
+                    <button
+                      type="button"
+                      onClick={() => setRgbStrips(Math.min(12, rgbStrips + 1))}
+                      className={counterBtnStyle}
+                    >
+                      <Plus className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* High Draw USB Accessories */}
+                <div className="flex justify-between items-center border-b border-zinc-500/5 pb-2">
+                  <div className="text-left leading-tight">
+                    <span className="text-[10px] font-bold block uppercase">High-Power USB Devices</span>
+                    <span className="text-[8px] text-zinc-500 font-mono">Audio/VR/Lights (10W)</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setUsbHighDrawCount(Math.max(0, usbHighDrawCount - 1))}
+                      className={counterBtnStyle}
+                    >
+                      <Minus className="w-3 h-3" />
+                    </button>
+                    <span className="text-xs font-bold font-mono w-3.5 text-center">{usbHighDrawCount}</span>
+                    <button
+                      type="button"
+                      onClick={() => setUsbHighDrawCount(Math.min(8, usbHighDrawCount + 1))}
+                      className={counterBtnStyle}
+                    >
+                      <Plus className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* RGB Fan Controller */}
+                <div className="flex justify-between items-center">
+                  <div className="text-left leading-tight">
+                    <span className="text-[10px] font-bold block uppercase">Unified ARGB Controller/Hub</span>
+                    <span className="text-[8px] text-zinc-500 font-mono">8W standalone</span>
+                  </div>
                   <button
                     type="button"
-                    onClick={() => setUsbHighDrawCount(Math.max(0, usbHighDrawCount - 1))}
-                    className="p-1 rounded bg-zinc-500/5 text-zinc-400 hover:text-[#FF5500] active:scale-90"
+                    onClick={() => setRgbController(!rgbController)}
+                    className={`px-3 py-1 text-[9px] font-black uppercase rounded-lg border transition-all active:scale-95 ${
+                      rgbController
+                        ? 'bg-[#FF5500]/10 border-[#FF5500]/20 text-[#FF5500]'
+                        : isMono
+                          ? 'border-white/20 text-neutral-500'
+                          : 'bg-zinc-500/5 border-zinc-800 text-zinc-500'
+                    }`}
                   >
-                    <Minus className="w-2.5 h-2.5" />
-                  </button>
-                  <span className="text-xs font-bold w-4 text-center font-mono">{usbHighDrawCount}</span>
-                  <button
-                    type="button"
-                    onClick={() => setUsbHighDrawCount(Math.min(8, usbHighDrawCount + 1))}
-                    className="p-1 rounded bg-[#FF5500]/10 text-[#FF5500] active:scale-90"
-                  >
-                    <Plus className="w-2.5 h-2.5" />
+                    {rgbController ? 'ON' : 'OFF'}
                   </button>
                 </div>
               </div>
+
+              {/* PCIe Expansion Checkbox Grid */}
+              <div className="space-y-2.5">
+                <span className="text-[10px] font-extrabold uppercase tracking-wide text-zinc-500 block text-left">
+                  PCIe Add-on Cards
+                </span>
+
+                <div className="space-y-1.5">
+                  <label className="flex items-center justify-between p-2 rounded-xl border border-zinc-500/5 bg-black/5 hover:bg-zinc-500/5 cursor-pointer transition-colors select-none">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={hasSoundCard}
+                        onChange={(e) => setHasSoundCard(e.target.checked)}
+                        className="rounded border-zinc-700 accent-[#FF5500] w-3.5 h-3.5 cursor-pointer"
+                      />
+                      <span className="text-xs">Professional PCIe Sound Card / DAC</span>
+                    </div>
+                    <span className="text-[9px] font-mono text-zinc-500">+10W</span>
+                  </label>
+
+                  <label className="flex items-center justify-between p-2 rounded-xl border border-zinc-500/5 bg-black/5 hover:bg-zinc-500/5 cursor-pointer transition-colors select-none">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={hasCaptureCard}
+                        onChange={(e) => setHasCaptureCard(e.target.checked)}
+                        className="rounded border-zinc-700 accent-[#FF5500] w-3.5 h-3.5 cursor-pointer"
+                      />
+                      <span className="text-xs">4K Video Capture card (Elgato)</span>
+                    </div>
+                    <span className="text-[9px] font-mono text-zinc-500">+15W</span>
+                  </label>
+
+                  <label className="flex items-center justify-between p-2 rounded-xl border border-zinc-500/5 bg-black/5 hover:bg-zinc-500/5 cursor-pointer transition-colors select-none">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={hasWifiCard}
+                        onChange={(e) => setHasWifiCard(e.target.checked)}
+                        className="rounded border-zinc-700 accent-[#FF5500] w-3.5 h-3.5 cursor-pointer"
+                      />
+                      <span className="text-xs">Wi-Fi 7 / 10G Super Network Card</span>
+                    </div>
+                    <span className="text-[9px] font-mono text-zinc-500">+12W</span>
+                  </label>
+                </div>
+              </div>
+
             </div>
-          </motion.div>
+          </div>
 
         </div>
 
-        {/* Minimal Wattage HUD Panel (Right: 5cols) */}
+        {/* Diagnostic Results HUD Dashboard (Right: 5cols) */}
         <div className="lg:col-span-5 space-y-6">
           
-          {/* Real-time calculated dial/results card */}
+          {/* Main calculated results & glowing SVG dial */}
           <div className={`p-6 rounded-2xl border ${
-            currentTheme === 'light' ? 'bg-slate-50 border-slate-200/90' : 'bg-zinc-900/40 border-zinc-900'
-          } relative overflow-hidden flex flex-col items-center justify-center text-center`}>
+            isMono 
+              ? 'bg-black border-white text-white' 
+              : isDark 
+                ? 'bg-zinc-900/30 border-zinc-900 shadow-xl' 
+                : 'bg-slate-50 border-slate-200/90 shadow-lg'
+          } relative overflow-hidden flex flex-col items-center text-center`}>
             
-            <div className="absolute top-3 left-3 bg-[#FF5500]/10 text-[#FF5500] border border-[#FF5500]/20 rounded-lg py-0.5 px-2 text-[9px] font-mono uppercase tracking-wider">
-              Diagnostic Load Output
+            <div className="absolute top-3 left-3 bg-[#FF5500]/10 text-[#FF5500] border border-[#FF5500]/20 rounded-lg py-0.5 px-2 text-[9px] font-mono uppercase tracking-widest">
+              Live Diagnostics Load HUD
             </div>
 
-            {/* Glowing circle representation */}
-            <div className="relative w-36 h-36 flex items-center justify-center mt-4">
+            {/* Glowing gauge radial ring */}
+            <div className="relative w-40 h-40 flex items-center justify-center mt-6">
               
               <svg className="w-full h-full transform -rotate-90">
                 <circle
-                  cx="72"
-                  cy="72"
-                  r="62"
+                  cx="80"
+                  cy="80"
+                  r="70"
                   strokeWidth="5"
-                  stroke={currentTheme === 'light' ? '#f1f5f9' : '#18181b'}
+                  stroke={isMono ? '#1c1c1e' : isDark ? '#18181b' : '#f1f5f9'}
                   fill="transparent"
                 />
                 <circle
-                  cx="72"
-                  cy="72"
-                  r="62"
+                  cx="80"
+                  cy="80"
+                  r="70"
                   strokeWidth="6"
-                  strokeDasharray={390}
-                  strokeDashoffset={390 - (390 * Math.min(wattageBreakdown.totalPeak, 1200)) / 1200}
+                  strokeDasharray={440}
+                  strokeDashoffset={440 - (440 * Math.min(wattageBreakdown.totalPeak, 1300)) / 1300}
                   stroke={
                     isFormEmpty 
-                      ? (currentTheme === 'light' ? '#e2e8f0' : '#27272a')
+                      ? (isDark ? '#27272a' : '#e2e8f0')
                       : wattageBreakdown.totalPeak > 750 
-                        ? '#ef4444' // highly drawing system (red)
+                        ? '#ef4444' 
                         : wattageBreakdown.totalPeak > 450 
-                          ? '#f97316' // medium (orange)
-                          : '#10b981' // green
+                          ? '#f97316' 
+                          : '#10b981'
                   }
                   strokeLinecap="round"
                   fill="transparent"
-                  className="transition-all duration-500 ease-out"
+                  className="transition-all duration-700 ease-out"
                 />
               </svg>
 
@@ -1385,37 +1675,42 @@ export default function SmpsCalculator({ currentTheme }: SmpsCalculatorProps) {
                     key={wattageBreakdown.totalPeak}
                     initial={{ scale: 0.85, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
-                    className={`text-3xl font-black font-mono tracking-tighter ${headerTextClass}`}
+                    className="text-4xl font-black font-mono tracking-tighter"
                   >
                     {wattageBreakdown.totalPeak}W
                   </motion.span>
                 </AnimatePresence>
-                <span className="text-[9px] text-zinc-500 font-mono">Continuous loading</span>
+                
+                {selectedGpu && (
+                  <span className="text-[8px] bg-red-500/10 border border-red-500/20 text-red-500 px-1.5 py-0.5 rounded-md mt-1 font-mono tracking-wider">
+                    ~{estimatedTransientSpike}W Spike Peak
+                  </span>
+                )}
               </div>
             </div>
 
-            {/* Suggested Wattage SMPS Box Target */}
-            <div className="w-full border-t border-zinc-500/10 mt-5 pt-4 space-y-1.5">
-              <span className={`text-[10px] font-black uppercase tracking-widest ${labelTextClass}`}>
-                Recommended Supply Size
+            {/* Recommended Size Box */}
+            <div className="w-full border-t border-zinc-500/10 mt-5 pt-4 space-y-2">
+              <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500 block">
+                Recommended Power Supply (SMPS)
               </span>
               <div className="text-4xl font-black font-mono tracking-tighter text-[#FF5500]">
                 {recommendedPower.suggestedPsuSize === 0 ? '0W' : `${recommendedPower.suggestedPsuSize}W`}
               </div>
-              <p className="text-[10px] text-zinc-500 max-w-xs mx-auto leading-normal">
+              <p className="text-[10px] text-zinc-500 max-w-xs mx-auto leading-normal font-sans">
                 {isFormEmpty 
-                  ? 'Total calculated wattage is 0W. Choose silicon elements to simulate.'
-                  : `Includes peak load of ${wattageBreakdown.totalPeak}W + a custom safety headroom constraint of ${safetyMargin}% (${recommendedPower.rawRecommended}W).`
+                  ? 'Total calculated wattage is 0W. Choose core engines to evaluate.'
+                  : `Includes peak combined load of ${wattageBreakdown.totalPeak}W + a target safety headroom overhead of +${safetyMargin}% (${recommendedPower.rawRecommended}W recommended).`
                 }
               </p>
             </div>
           </div>
 
-          {/* safety margins settings slider */}
-          <div className={`p-4 rounded-2xl border ${controlCardBg} space-y-3 text-left`}>
-            <div className="flex justify-between items-center">
-              <span className={`text-[10px] font-extrabold uppercase tracking-widest ${headerTextClass}`}>
-                Custom Overhead headroom
+          {/* Safety overhead margin settings slider */}
+          <div className={cardStyle}>
+            <div className="flex justify-between items-center mb-1.5">
+              <span className="text-[10px] font-extrabold uppercase tracking-widest">
+                Custom Overhead Safety Headroom
               </span>
               <span className="text-xs font-black font-mono text-[#FF5500]">+{safetyMargin}%</span>
             </div>
@@ -1434,46 +1729,108 @@ export default function SmpsCalculator({ currentTheme }: SmpsCalculatorProps) {
             />
             
             <div className="flex justify-between text-[8px] font-mono text-zinc-500 uppercase">
-              <span>Low (10%)</span>
-              <span>Ideal Balance (25%)</span>
-              <span>Future Expansion (50%)</span>
+              <span>Eco (10%)</span>
+              <span>Optimal Sweet Spot (25%)</span>
+              <span>Ultra Upgradeable (50%)</span>
             </div>
           </div>
 
-          {/* certification / 80 plus badge recommendation */}
-          <div className={`p-3.5 rounded-2xl border ${
-            currentTheme === 'light' ? 'bg-slate-50 border-slate-200/60' : 'bg-zinc-900/10 border-zinc-800/80'
-          } text-left space-y-2`}>
+          {/* Certification Badge Display */}
+          <div className={`p-4 rounded-2xl border ${
+            isMono ? 'bg-black border-white' : isDark ? 'bg-zinc-900/10 border-zinc-800/80' : 'bg-slate-50 border-slate-200/60'
+          } text-left space-y-2.5`}>
             <div className="flex items-center gap-1.5">
               <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded text-white bg-gradient-to-r ${psuEfficiencyAdvice.color} border border-white/5`}>
                 {psuEfficiencyAdvice.tier}
               </span>
               <Gauge className="w-3.5 h-3.5 text-yellow-500" />
             </div>
-            <p className={`text-[10px] ${labelTextClass} leading-normal`}>
+            <p className="text-[10px] text-zinc-500 leading-relaxed">
               {psuEfficiencyAdvice.desc}
             </p>
           </div>
 
-          {/* component power allocation list */}
+          {/* Intelligent Hardware Advisories & Warnings Panel */}
+          {!isFormEmpty && (
+            <div className="text-left space-y-2">
+              <h4 className="text-[9px] font-bold uppercase tracking-widest text-zinc-500 block">
+                Dynamic Builder Advisories
+              </h4>
+              <div className="space-y-1.5">
+                {/* ATX 3.0 warning */}
+                {selectedGpu && selectedGpu.isNvidia12VHPWR && (
+                  <div className="p-3 rounded-xl border border-blue-500/20 bg-blue-500/5 flex items-start gap-2 text-xs">
+                    <ShieldCheck className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold text-blue-300 block">ATX 3.0 PCIe 5.0 Requirement</span>
+                      <span className="text-[10px] text-blue-400 leading-normal block">
+                        This GPU uses the high-power 12VHPWR / 12V2x6 cable standard. A modern ATX 3.0 certified PSU is highly recommended to eliminate unsafe 3x/4x adapter bundle cable mess.
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Overclock warnings */}
+                {overclockCpu && selectedCpu && selectedCpu.peak > 200 && (
+                  <div className="p-3 rounded-xl border border-amber-500/20 bg-amber-500/5 flex items-start gap-2 text-xs">
+                    <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold text-amber-300 block">High CPU Thermal Requirements</span>
+                      <span className="text-[10px] text-amber-400 leading-normal block">
+                        Overclocking premium silicon can exceed 300W peak. Ensure your motherboard has dual 8-pin EPS 12V connections and a minimum 360mm Liquid AIO for thermal stability.
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* PCIe 5.0 SSD thermal warning */}
+                {nvmeGen5Count > 0 && (
+                  <div className="p-3 rounded-xl border border-amber-500/20 bg-amber-500/5 flex items-start gap-2 text-xs">
+                    <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold text-amber-300 block">M.2 PCIe 5.0 Thermal Warning</span>
+                      <span className="text-[10px] text-amber-400 leading-normal block">
+                        Gen 5 NVMe drives draw up to 12W and generate extreme heat. Heatsinks with active fans or direct liquid blocks are mandatory to prevent heavy speed throttling.
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Efficiency sweet spot reminder */}
+                <div className="p-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 flex items-start gap-2 text-xs">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold text-emerald-300 block">Power Efficiency Sweet-Spot Match</span>
+                    <span className="text-[10px] text-emerald-400 leading-normal block">
+                      Estimated continuous gaming/load zone sits perfectly within the optimal 40% - 60% conversion spectrum of a {recommendedPower.suggestedPsuSize}W supply, yielding peak 80 Plus conservation.
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Component Continuous Energy Breakdown list */}
           {!isFormEmpty && (
             <motion.div 
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               className="space-y-2 text-left"
             >
-              <h4 className={`text-[9px] font-bold uppercase tracking-widest ${labelTextClass}`}>
-                Continuous Energy Breakdown
+              <h4 className="text-[9px] font-bold uppercase tracking-widest text-zinc-500 block">
+                Peak Energy Draw Allocation
               </h4>
-              <div className={`p-4 rounded-2xl border ${controlCardBg} space-y-2.5`}>
+              <div className={`p-4 rounded-xl border ${
+                isMono ? 'border-white/20' : 'border-zinc-500/5 bg-black/10'
+              } space-y-2.5`}>
                 {/* cpu */}
                 {wattageBreakdown.cpu > 0 && (
                   <div className="space-y-1">
-                    <div className="flex justify-between text-[9px] font-mono text-zinc-500">
+                    <div className="flex justify-between text-[10px] font-mono text-zinc-500">
                       <span>Processor (CPU Core)</span>
-                      <span className={`${headerTextClass} font-bold`}>{wattageBreakdown.cpu}W</span>
+                      <span className="font-bold">{wattageBreakdown.cpu}W</span>
                     </div>
-                    <div className="w-full h-[3px] bg-zinc-800 rounded-full overflow-hidden">
+                    <div className="w-full h-1 bg-zinc-800 rounded-full overflow-hidden">
                       <div className="h-full bg-orange-500" style={{ width: `${(wattageBreakdown.cpu / wattageBreakdown.totalPeak) * 100}%` }} />
                     </div>
                   </div>
@@ -1481,11 +1838,11 @@ export default function SmpsCalculator({ currentTheme }: SmpsCalculatorProps) {
                 {/* gpu */}
                 {wattageBreakdown.gpu > 0 && (
                   <div className="space-y-1">
-                    <div className="flex justify-between text-[9px] font-mono text-zinc-500">
-                      <span>Graphics Accelerator (GPU)</span>
-                      <span className={`${headerTextClass} font-bold`}>{wattageBreakdown.gpu}W</span>
+                    <div className="flex justify-between text-[10px] font-mono text-zinc-500">
+                      <span>Graphics Card (GPU Core)</span>
+                      <span className="font-bold">{wattageBreakdown.gpu}W</span>
                     </div>
-                    <div className="w-full h-[3px] bg-zinc-800 rounded-full overflow-hidden">
+                    <div className="w-full h-1 bg-zinc-800 rounded-full overflow-hidden">
                       <div className="h-full bg-indigo-500" style={{ width: `${(wattageBreakdown.gpu / wattageBreakdown.totalPeak) * 100}%` }} />
                     </div>
                   </div>
@@ -1493,13 +1850,13 @@ export default function SmpsCalculator({ currentTheme }: SmpsCalculatorProps) {
                 {/* other modules */}
                 {(wattageBreakdown.mobo + wattageBreakdown.ram + wattageBreakdown.storage + wattageBreakdown.cooling + wattageBreakdown.accessories) > 0 && (
                   <div className="space-y-1">
-                    <div className="flex justify-between text-[9px] font-mono text-zinc-500">
-                      <span>Motherboard, cooling &amp; peripherals</span>
-                      <span className={`${headerTextClass} font-bold`}>
+                    <div className="flex justify-between text-[10px] font-mono text-zinc-500">
+                      <span>Motherboard, RAM, Storage &amp; Fans</span>
+                      <span className="font-bold">
                         {wattageBreakdown.mobo + wattageBreakdown.ram + wattageBreakdown.storage + wattageBreakdown.cooling + wattageBreakdown.accessories}W
                       </span>
                     </div>
-                    <div className="w-full h-[3px] bg-zinc-800 rounded-full overflow-hidden">
+                    <div className="w-full h-1 bg-zinc-800 rounded-full overflow-hidden">
                       <div className="h-full bg-emerald-500" style={{ 
                         width: `${((wattageBreakdown.mobo + wattageBreakdown.ram + wattageBreakdown.storage + wattageBreakdown.cooling + wattageBreakdown.accessories) / wattageBreakdown.totalPeak) * 100}%` 
                       }} />
@@ -1510,33 +1867,34 @@ export default function SmpsCalculator({ currentTheme }: SmpsCalculatorProps) {
             </motion.div>
           )}
 
-          {/* expert specialized assembly doorstep help */}
+          {/* Local Doorstep Integration Banner */}
           <div className="p-4 rounded-2xl bg-gradient-to-br from-[#FF5500]/5 to-indigo-500/5 border border-[#FF5500]/15 text-left space-y-3">
             <h4 className="text-[10px] font-extrabold uppercase text-[#FF5500] tracking-widest flex items-center gap-1">
               <Sparkles className="w-3.5 h-3.5 shrink-0" />
               <span>Assam Doorstep Assembly Integration</span>
             </h4>
-            <p className={`text-[10px] ${labelTextClass} leading-normal`}>
-              Avoid incorrect wiring connections or micro-volt shorts. Murari provides professional, certified cabinet cable routing, custom liquid loop debugging, and continuous performance evaluations locally.
+            <p className="text-[10px] text-zinc-500 leading-relaxed font-sans">
+              Avoid incorrect motherboard socket pins or critical cable wiring shorts. Murari provides premium cabinetry cable routing, custom liquid loop debugging, and absolute performance evaluation locally.
             </p>
 
             <button
               onClick={handleWhatsAppInquiry}
               disabled={isFormEmpty}
-              className={`w-full py-2.5 px-4 rounded-xl text-[11px] font-extrabold uppercase tracking-wider flex items-center justify-center gap-2 text-center shadow-sm transition-all ${
+              className={`w-full py-2.5 px-4 rounded-xl text-[11px] font-extrabold uppercase tracking-wider flex items-center justify-center gap-2 text-center shadow-md transition-all ${
                 isFormEmpty 
                   ? 'opacity-40 cursor-not-allowed bg-zinc-800 text-zinc-500' 
                   : 'bg-[#FF5500] hover:bg-[#FF4400] text-white hover:shadow-[#FF5500]/20 active:scale-98 cursor-pointer'
               }`}
             >
               <WhatsAppIcon size={12} />
-              <span className="text-center">Inquire Assembly with special list</span>
+              <span className="text-center">Inquire Assembly Support</span>
             </button>
           </div>
 
         </div>
 
       </div>
+
 
     </div>
   );

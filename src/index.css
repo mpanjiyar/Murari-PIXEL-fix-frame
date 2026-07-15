@@ -1,1 +1,157 @@
 @import "tailwindcss";
+
+/* 
+ * MOBILE PREMIUM GRAPHICS & LAYOUT OPTIMIZATION ENGINE
+ * Target screens: max-width 639px (standard mobile device viewport breakpoint)
+ * Carefully scaled down by ~12.5% for visual compactness, readability, and consistency.
+ */
+
+@layer utilities {
+  /* GPU acceleration helper classes for mobile hardware rendering */
+  .gpu-accel {
+    will-change: transform, opacity;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+  }
+}
+
+@media (max-width: 639px) {
+  html {
+    /* Slightly reduce root font-size by ~12.5% (from 16px to 14px) to automatically scale all rem-based sizes,
+       including paddings, margins, grid column gap widths, and fonts */
+    font-size: 14px !important;
+  }
+
+  body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Reduce excessive gap spacing in grid columns and flex rows to avoid bloated vertical scroll height on mobile */
+  .gap-16, .gap-y-16, .gap-x-16 {
+    gap: 1.75rem !important;
+  }
+  .gap-12, .gap-y-12, .gap-x-12 {
+    gap: 1.25rem !important;
+  }
+  .gap-8, .gap-y-8, .gap-x-8 {
+    gap: 0.875rem !important;
+  }
+  .gap-6, .gap-y-6, .gap-x-6 {
+    gap: 0.625rem !important;
+  }
+  .gap-4, .gap-y-4, .gap-x-4 {
+    gap: 0.5rem !important;
+  }
+
+  /* Reduce space-y margin offsets for vertical elements flow on mobile screens */
+  .space-y-24 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 2.5rem !important;
+  }
+  .space-y-20 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 2.25rem !important;
+  }
+  .space-y-16 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 1.75rem !important;
+  }
+  .space-y-12 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 1.25rem !important;
+  }
+  .space-y-10 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 1rem !important;
+  }
+  .space-y-8 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0.875rem !important;
+  }
+  .space-y-6 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0.625rem !important;
+  }
+
+  /* Fine-tune padding of main layouts & screens to maximize readable area */
+  main.py-8 {
+    padding-top: 1rem !important;
+    padding-bottom: 1rem !important;
+  }
+  main.px-4 {
+    padding-left: 0.75rem !important;
+    padding-right: 0.75rem !important;
+  }
+
+  /* Subtly tighten card container inner padding for compact aesthetics */
+  .p-8 {
+    padding: 1.25rem !important;
+  }
+  .p-6 {
+    padding: 1rem !important;
+  }
+  .p-5 {
+    padding: 0.875rem !important;
+  }
+  .p-4 {
+    padding: 0.75rem !important;
+  }
+  
+  /* Compact custom py and px paddings on mobile */
+  .py-12 {
+    padding-top: 2rem !important;
+    padding-bottom: 2rem !important;
+  }
+  .py-16 {
+    padding-top: 2.5rem !important;
+    padding-bottom: 2.5rem !important;
+  }
+  .py-20 {
+    padding-top: 3rem !important;
+    padding-bottom: 3rem !important;
+  }
+  .py-24 {
+    padding-top: 3.5rem !important;
+    padding-bottom: 3.5rem !important;
+  }
+  
+  .px-6 {
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+  }
+  .px-8 {
+    padding-left: 1.25rem !important;
+    padding-right: 1.25rem !important;
+  }
+
+  /* Sizing down the header container h-16 / md:h-20 on mobile */
+  header div.h-16 {
+    height: 3.25rem !important; /* Slightly more compact header height on mobile */
+  }
+
+  /* Compact button scales for sleek and fast micro-interactions on touch screens */
+  button, 
+  a.button,
+  .btn-scale-mobile {
+    letter-spacing: 0.05em !important;
+  }
+
+  /* Gently scale down Lucide icons inside buttons/badges on mobile to prevent layout overcrowding */
+  svg.lucide {
+    width: 0.9em !important;
+    height: 0.9em !important;
+    stroke-width: 2.25 !important; /* Slightly thicker strokes for legibility at smaller scales */
+  }
+
+  /* Adjust border-radius properties to match scaled-down component proportions */
+  .rounded-3xl {
+    border-radius: 1.25rem !important;
+  }
+  .rounded-2xl {
+    border-radius: 0.875rem !important;
+  }
+  .rounded-xl {
+    border-radius: 0.625rem !important;
+  }
+
+  /* Boost scrolling performance on touch targets */
+  .overflow-y-auto, .overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+  }
+}

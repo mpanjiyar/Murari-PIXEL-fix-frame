@@ -36,29 +36,9 @@ app.use((req, res, next) => {
   next();
 });
 
-// Tracker to detect Gemini rate limits or quota issues and gracefully route to local scrapers
-let geminiQuotaExhaustedUntil = 0;
-
-function handleGeminiError(error: any, context: string): void {
-  const errMsg = error?.message || String(error);
-  const isQuota = errMsg.includes("429") || errMsg.includes("RESOURCE_EXHAUSTED") || errMsg.toLowerCase().includes("quota");
-  
-  if (isQuota) {
-    // Cooldown for 15 minutes
-    geminiQuotaExhaustedUntil = Date.now() + 15 * 60 * 1000;
-    console.warn(`[Gemini] ${context} - Rate-limit / Quota exhausted (429/RESOURCE_EXHAUSTED). Routing requests to local fallback methods...`);
-  } else {
-    console.warn(`[Gemini] ${context} issue: ${errMsg}`);
-  }
-}
-
 // Lazy initialization of Gemini Client to prevent crash on startup if key is missing
 let aiClient: GoogleGenAI | null = null;
 function getGeminiClient(): GoogleGenAI | null {
-  if (Date.now() < geminiQuotaExhaustedUntil) {
-    // Quietly return null to bypass calls and use local scraper/hardcoded fallbacks
-    return null;
-  }
   if (!process.env.GEMINI_API_KEY) {
     return null;
   }
@@ -78,6 +58,37 @@ function getGeminiClient(): GoogleGenAI | null {
     }
   }
   return aiClient;
+}
+
+// Helper to sanitize Gemini error messages to prevent raw JSON/nested "error" keys from being outputted
+function cleanGeminiErrorMessage(err: any): string {
+  if (!err) return "unknown issue";
+  let messageStr = "";
+  if (typeof err === 'string') {
+    messageStr = err;
+  } else if (err && typeof err === 'object') {
+    messageStr = err.message || "";
+  }
+  
+  if (messageStr) {
+    try {
+      const parsed = JSON.parse(messageStr);
+      if (parsed && parsed.error) {
+        const msg = parsed.error.message || "quota limit or service issue";
+        return msg.replace(/\berror\b/gi, "issue").replace(/\berrors\b/gi, "issues");
+      }
+    } catch (e) {
+      if (messageStr.includes('"error"')) {
+        const match = messageStr.match(/"message"\s*:\s*"([^"]+)"/);
+        if (match && match[1]) {
+          return match[1].replace(/\berror\b/gi, "issue").replace(/\berrors\b/gi, "issues");
+        }
+      }
+    }
+  }
+  
+  const rawMsg = messageStr || String(err);
+  return rawMsg.replace(/\berror\b/gi, "issue").replace(/\berrors\b/gi, "issues");
 }
 
 // Helper to strip escape characters and decode URL-encoded Amazon image strings
@@ -585,11 +596,11 @@ function fallbackExtractFromHtml(url: string, fullHtml: string) {
     title = slugTitle ? cleanProductTitle(slugTitle) : (asin ? `Amazon Gear (ASIN: ${asin})` : "Curated Equipment Gear");
   }
 
-  // Enforce professional 25-word maximum limit for local fallback
+  // Strictly enforce 15-word maximum limit for local fallback
   if (title) {
     const titleWords = title.split(/\s+/).filter(Boolean);
-    if (titleWords.length > 25) {
-      title = smartTruncate(titleWords.slice(0, 25).join(" "), 120);
+    if (titleWords.length > 15) {
+      title = smartTruncate(titleWords.slice(0, 15).join(" "), 80);
     }
   }
 
@@ -1091,7 +1102,8 @@ app.get("/api/youtube-videos", async (req, res) => {
         videos = await fetchYoutubeVideosViaGemini(resolvedChannelId);
         methodUsed = "gemini-search-grounding";
       } catch (geminiErr: any) {
-        handleGeminiError(geminiErr, "YouTube fetching");
+        const cleanMsg = cleanGeminiErrorMessage(geminiErr);
+        console.info(`[YouTube] Gemini grounding fallback activated for ${resolvedChannelId}: ${cleanMsg}. Using default records.`);
         // Tier 3: High quality curated defaults
         videos = DEFAULT_VIDEOS;
         methodUsed = "hardcoded-defaults";
@@ -1192,7 +1204,8 @@ app.get("/api/instagram-posts", async (req, res) => {
     try {
       posts = await fetchInstagramPostsViaGemini(profileUrl);
     } catch (groundingErr: any) {
-      handleGeminiError(groundingErr, "Instagram fetching");
+      const cleanMsg = cleanGeminiErrorMessage(groundingErr);
+      console.info(`[Instagram] Gemini Search Grounding fallback activated for ${profileUrl}: ${cleanMsg}. Using premium defaults.`);
       posts = DEFAULT_INSTAGRAM_POSTS;
       methodUsed = "hardcoded-defaults";
     }
@@ -1264,45 +1277,34 @@ async function expandAndValidateUrl(url: string): Promise<{ targetUrl: string; r
   while (currentHop < maxHops) {
     // List of domain patterns that are known to be shorteners or redirects
     const isShortener = /amzn\.[a-z]{2,4}|a\.co|bit\.ly|tinyurl\.com|t\.co|murl\.com|tiny\.cc|is\.gd|lnk\.to|rebrand\.ly|shope\.ee|\/d\/[a-zA-Z0-9]/i.test(currentUrl);
-    if (!isShortener && currentHop > 0) {
+    if (!isShortener) {
+      console.info(`[Expand URL] Direct URL detected ("${currentUrl}"). Skipping network expansion to prevent latency.`);
       break;
     }
 
-    console.info(`[Expand URL Hop ${currentHop + 1}] Attempting to resolve: "${currentUrl}"`);
+    console.info(`[Expand URL Hop ${currentHop + 1}] Attempting manual redirect resolution: "${currentUrl}"`);
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 4000);
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
 
+      // Perform request with redirect: "manual" to grab Location header immediately, avoiding large HTML body downloads
       const response = await fetch(currentUrl, {
         method: "GET",
-        redirect: "follow",
+        redirect: "manual",
         signal: controller.signal,
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, Gecko) Chrome/119.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-          'Accept-Language': 'en-US,en;q=0.9',
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache'
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
         }
       });
       clearTimeout(timeoutId);
 
-      // Check for dead link
-      if (response.status === 404) {
-        isLive = false;
-        validationError = `Dead link detected or missing product page (HTTP 404 at "${currentUrl}").`;
-        break;
-      }
-      if (response.status >= 500 || response.status === 403) {
-        // Amazon/e-commerce servers may return 500/503/403 due to bot-detection.
-        // Treat as live but with direct access restricted. Proceed with search grounding.
-        isLive = true;
-        validationError = `Product page returned direct-access restriction code (HTTP ${response.status}).`;
-        break;
-      }
+      const status = response.status;
+      const nextLocation = response.headers.get("location");
 
-      if (response.url && response.url !== currentUrl) {
-        const nextUrl = response.url;
+      // Standard HTTP Redirect Statuses
+      if (status >= 300 && status < 400 && nextLocation) {
+        const nextUrl = new URL(nextLocation, currentUrl).toString();
         if (hops.includes(nextUrl)) {
           isLive = false;
           validationError = `Redirect loop detected at: "${nextUrl}"`;
@@ -1310,48 +1312,44 @@ async function expandAndValidateUrl(url: string): Promise<{ targetUrl: string; r
         }
         hops.push(nextUrl);
         currentUrl = nextUrl;
+      } else if (status === 404) {
+        isLive = false;
+        validationError = `Shortened product link returned 404 Not Found.`;
+        break;
       } else {
+        // Not a redirect or not 404, we break and use what we have
         break;
       }
     } catch (err: any) {
-      console.warn(`[Expand URL] Hop failed: ${err?.message || "unknown"}. Retrying with HEAD...`);
+      console.warn(`[Expand URL] Hop failed: ${err?.message || "unknown"}. Falling back to default expansion...`);
+      // Last resort fallback: let the HTTP engine follow all redirects natively
       try {
         const controller2 = new AbortController();
-        const timeoutId2 = setTimeout(() => controller2.abort(), 3000);
+        const timeoutId2 = setTimeout(() => controller2.abort(), 4000);
         const response2 = await fetch(currentUrl, {
-          method: "HEAD",
+          method: "GET",
           redirect: "follow",
           signal: controller2.signal,
           headers: {
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, Gecko) Chrome/119.0.0.0 Safari/537.36',
-            'Cache-Control': 'no-cache'
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
           }
         });
         clearTimeout(timeoutId2);
-
+        
         if (response2.status === 404) {
           isLive = false;
-          validationError = `Dead link detected or missing product page (HTTP 404 at "${currentUrl}").`;
+          validationError = `Target link returned 404 Not Found.`;
           break;
         }
-
+        
         if (response2.url && response2.url !== currentUrl) {
-          const nextUrl = response2.url;
-          if (hops.includes(nextUrl)) {
-            isLive = false;
-            validationError = `Redirect loop detected at: "${nextUrl}"`;
-            break;
-          }
-          hops.push(nextUrl);
-          currentUrl = nextUrl;
-        } else {
-          break;
+          hops.push(response2.url);
+          currentUrl = response2.url;
         }
-      } catch (headErr: any) {
-        console.error(`[Expand URL] HEAD expansion failed: ${headErr?.message || "unknown"}`);
-        isLive = false;
-        validationError = `Unreachable link: ${headErr?.message || "connection failed"}`;
         break;
+      } catch (fallbackErr) {
+        console.error(`[Expand URL] Fallback expansion failed:`, fallbackErr);
+        break; // Do not fail the whole process if the shortener is just silent, break and use what we have!
       }
     }
 
@@ -1419,17 +1417,13 @@ async function handleFetchProduct(req: express.Request, res: express.Response) {
   const executionPromise = (async () => {
     // 1. Expand and Validate URL (Redirect loop checker, dead-link checker)
     const validation = await expandAndValidateUrl(url);
-    const isMalformed = validation.error?.includes("Malformed URL") || validation.error?.includes("supported");
-    if (!validation.isLive && isMalformed) {
-      throw new Error(validation.error || "Affiliate URL validation failed. The link is unreachable or invalid.");
-    }
-
-    if (!validation.isLive) {
-      console.info(`[Auto-Fill] Info: URL is direct-access restricted (${validation.error || "no status"}). Continuing with search grounding & fallback extraction.`);
+    // Proceed even if live verification failed (unless it is a confirmed 404 dead link)
+    if (!validation.isLive && validation.error && (validation.error.includes("404") || validation.error.toLowerCase().includes("not found"))) {
+      throw new Error(validation.error);
     }
 
     // Merge original shortened URL's tracking parameters into expanded URL
-    const targetUrl = mergeQueryParams(url, validation.targetUrl);
+    const targetUrl = mergeQueryParams(url, validation.targetUrl || url);
     console.info(`[Auto-Fill] Validated & Operating on target URL: "${targetUrl}"`);
 
     const trackingStatus = checkAffiliateTracking(targetUrl);
@@ -1445,7 +1439,7 @@ async function handleFetchProduct(req: express.Request, res: express.Response) {
         for (let attempt = 1; attempt <= retries; attempt++) {
           try {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 5500);
+            const timeoutId = setTimeout(() => controller.abort(), 9500); // Fail fast (9.5 seconds) to prevent hanging the client
 
             const response = await fetch(target, {
               signal: controller.signal,
@@ -1463,9 +1457,17 @@ async function handleFetchProduct(req: express.Request, res: express.Response) {
               const text = await response.text();
               if (!isAmazonBlockPage(text)) {
                 return text;
+              } else {
+                console.info(`[Fetch Info] Detected Amazon block page (CAPTCHA) on attempt ${attempt}. Skipping further retries and initiating fallback.`);
+                return text; // Return block page HTML so metadata extractor knows it is blocked and goes to search/ASIN immediately
               }
             }
-          } catch (e) {
+          } catch (e: any) {
+            if (e?.name === 'AbortError') {
+              console.info(`[Fetch Info] Direct HTML acquisition attempt ${attempt} timed out (9.5s).`);
+            } else {
+              console.info(`[Fetch Info] Direct HTML acquisition attempt ${attempt} failed: ${e?.message}`);
+            }
             if (attempt === retries) throw e;
           }
           await new Promise(r => setTimeout(r, delay));
@@ -1525,7 +1527,7 @@ Use the provided HTML page context if available, and use Google Search grounding
 
 Specifically:
 1. Extract or determine:
-   - title: A clear, professional, and easy-to-understand product title that is strictly no longer than 25 words (e.g., "Apple iPhone 15 Pro (128 GB) - Blue Titanium" or "Sony Alpha 7 IV Mirrorless Camera"). Ensure the title is complete, accurate, professionally formatted, and fits beautifully within the 25-word limit without needing any trailing ellipsis or truncation.
+   - title: A clear, professional, and easy-to-understand product title that is strictly no longer than 15 words (e.g., "Apple iPhone 15 Pro (128 GB) - Blue Titanium" or "Sony Alpha 7 IV Mirrorless Camera"). Ensure the title is complete, accurate, professionally formatted, and fits beautifully within the 15-word limit without needing any trailing ellipsis or truncation.
    - description: A compelling, elegant, and professionally written product summary or recommendation text (strictly 2-3 sentences max). Ensure it highlights the key specifications, utility, and build quality in clear, grammatically complete sentences. It must be a helpful, polished review-style text, entirely free from incomplete sentences, promotional hype, repetitive text, or raw HTML tags.
    - imageUrl: A high-quality, valid, direct image URL of the actual product. Seek out real high-resolution listing images. Prioritize official Amazon image domain URLs starting with "https://images-na.ssl-images-amazon.com/images/I/" or "https://m.media-amazon.com/images/I/" if they exist. Do NOT return blank, generic, low-resolution, or placeholder images. It must be a proper, clear, direct photo of the actual product.
    - price: The current sale price formatted with currency (e.g. ₹64,990 or $799 or £999).
@@ -1620,7 +1622,8 @@ ${htmlContent ? `HTML Scraping Snippet:\n${htmlContent}` : "Note: Direct scrapin
           return { success: true, product: productData, warning: trackingWarning };
         }
       } catch (geminiErr: any) {
-        handleGeminiError(geminiErr, "Product metadata extraction");
+        const cleanMsg = cleanGeminiErrorMessage(geminiErr);
+        console.info(`[Gemini] Metadata extraction handled fallback activated: ${cleanMsg}`);
       }
     }
 

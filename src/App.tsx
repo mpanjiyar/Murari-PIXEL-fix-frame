@@ -73,11 +73,24 @@ import {
   TrendingUp,
   Video,
   ThumbsUp,
-  Heart
+  Heart,
+  Keyboard,
+  FileText,
+  FileSpreadsheet,
+  Presentation,
+  Clapperboard,
+  Code,
+  Calculator,
+  Monitor,
+  Speaker,
+  Activity,
+  BellRing,
+  Waves
 } from 'lucide-react';
 import { motion, AnimatePresence, Reorder } from 'motion/react';
 import { BIOS_BOOT_KEYS_DATABASE, BiosBootKeyInfo } from './biosData';
 import { BEEP_CODES_DATABASE, BeepCodeInfo } from './beepData';
+import { SHORTCUTS_DATABASE, ShortcutCategory, KeyboardShortcut } from './shortcutsData';
 import {
   INITIAL_GALLERY_ITEMS,
   INITIAL_IT_SERVICES,
@@ -99,6 +112,7 @@ import { LazyImage } from './components/LazyImage';
 import { BeforeAfterSlider } from './components/BeforeAfterSlider';
 import { PixelFrameBackground } from './components/PixelFrameBackground';
 import { PixelFixBackground } from './components/PixelFixBackground';
+import { BiosKeysBackground } from './components/BiosKeysBackground';
 import SmpsCalculator from './components/SmpsCalculator';
 import CoverageMap from './components/CoverageMap';
 import PhotoResizer from './components/PhotoResizer';
@@ -481,6 +495,27 @@ const slideTransition = {
   damping: 30,
 };
 
+const SHORTCUT_ICONS_MAP: Record<string, React.ComponentType<any>> = {
+  Laptop,
+  Keyboard,
+  FileText,
+  FileSpreadsheet,
+  Presentation,
+  Image: ImageIcon,
+  Clapperboard,
+  Video,
+  Code,
+  Globe,
+  FolderOpen,
+  Calculator,
+  Monitor
+};
+
+const renderShortcutIcon = (iconName: string, size: number = 16, className: string = '') => {
+  const IconComponent = SHORTCUT_ICONS_MAP[iconName] || Keyboard;
+  return <IconComponent size={size} className={className} />;
+};
+
 export default function App() {
   // Navigation & Primary Settings
   const [activeTab, setActiveTab] = useState<'home' | 'about' | 'pixelfix' | 'pixelframe' | 'gallery' | 'contact' | 'dashboard' | 'affiliate' | 'packages' | 'bios' | 'beep' | 'smps'>('home');
@@ -676,6 +711,10 @@ export default function App() {
   const [beepBookingAddress, setBeepBookingAddress] = useState<string>('');
   const [beepBookingDateTime, setBeepBookingDateTime] = useState<string>('');
   const [beepVisibleCount, setBeepVisibleCount] = useState<number>(6);
+
+  // Keyboard Shortcuts States
+  const [selectedShortcutCategory, setSelectedShortcutCategory] = useState<string>('');
+  const [shortcutsSearchQuery, setShortcutsSearchQuery] = useState<string>('');
 
   // Automatically reset visible beep count when filters change to ensure lightning fast, lag-free rendering
   useEffect(() => {
@@ -989,6 +1028,9 @@ export default function App() {
     };
   });
 
+  const [affiliateSyncStatus, setAffiliateSyncStatus] = useState<{ lastRefreshTimestamp: string; status: string } | null>(null);
+  const [isSyncingDeals, setIsSyncingDeals] = useState(false);
+
   const [socialLinks, setSocialLinks] = useState<SocialLink[]>(() => {
     const saved = localStorage.getItem('mp_social_links');
     if (saved) {
@@ -1199,43 +1241,9 @@ export default function App() {
   useEffect(() => {
     let isInitialLinks = true;
     const unsubLinks = onSnapshot(collection(db, 'affiliate_links'), (snapshot) => {
-      if (snapshot.empty) {
-        console.info("[onSnapshot] affiliate_links collection is empty in Firestore. Seeding default deals...");
-        INITIAL_AFFILIATE_LINKS.forEach(async (link) => {
-          try {
-            await setDoc(doc(db, 'affiliate_links', link.id), link);
-          } catch (e) {
-            console.error("Error seeding initial affiliate link: ", e);
-          }
-        });
-        setAffiliateLinks(INITIAL_AFFILIATE_LINKS);
-        setIsAffiliateLoading(false);
-        return;
-      }
-
       const links: AffiliateLink[] = [];
       snapshot.forEach((snapshotDoc) => {
-        const rawData = snapshotDoc.data() as any;
-        
-        // Normalize any alternative schema naming to guarantee title, description, and imageUrl exist
-        const data: AffiliateLink = {
-          id: rawData.id || snapshotDoc.id,
-          title: rawData.title || rawData.name || 'Untitled Curated Deal',
-          description: rawData.description || rawData.text || rawData.summary || '',
-          category: rawData.category || 'accessories',
-          url: rawData.url || '',
-          imageUrl: rawData.imageUrl || rawData.photoUrl || rawData.image || '',
-          discountCode: rawData.discountCode || '',
-          price: rawData.price || '',
-          originalPrice: rawData.originalPrice || '',
-          discountPercentage: rawData.discountPercentage || '',
-          availability: rawData.availability || '',
-          clicks: typeof rawData.clicks === 'number' ? rawData.clicks : 0,
-          clickHistory: rawData.clickHistory || {},
-          last_clicked: rawData.last_clicked || '',
-          daily_click_count: rawData.daily_click_count || {}
-        };
-
+        const data = snapshotDoc.data() as AffiliateLink;
         if (data.url === 'https://amazon.in/dp/B5HXQD29') {
           const corrected = { ...data, url: 'https://amazon.in/dp/B09S2MN8JH' };
           links.push(corrected);
@@ -1283,6 +1291,26 @@ export default function App() {
       handleFirestoreError(error, OperationType.GET, 'affiliate_config/labels');
     });
 
+    const unsubSyncStatus = onSnapshot(doc(db, 'affiliate_config', 'status'), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data) {
+          setAffiliateSyncStatus({
+            lastRefreshTimestamp: data.lastRefreshTimestamp || '',
+            status: data.status || 'idle'
+          });
+        }
+      } else {
+        const initialSync = { lastRefreshTimestamp: new Date().toISOString(), status: 'idle' };
+        setDoc(doc(db, 'affiliate_config', 'status'), initialSync).catch(err => {
+          console.error("Error seeding sync status: ", err);
+        });
+      }
+    }, (error) => {
+      console.error("Firestore onSnapshot error for affiliate_config/status: ", error);
+      handleFirestoreError(error, OperationType.GET, 'affiliate_config/status');
+    });
+
     const unsubMessages = onSnapshot(collection(db, 'contact_messages'), (snapshot) => {
       const msgs: ContactMessage[] = [];
       snapshot.forEach((doc) => {
@@ -1299,6 +1327,7 @@ export default function App() {
     return () => {
       unsubLinks();
       unsubConfig();
+      unsubSyncStatus();
       unsubMessages();
     };
   }, []);
@@ -1601,7 +1630,7 @@ export default function App() {
   const [softwareLicenseSearch, setSoftwareLicenseSearch] = useState('');
 
   // Cleans product titles, removing any remaining double escaped or HTML entity noise while preserving the full title and model/specification details.
-  // Professionally simplifies the titles and limits them to a maximum of 25 words to preserve technical specifications.
+  // Professionally simplifies the titles and strictly limits them to a maximum of 15 words.
   const cleanTitle = (rawTitle: string): string => {
     if (!rawTitle) return '';
     
@@ -1640,27 +1669,20 @@ export default function App() {
       .replace(/\s*\|\s*(?:Amazon|Flipkart|Shop|Store|Best Buy|Ebay)(?:\.(?:com|in|co\.uk|org|net))?\s*$/i, "")
       .replace(/\s*-\s*(?:Amazon|Flipkart|Shop|Store|Best Buy|Ebay)(?:\.(?:com|in|co\.uk|org|net))?\s*$/i, "");
 
-    // 3. Remove common keyword-stuffed promotional fluff and redundant badges
+    // 3. Remove common keyword-stuffed fluff phrases to keep the title professional and clear
     clean = clean
+      .replace(/\s+for\s+(?:laptops?|pc|desktops?|gaming|workstations?|macbooks?|notebooks?|cameras?|smartphones?|ps5|xbox|consoles?)(?:\s*(?:\/|or|,)\s*(?:laptops?|pc|desktops?|gaming|workstations?|macbooks?|notebooks?|cameras?|smartphones?|ps5|xbox|consoles?))*/gi, "")
+      .replace(/\s+(?:compatible\s+with|suited\s+for|designed\s+for|optimized\s+for|ideal\s+for)\s+[^,\-\(\[\|]+/gi, "")
       .replace(/\s+[\(\[]\s*(?:pack\s+of\s+\d+|renewed|refurbished|imported|international\s+version|color:\s*[\w\s]+)\s*[\)\]]/gi, "")
       .replace(/\s+[\-\|\:]\s*(?:best\s+choice|high\s+quality|premium\s+edition|professional\s+use|multipurpose|all\s+in\s+one).*$/i, "");
-
-    const promoFluff = [
-      /FREE Shipping/gi, /FREE Delivery/gi, /Eligible for FREE Shipping/gi,
-      /With Coupon/gi, /Best Seller/gi, /Top Rated/gi, /Special Offer/gi,
-      /Limited Time Deal/gi, /Deal of the Day/gi, /Prime Day Deal/gi
-    ];
-    for (const regex of promoFluff) {
-      clean = clean.replace(regex, "");
-    }
 
     // Clean trailing punctuation
     clean = clean.replace(/[\s\-|:|;|,]+$/, "").trim();
 
-    // 4. Enforce professional 25-word maximum limit with smart clean termination
+    // 4. Enforce strict 15-word maximum limit with smart clean termination
     const words = clean.split(/\s+/).filter(Boolean);
-    if (words.length > 25) {
-      let truncated = words.slice(0, 25).join(' ');
+    if (words.length > 15) {
+      let truncated = words.slice(0, 15).join(' ');
       // Clean up any trailing connectors, hyphens, or punctuation at the end of the words
       truncated = truncated.replace(/[\s\-|:|;|,|/|\\|&]+$/, "").trim();
       return truncated + '...';
@@ -1718,6 +1740,129 @@ export default function App() {
       }
     );
   };
+
+  const handleAffiliateSync = async (isManual: boolean = false) => {
+    if (isSyncingDeals) return;
+    setIsSyncingDeals(true);
+
+    try {
+      await setDoc(doc(db, 'affiliate_config', 'status'), {
+        status: 'syncing',
+        lastRefreshTimestamp: affiliateSyncStatus?.lastRefreshTimestamp || new Date().toISOString()
+      }, { merge: true });
+    } catch (err) {
+      console.error("Error setting syncing status: ", err);
+    }
+
+    if (isManual) {
+      triggerToast("Manual re-sync triggered. Fetching latest product information in background...", "info");
+    }
+
+    try {
+      let successCount = 0;
+      let failCount = 0;
+
+      for (const link of affiliateLinks) {
+        if (!link.url || !link.url.trim()) continue;
+        
+        try {
+          const urlToFetch = link.url.trim();
+          const response = await fetch("/api/fetch-amazon-product", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ url: urlToFetch }),
+          });
+
+          if (response.ok) {
+            const resData = await response.json();
+            if (resData && resData.success && resData.product) {
+              const { title, description, imageUrl, category } = resData.product;
+              
+              const updatedLink = {
+                ...link,
+                title: title || link.title,
+                description: description || link.description,
+                imageUrl: imageUrl || link.imageUrl,
+                category: category || link.category || 'photography',
+                updatedAt: new Date().toISOString()
+              };
+
+              await setDoc(doc(db, 'affiliate_links', link.id), updatedLink);
+              successCount++;
+            } else {
+              const fallbackResponse = await fetch(`/api/fetch-amazon-product?url=${encodeURIComponent(urlToFetch)}`);
+              if (fallbackResponse.ok) {
+                const fallbackData = await fallbackResponse.json();
+                if (fallbackData && fallbackData.success && fallbackData.product) {
+                  const { title, description, imageUrl, category } = fallbackData.product;
+                  
+                  const updatedLink = {
+                    ...link,
+                    title: title || link.title,
+                    description: description || link.description,
+                    imageUrl: imageUrl || link.imageUrl,
+                    category: category || link.category || 'photography',
+                    updatedAt: new Date().toISOString()
+                  };
+
+                  await setDoc(doc(db, 'affiliate_links', link.id), updatedLink);
+                  successCount++;
+                } else {
+                  failCount++;
+                }
+              } else {
+                failCount++;
+              }
+            }
+          } else {
+            failCount++;
+          }
+        } catch (linkErr) {
+          console.error(`Error syncing link ${link.id}: `, linkErr);
+          failCount++;
+        }
+      }
+
+      const nowStr = new Date().toISOString();
+      await setDoc(doc(db, 'affiliate_config', 'status'), {
+        status: 'idle',
+        lastRefreshTimestamp: nowStr
+      });
+
+      if (isManual) {
+        triggerToast(`Manual re-sync completed. Successfully refreshed ${successCount} deal(s). (${failCount} failed/skipped)`, "success");
+      }
+    } catch (err) {
+      console.error("Error in affiliate sync: ", err);
+      const timestamp = affiliateSyncStatus?.lastRefreshTimestamp || new Date().toISOString();
+      await setDoc(doc(db, 'affiliate_config', 'status'), {
+        status: 'error',
+        lastRefreshTimestamp: timestamp
+      });
+      if (isManual) {
+        triggerToast("Failed to complete background re-sync.", "error");
+      }
+    } finally {
+      setIsSyncingDeals(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'affiliate' && affiliateSyncStatus) {
+      const lastRefresh = affiliateSyncStatus.lastRefreshTimestamp;
+      if (lastRefresh) {
+        const lastTime = new Date(lastRefresh).getTime();
+        const now = Date.now();
+        const TWELVE_HOURS = 12 * 60 * 60 * 1000;
+        if (now - lastTime > TWELVE_HOURS && affiliateSyncStatus.status !== 'syncing' && !isSyncingDeals) {
+          console.info("[Automated Refresh] Stale affiliate data detected. Triggering background re-sync...");
+          handleAffiliateSync(false);
+        }
+      }
+    }
+  }, [activeTab, affiliateSyncStatus?.lastRefreshTimestamp, affiliateSyncStatus?.status]);
 
   useEffect(() => {
     if (editingItem && editingItem.type === 'affiliate_link') {
@@ -1838,7 +1983,7 @@ export default function App() {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => {
       controller.abort();
-    }, 8000); // 8-second strict timeout
+    }, 20000); // 20-second strict timeout to allow full Gemini grounding fallback if needed
 
     try {
       console.info("[Auto-Fill] Fetching from endpoint: /api/fetch-amazon-product with POST request (Primary)...");
@@ -1959,7 +2104,7 @@ export default function App() {
       clearTimeout(timeoutId);
       const isTimeout = err.name === 'AbortError' || err.message?.includes('aborted');
       const errorMessage = isTimeout 
-        ? "The metadata request took too long (8s timeout) and was aborted. Please check your link or try again." 
+        ? "The metadata request took too long (20s timeout) and was aborted. Please check your link or try again." 
         : (err.message || "Failed to auto-fetch product details.");
 
       console.error(`[Auto-Fill] Error fetching product details for URL "${urlToFetch}":`, err);
@@ -2122,6 +2267,171 @@ export default function App() {
   const [isAuthorized, setIsAuthorized] = useState(() => {
     return localStorage.getItem('mp_admin_authorized') === 'true';
   });
+  const [adminSubTab, setAdminSubTab] = useState<'overview' | 'media' | 'gallery' | 'inquiries' | 'instagram'>('overview');
+  const [mediaSearchQuery, setMediaSearchQuery] = useState('');
+  const [mediaFilterCategory, setMediaFilterCategory] = useState<string>('all');
+
+  interface WebImage {
+    id: string;
+    title: string;
+    section: string;
+    url: string;
+    type: 'profile' | 'gallery' | 'instagram' | 'testimonial' | 'review' | 'license' | 'affiliate';
+    originalItem: any;
+  }
+
+  const getWebImages = (): WebImage[] => {
+    const images: WebImage[] = [];
+
+    // 1. Profile photo
+    images.push({
+      id: 'profile_photo',
+      title: 'Murari Panjiyar Main Profile Portrait',
+      section: 'Profile / About Me',
+      url: profilePhotoUrl,
+      type: 'profile',
+      originalItem: null
+    });
+
+    // 2. Showcase Gallery
+    galleryItems.forEach((item) => {
+      images.push({
+        id: `gallery_${item.id}`,
+        title: item.title,
+        section: `Showcase Portfolio: ${getCategoryLabel(item.category)}`,
+        url: item.imageUrl,
+        type: 'gallery',
+        originalItem: item
+      });
+    });
+
+    // 3. Instagram posts
+    instagramPosts.forEach((post) => {
+      images.push({
+        id: `instagram_${post.id}`,
+        title: post.caption ? (post.caption.substring(0, 60) + (post.caption.length > 60 ? '...' : '')) : 'Instagram Post',
+        section: `Instagram Feed (${post.mediaType})`,
+        url: post.imageUrl,
+        type: 'instagram',
+        originalItem: post
+      });
+    });
+
+    // 4. Testimonials
+    testimonials.forEach((t) => {
+      images.push({
+        id: `testimonial_${t.id}`,
+        title: `${t.name} Avatar`,
+        section: `Customer Testimonials (${t.role})`,
+        url: t.avatar,
+        type: 'testimonial',
+        originalItem: t
+      });
+    });
+
+    // 5. PixelFix Reviews
+    pixelFixReviews.forEach((r) => {
+      images.push({
+        id: `pixelfix_${r.id}`,
+        title: `${r.name} Avatar`,
+        section: `Pixel Fix Customer Reviews (${r.role})`,
+        url: r.avatar,
+        type: 'review',
+        originalItem: r
+      });
+    });
+
+    // 6. Software Licenses
+    softwareLicenses.forEach((lic) => {
+      images.push({
+        id: `license_${lic.id}`,
+        title: lic.name,
+        section: 'Software Licenses Storefront',
+        url: lic.imageUrl || '',
+        type: 'license',
+        originalItem: lic
+      });
+    });
+
+    // 7. Affiliate Links
+    affiliateLinks.forEach((link) => {
+      images.push({
+        id: `affiliate_${link.id}`,
+        title: link.title,
+        section: `Affiliate Deals: ${getCategoryLabel(link.category)}`,
+        url: link.imageUrl || '',
+        type: 'affiliate',
+        originalItem: link
+      });
+    });
+
+    return images;
+  };
+
+  const getInitialValueForImage = (image: WebImage): string => {
+    if (image.type === 'profile') {
+      return 'https://lh3.googleusercontent.com/d/1BrmUP0gZJ1-k8qhkOWteNMNB4fxirA2D';
+    } else if (image.type === 'gallery') {
+      const init = INITIAL_GALLERY_ITEMS.find(i => i.id === image.originalItem.id);
+      return init ? init.imageUrl : '';
+    } else if (image.type === 'instagram') {
+      const init = INSTAGRAM_POSTS.find(i => i.id === image.originalItem.id);
+      return init ? init.imageUrl : '';
+    } else if (image.type === 'testimonial') {
+      const init = INITIAL_TESTIMONIALS.find(i => i.id === image.originalItem.id);
+      return init ? init.avatar : '';
+    } else if (image.type === 'review') {
+      const init = INITIAL_PIXELFIX_REVIEWS.find(i => i.id === image.originalItem.id);
+      return init ? init.avatar : '';
+    } else if (image.type === 'license') {
+      const init = INITIAL_SOFTWARE_LICENSES.find(i => i.id === image.originalItem.id);
+      return init ? (init.imageUrl || '') : '';
+    } else if (image.type === 'affiliate') {
+      const init = INITIAL_AFFILIATE_LINKS.find(i => i.id === image.originalItem.id);
+      return init ? (init.imageUrl || '') : '';
+    }
+    return '';
+  };
+
+  const handleUpdateWebImage = async (image: WebImage, newUrl: string) => {
+    setIsSaving(true);
+    try {
+      if (image.type === 'profile') {
+        setProfilePhotoUrl(newUrl);
+        await updateSiteConfig({ profilePhotoUrl: newUrl });
+      } else if (image.type === 'gallery') {
+        const updated = galleryItems.map(item => item.id === image.originalItem.id ? { ...item, imageUrl: newUrl } : item);
+        setGalleryItems(updated);
+        await setDoc(doc(db, 'site_config', 'gallery_items'), { id: 'gallery_items', galleryItems: updated });
+      } else if (image.type === 'instagram') {
+        const updated = instagramPosts.map(post => post.id === image.originalItem.id ? { ...post, imageUrl: newUrl } : post);
+        setInstagramPosts(updated);
+        await setDoc(doc(db, 'site_config', 'instagram_posts'), { id: 'instagram_posts', instagramPosts: updated });
+      } else if (image.type === 'testimonial') {
+        const updated = testimonials.map(t => t.id === image.originalItem.id ? { ...t, avatar: newUrl } : t);
+        setTestimonials(updated);
+        await setDoc(doc(db, 'site_config', 'testimonials'), { id: 'testimonials', testimonials: updated });
+      } else if (image.type === 'review') {
+        const updated = pixelFixReviews.map(r => r.id === image.originalItem.id ? { ...r, avatar: newUrl } : r);
+        setPixelFixReviews(updated);
+        await setDoc(doc(db, 'site_config', 'pixel_fix_reviews'), { id: 'pixel_fix_reviews', pixelFixReviews: updated });
+      } else if (image.type === 'license') {
+        const updated = softwareLicenses.map(lic => lic.id === image.originalItem.id ? { ...lic, imageUrl: newUrl } : lic);
+        setSoftwareLicenses(updated);
+        await setDoc(doc(db, 'software_licenses', image.originalItem.id), { imageUrl: newUrl }, { merge: true });
+      } else if (image.type === 'affiliate') {
+        const updated = affiliateLinks.map(link => link.id === image.originalItem.id ? { ...link, imageUrl: newUrl } : link);
+        setAffiliateLinks(updated);
+        await setDoc(doc(db, 'affiliate_links', image.originalItem.id), { imageUrl: newUrl }, { merge: true });
+      }
+      triggerToast('Image updated successfully across all devices!', 'success');
+    } catch (err) {
+      console.error("Error updating image:", err);
+      triggerToast('Failed to update image on database.', 'error');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   // Photo uploader triggers
   const [newImageTitle, setNewImageTitle] = useState('');
@@ -3593,6 +3903,28 @@ export default function App() {
     return result;
   }, [selectedBeepBrand, selectedBeepComponent, selectedBeepSeverity, customSequence, beepSearchQuery]);
 
+  const filteredShortcuts = useMemo(() => {
+    const query = shortcutsSearchQuery.toLowerCase().trim();
+    if (!query) return null;
+
+    const results: { categoryId: string; categoryName: string; categoryColor: string; shortcut: KeyboardShortcut }[] = [];
+    SHORTCUTS_DATABASE.forEach(category => {
+      category.shortcuts.forEach(shortcut => {
+        const matchesDesc = shortcut.description.toLowerCase().includes(query);
+        const matchesKeys = shortcut.keys.some(k => k.toLowerCase().includes(query));
+        if (matchesDesc || matchesKeys) {
+          results.push({
+            categoryId: category.id,
+            categoryName: category.name,
+            categoryColor: category.color,
+            shortcut
+          });
+        }
+      });
+    });
+    return results;
+  }, [shortcutsSearchQuery]);
+
   const playBeepPattern = (itemId: string, beats: ('S' | 'L' | 'P')[]) => {
     try {
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
@@ -4423,7 +4755,7 @@ export default function App() {
                 )}
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                 {(() => {
                   const activeSoftware = softwareLicensesToRender.filter(l => l.category !== 'gear');
                   return activeSoftware.map((license, idx) => {
@@ -4435,7 +4767,7 @@ export default function App() {
                           const textMessage = `Hi Murari, I am interested in purchasing a software license for "${license.name}" priced at ${license.price}. Please provide the payment details and guide me on how to get the activation key. Thanks!`;
                           window.open(`https://wa.me/918638875231?text=${encodeURIComponent(textMessage)}`, '_blank');
                         }}
-                        className={`relative p-5 rounded-2xl border text-left cursor-pointer transition-all duration-300 flex flex-col justify-between h-full group select-none overflow-hidden hover:border-green-500/40 hover:scale-[1.015] hover:bg-green-500/5 ${s.card}`}
+                        className={`relative p-3.5 sm:p-5 rounded-2xl border text-left cursor-pointer transition-all duration-300 flex flex-col justify-between h-full group select-none overflow-hidden hover:border-green-500/40 hover:scale-[1.015] hover:bg-green-500/5 ${s.card}`}
                       >
                         {isAuthorized && (
                           <div className="absolute top-3 right-3 flex items-center gap-1 z-20">
@@ -4498,43 +4830,43 @@ export default function App() {
                           </div>
 
                           <div>
-                            <h3 className={`text-sm font-black leading-tight group-hover:text-green-500 transition-colors ${
+                            <h3 className={`text-xs sm:text-sm font-black leading-tight group-hover:text-green-500 transition-colors ${
                               currentTheme === 'light' ? 'text-slate-900' : 'text-white'
                             }`}>
                               {license.name}
                             </h3>
                             
-                            <div className="mt-1 flex items-center gap-1 text-[10px] text-emerald-500 font-bold uppercase tracking-wider">
-                              <KeyRound size={11} />
-                              <span>{license.licenseType || 'Lifetime License Key'}</span>
+                            <div className="mt-1 flex items-center gap-1 text-[8.5px] sm:text-[10px] text-emerald-500 font-bold uppercase tracking-wider">
+                              <KeyRound size={10} className="sm:size-[11px]" />
+                              <span>{license.licenseType || 'Lifetime Key'}</span>
                             </div>
 
-                            <p className="text-[11px] text-slate-400 mt-1.5 leading-relaxed">
+                            <p className="text-[9.5px] sm:text-[11px] text-slate-400 mt-1.5 leading-relaxed line-clamp-2 sm:line-clamp-none">
                               {license.description}
                             </p>
                           </div>
                         </div>
 
-                        <div className="pt-3 mt-3 border-t border-slate-500/10 flex items-baseline justify-between">
+                        <div className="pt-2 mt-2 border-t border-slate-500/10 flex items-baseline justify-between">
                           <div>
-                            <span className="text-[8px] uppercase font-bold tracking-widest text-slate-400 block">Retail Cost</span>
-                            <span className={`text-base font-extrabold ${
+                            <span className="text-[7.5px] sm:text-[8px] uppercase font-bold tracking-widest text-slate-400 block">Retail Cost</span>
+                            <span className={`text-xs sm:text-base font-extrabold ${
                               currentTheme === 'light' ? 'text-slate-900' : 'text-white'
                             }`}>
                               {license.price}
                             </span>
                           </div>
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-1">
                             {license.url && (
                               <a
                                 href={license.url}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 onClick={(e) => e.stopPropagation()}
-                                className="bg-[#FF5500] hover:bg-[#FF4400] text-white p-1.5 rounded-lg flex items-center justify-center transition-all duration-200 cursor-pointer shadow-md shadow-[#FF5500]/10 hover:scale-105 active:scale-95"
+                                className="bg-[#FF5500] hover:bg-[#FF4400] text-white p-1 sm:p-1.5 rounded-lg flex items-center justify-center transition-all duration-200 cursor-pointer shadow-md shadow-[#FF5500]/10 hover:scale-105 active:scale-95"
                                 title="Buy Online"
                               >
-                                <ExternalLink size={13} className="stroke-[2.5]" />
+                                <ExternalLink size={11} className="stroke-[2.5]" />
                               </a>
                             )}
                             <button
@@ -4544,10 +4876,10 @@ export default function App() {
                                 const textMessage = `Hi Murari, I am interested in purchasing a software license for "${license.name}" priced at ${license.price}. Please provide the payment details and guide me on how to get the activation key. Thanks!`;
                                 window.open(`https://wa.me/918638875231?text=${encodeURIComponent(textMessage)}`, '_blank');
                               }}
-                              className="bg-green-600 hover:bg-green-700 text-white p-1.5 rounded-lg flex items-center justify-center transition-all duration-200 cursor-pointer shadow-md shadow-green-600/10 hover:scale-105 active:scale-95"
+                              className="bg-green-600 hover:bg-green-700 text-white p-1 sm:p-1.5 rounded-lg flex items-center justify-center transition-all duration-200 cursor-pointer shadow-md shadow-green-600/10 hover:scale-105 active:scale-95"
                               title="Inquire on WhatsApp"
                             >
-                              <WhatsAppIcon size={13} />
+                              <WhatsAppIcon size={11} />
                             </button>
                           </div>
                         </div>
@@ -5695,14 +6027,14 @@ export default function App() {
                 )}
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-6">
                 {pixelFixReviews.map((t, index) => (
-                  <div key={t.id || index} className={`p-5 rounded-2xl border ${s.card} text-left space-y-4 flex flex-col justify-between`}>
-                    <div className="space-y-4">
+                  <div key={t.id || index} className={`p-3.5 sm:p-5 rounded-2xl border ${s.card} text-left space-y-3 sm:space-y-4 flex flex-col justify-between h-full`}>
+                    <div className="space-y-3 sm:space-y-4">
                       <div className="flex items-center justify-between gap-2 border-b pb-2 border-slate-200/40 dark:border-white/5">
-                        <span className="text-[10px] text-amber-500 block">{'★'.repeat(t.rating || 5)}</span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-[9px] uppercase font-mono text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded font-extrabold max-w-[120px] truncate">
+                        <span className="text-[8px] sm:text-[10px] text-amber-500 block">{'★'.repeat(t.rating || 5)}</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[7.5px] sm:text-[9px] uppercase font-mono text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded font-extrabold max-w-[80px] sm:max-w-[120px] truncate">
                             {t.role.split(',').pop()?.trim() || 'Assam'}
                           </span>
                           {isAuthorized && (
@@ -5714,7 +6046,7 @@ export default function App() {
                                   index,
                                   data: { ...t }
                                 })}
-                                className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold uppercase text-[8px] px-1.5 py-0.5 rounded flex items-center gap-0.5 cursor-pointer"
+                                className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold uppercase text-[7px] sm:text-[8px] px-1 py-0.5 rounded flex items-center gap-0.5 cursor-pointer"
                               >
                                 Edit
                               </button>
@@ -5731,7 +6063,7 @@ export default function App() {
                                     }
                                   }
                                 }}
-                                className="bg-rose-600 hover:bg-rose-700 text-white font-extrabold uppercase text-[8px] px-1.5 py-0.5 rounded flex items-center gap-0.5 cursor-pointer"
+                                className="bg-rose-600 hover:bg-rose-700 text-white font-extrabold uppercase text-[7px] sm:text-[8px] px-1 py-0.5 rounded flex items-center gap-0.5 cursor-pointer"
                               >
                                 Del
                               </button>
@@ -5739,26 +6071,26 @@ export default function App() {
                           )}
                         </div>
                       </div>
-                      <p className={`text-xs italic leading-relaxed ${
+                      <p className={`text-[10.5px] sm:text-xs italic leading-relaxed line-clamp-4 sm:line-clamp-none ${
                         currentTheme === 'light' ? 'text-slate-600' : 'text-slate-300'
                       }`}>
                         "{t.comment}"
                       </p>
                     </div>
-                    <div className="flex items-center space-x-3 pt-4 border-t border-slate-200/20 dark:border-white/5">
+                    <div className="flex items-center space-x-2 sm:space-x-3 pt-3 border-t border-slate-200/20 dark:border-white/5">
                       <img
                         src={t.avatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=150'}
                         alt={`${t.name} avatar`}
-                        className={`w-9 h-9 rounded-full object-cover border shrink-0 ${
+                        className={`w-7 h-7 sm:w-9 sm:h-9 rounded-full object-cover border shrink-0 ${
                           currentTheme === 'light' ? 'border-slate-200' : 'border-white/10'
                         }`}
                         referrerPolicy="no-referrer"
                       />
                       <div className="min-w-0">
-                        <strong className={`text-xs font-black block truncate ${
+                        <strong className={`text-[10px] sm:text-xs font-black block truncate ${
                           currentTheme === 'light' ? 'text-slate-900' : 'text-white'
                         }`}>{t.name}</strong>
-                        <p className="text-[10px] text-slate-500 truncate">{t.role}</p>
+                        <p className="text-[8.5px] sm:text-[10px] text-slate-500 truncate">{t.role}</p>
                       </div>
                     </div>
                   </div>
@@ -5986,7 +6318,7 @@ export default function App() {
                   </button>
                 )}
               </ScrollReveal>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-6">
                 {testimonials.map((t, index) => (
                   <motion.div
                     key={t.id || index}
@@ -5995,62 +6327,64 @@ export default function App() {
                     viewport={{ once: true, margin: "-10px" }}
                     transition={{ duration: 0.45, delay: index * 0.1 }}
                     whileHover={{ y: -5, scale: 1.02 }}
-                    className={`p-5 rounded-2xl border ${s.card} text-left space-y-4`}
+                    className={`p-3.5 sm:p-5 rounded-2xl border ${s.card} text-left space-y-3 sm:space-y-4 flex flex-col justify-between h-full`}
                   >
-                    <div className="flex items-center justify-between gap-2 border-b pb-2 border-slate-200/40 dark:border-white/5">
-                      <span className="text-[10px] text-amber-500 block">{'★'.repeat(t.rating || 5)}</span>
-                      {isAuthorized && (
-                        <div className="flex gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => setEditingItem({
-                              type: 'testimonial',
-                              index,
-                              data: { ...t }
-                            })}
-                            className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold uppercase text-[10px] px-1.5 py-0.5 rounded flex items-center gap-1 cursor-pointer"
-                          >
-                            <Sliders size={8} /> Edit
-                          </button>
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              if (confirm('Delete this testimonial review?')) {
-                                const updated = testimonials.filter((_, idx) => idx !== index);
-                                setTestimonials(updated);
-                                try {
-                                  await updateSiteConfig({ testimonials: updated });
-                                } catch (err) {
-                                    console.error('Failed to update testimonials in Firestore:', err);
+                    <div className="space-y-3 sm:space-y-4">
+                      <div className="flex items-center justify-between gap-2 border-b pb-2 border-slate-200/40 dark:border-white/5">
+                        <span className="text-[8px] sm:text-[10px] text-amber-500 block">{'★'.repeat(t.rating || 5)}</span>
+                        {isAuthorized && (
+                          <div className="flex gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setEditingItem({
+                                type: 'testimonial',
+                                index,
+                                data: { ...t }
+                              })}
+                              className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold uppercase text-[7px] sm:text-[10px] px-1.5 py-0.5 rounded flex items-center gap-1 cursor-pointer"
+                            >
+                              <Sliders size={8} /> Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (confirm('Delete this testimonial review?')) {
+                                  const updated = testimonials.filter((_, idx) => idx !== index);
+                                  setTestimonials(updated);
+                                  try {
+                                    await updateSiteConfig({ testimonials: updated });
+                                  } catch (err) {
+                                      console.error('Failed to update testimonials in Firestore:', err);
+                                  }
                                 }
-                              }
-                            }}
-                            className="bg-rose-600 hover:bg-rose-700 text-white font-extrabold uppercase text-[10px] px-1.5 py-0.5 rounded flex items-center gap-1 cursor-pointer"
-                          >
-                            <Trash2 size={8} /> Del
-                          </button>
-                        </div>
-                      )}
+                              }}
+                              className="bg-rose-600 hover:bg-rose-700 text-white font-extrabold uppercase text-[7px] sm:text-[10px] px-1.5 py-0.5 rounded flex items-center gap-1 cursor-pointer"
+                            >
+                              <Trash2 size={8} /> Del
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      <p className={`text-[10.5px] sm:text-xs italic leading-relaxed line-clamp-4 sm:line-clamp-none ${
+                        currentTheme === 'light' ? 'text-slate-600' : 'text-slate-300'
+                      }`}>
+                        "{t.comment}"
+                      </p>
                     </div>
-                    <p className={`text-xs italic leading-relaxed ${
-                      currentTheme === 'light' ? 'text-slate-600' : 'text-slate-300'
-                    }`}>
-                      "{t.comment}"
-                    </p>
-                    <div className="flex items-center space-x-3 pt-2">
+                    <div className="flex items-center space-x-2 sm:space-x-3 pt-2">
                       <img
                         src={t.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=150'}
                         alt="customer avatar reviews"
-                        className={`w-10 h-10 rounded-full object-cover border ${
+                        className={`w-7 h-7 sm:w-10 sm:h-10 rounded-full object-cover border ${
                           currentTheme === 'light' ? 'border-slate-200' : 'border-white/10'
                         }`}
                         referrerPolicy="no-referrer"
                       />
                       <div>
-                        <strong className={`text-xs font-black block ${
+                        <strong className={`text-[10px] sm:text-xs font-black block truncate ${
                           currentTheme === 'light' ? 'text-slate-900' : 'text-white'
                         }`}>{t.name}</strong>
-                        <span className="text-[10px] text-slate-500 block">{t.role}</span>
+                        <span className="text-[8.5px] sm:text-[10px] text-slate-500 block truncate">{t.role}</span>
                       </div>
                     </div>
                   </motion.div>
@@ -6188,11 +6522,11 @@ export default function App() {
 
             {/* Pictures layout list */}
             {isGalleryLoading ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
                 {[...Array(6)].map((_, i) => (
                   <div
                     key={`gallery-sk-${i}`}
-                    className={`rounded-2xl border aspect-square relative overflow-hidden flex flex-col justify-end p-4 animate-pulse ${
+                    className={`rounded-2xl border aspect-square relative overflow-hidden flex flex-col justify-end p-3 sm:p-4 animate-pulse ${
                       currentTheme === 'light'
                         ? 'bg-slate-50 border-slate-200/60 shadow-xs'
                         : 'bg-zinc-950/40 border-white/5 shadow-md'
@@ -6264,7 +6598,7 @@ export default function App() {
                 }}
                 initial="hidden"
                 animate="show"
-                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
+                className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6"
               >
                 {filteredItems.map((item, index) => (
                   <motion.div
@@ -6278,7 +6612,7 @@ export default function App() {
                     className={`group rounded-2xl overflow-hidden border ${s.card} flex flex-col justify-between aspect-square relative cursor-pointer shadow-sm hover:shadow-lg hover:border-[#FF5500]/30 transition-all duration-300`}
                   >
                     {isAuthorized && (
-                      <div className="absolute top-3 right-3 z-20 flex gap-1.5" onClick={(e) => e.stopPropagation()}>
+                      <div className="absolute top-3 right-3 z-20 flex gap-1 sm:gap-1.5" onClick={(e) => e.stopPropagation()}>
                         <button
                           type="button"
                           onClick={() => setEditingItem({
@@ -6286,7 +6620,7 @@ export default function App() {
                             id: item.id,
                             data: { ...item }
                           })}
-                          className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold uppercase text-[10px] tracking-wider px-2 py-0.5 rounded shadow flex items-center gap-1 cursor-pointer"
+                          className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold uppercase text-[7px] sm:text-[10px] tracking-wider px-1.5 py-0.5 rounded shadow flex items-center gap-0.5 sm:gap-1 cursor-pointer"
                         >
                           <Sliders size={8} /> Edit
                         </button>
@@ -6304,7 +6638,7 @@ export default function App() {
                               }
                             }
                           }}
-                          className="bg-rose-600 hover:bg-rose-700 text-white font-extrabold uppercase text-[10px] tracking-wider px-2 py-0.5 rounded shadow flex items-center gap-1 cursor-pointer"
+                          className="bg-rose-600 hover:bg-rose-700 text-white font-extrabold uppercase text-[7px] sm:text-[10px] tracking-wider px-1.5 py-0.5 rounded shadow flex items-center gap-0.5 sm:gap-1 cursor-pointer"
                         >
                           <Trash2 size={8} /> Del
                         </button>
@@ -6312,11 +6646,11 @@ export default function App() {
                     )}
                     
                     {/* Automatic Collection Tags Badge */}
-                    <div className="absolute top-3 left-3 z-10 flex flex-wrap gap-1 pointer-events-none">
+                    <div className="absolute top-2 left-2 sm:top-3 sm:left-3 z-10 flex flex-wrap gap-1 pointer-events-none">
                       {getGalleryItemTags(item, galleryItems).map((tag) => (
                         <span
                           key={tag}
-                          className={`text-[8px] sm:text-[9px] uppercase font-mono font-extrabold tracking-wider px-2 py-0.5 rounded backdrop-blur-md shadow-md border flex items-center gap-1 ${
+                          className={`text-[6.5px] sm:text-[9px] uppercase font-mono font-extrabold tracking-wider px-1.5 sm:px-2 py-0.5 rounded backdrop-blur-md shadow-md border flex items-center gap-0.5 sm:gap-1 ${
                             tag === 'Recent'
                               ? 'bg-emerald-950/80 text-emerald-300 border-emerald-500/30'
                               : tag === 'Featured'
@@ -6324,31 +6658,31 @@ export default function App() {
                                 : 'bg-pink-950/80 text-pink-300 border-pink-500/30'
                           }`}
                         >
-                          {tag === 'Recent' && <span>🆕</span>}
-                          {tag === 'Featured' && <span>⭐</span>}
-                          {tag === 'Client Favorites' && <span>❤️</span>}
+                          {tag === 'Recent' && <span className="text-[6.5px] sm:text-[9px]">🆕</span>}
+                          {tag === 'Featured' && <span className="text-[6.5px] sm:text-[9px]">⭐</span>}
+                          {tag === 'Client Favorites' && <span className="text-[6.5px] sm:text-[9px]">❤️</span>}
                           {tag}
                         </span>
                       ))}
                     </div>
-
+                    
                     <LazyImage
                       src={item.imageUrl}
                       alt={item.altText}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
                       placeholderClassName="absolute inset-0 z-0"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent p-4 flex flex-col justify-end">
-                      <span className="text-[10px] uppercase font-mono font-bold text-[#FF5500]">
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent p-2.5 sm:p-4 flex flex-col justify-end">
+                      <span className="text-[8px] sm:text-[10px] uppercase font-mono font-bold text-[#FF5500]">
                         {getCategoryLabel(item.category).toUpperCase()}
                       </span>
-                      <h3 className="text-sm font-black text-white mt-1 leading-tight line-clamp-1">
+                      <h3 className="text-[10.5px] sm:text-sm font-black text-white mt-0.5 sm:mt-1 leading-tight line-clamp-1">
                         {item.title}
                       </h3>
-                      <div className="flex justify-between items-center text-[10px] text-slate-500 pt-2 border-t border-white/5 mt-2">
-                        <span>🗓️ {item.date}</span>
-                        <span className="font-mono text-[9px] uppercase text-zinc-400 bg-white/5 px-2 py-0.5 rounded">
-                          {item.cameraInfo || 'Nikon Z Master Series'}
+                      <div className="flex justify-between items-center text-[8.5px] sm:text-[10px] text-slate-500 pt-1.5 sm:pt-2 border-t border-white/5 mt-1.5 sm:mt-2">
+                        <span className="truncate">🗓️ {item.date}</span>
+                        <span className="font-mono text-[7px] sm:text-[9px] uppercase text-zinc-400 bg-white/5 px-1.5 sm:px-2 py-0.5 rounded truncate max-w-[50px] sm:max-w-none" title={item.cameraInfo}>
+                          {item.cameraInfo || 'Nikon'}
                         </span>
                       </div>
                     </div>
@@ -7133,8 +7467,8 @@ export default function App() {
             </div>
 
             {/* Filter Utilities & Edit Panel Trigger Bar */}
-            <div className="flex flex-col md:flex-row items-center justify-between gap-4 border-b border-slate-200/50 dark:border-white/5 pb-4">
-              <div className="flex flex-wrap items-center gap-1.5 justify-center md:justify-start">
+            <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4 border-b border-slate-200/50 dark:border-white/5 pb-4">
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-2 lg:pb-0 scrollbar-none w-full lg:w-auto -mx-4 px-4 lg:mx-0 lg:px-0 flex-nowrap lg:flex-wrap [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                 {(() => {
                   const rawCategories = Array.from(new Set(affiliateLinks.flatMap(a => (a.category || '').split(',').map(c => c.trim()).filter(Boolean)))) as string[];
                   const filteredRawCategories = rawCategories.filter(c => c !== 'my_gears');
@@ -7155,7 +7489,7 @@ export default function App() {
                       {/* All Category Filter */}
                       <button
                         onClick={() => setActiveAffiliateFilter('all')}
-                        className={`px-4 py-2 rounded-xl font-mono text-[9px] uppercase tracking-widest font-extrabold transition-all duration-200 flex items-center gap-2 cursor-pointer border relative z-0 overflow-hidden ${
+                        className={`px-4 py-2 rounded-xl font-mono text-[9px] uppercase tracking-widest font-extrabold transition-all duration-200 flex items-center gap-2 cursor-pointer border relative z-0 overflow-hidden shrink-0 ${
                           activeAffiliateFilter === 'all'
                             ? 'border-transparent text-white shadow-lg shadow-amber-500/15 scale-[1.02]'
                             : currentTheme === 'light'
@@ -7177,7 +7511,7 @@ export default function App() {
                       {/* My Gears Special Premium Filter Button with custom star visual hover effect */}
                       <button
                         onClick={() => setActiveAffiliateFilter('my_gears')}
-                        className={`px-4.5 py-2 rounded-xl font-mono text-[9px] uppercase tracking-widest font-black transition-all duration-300 flex items-center gap-2 cursor-pointer border relative overflow-hidden group/star z-0 ${
+                        className={`px-4.5 py-2 rounded-xl font-mono text-[9px] uppercase tracking-widest font-black transition-all duration-300 flex items-center gap-2 cursor-pointer border relative overflow-hidden group/star z-0 shrink-0 ${
                           activeAffiliateFilter === 'my_gears'
                             ? 'border-transparent text-white shadow-lg shadow-amber-500/25 scale-[1.02]'
                             : currentTheme === 'light'
@@ -7248,7 +7582,7 @@ export default function App() {
                           <button
                             key={cat}
                             onClick={() => setActiveAffiliateFilter(cat)}
-                            className={`px-4 py-2 rounded-xl font-mono text-[9px] uppercase tracking-widest font-extrabold transition-all duration-200 flex items-center gap-2 cursor-pointer border relative z-0 overflow-hidden ${
+                            className={`px-4 py-2 rounded-xl font-mono text-[9px] uppercase tracking-widest font-extrabold transition-all duration-200 flex items-center gap-2 cursor-pointer border relative z-0 overflow-hidden shrink-0 ${
                               isActive
                                 ? 'border-transparent text-white shadow-lg shadow-amber-500/15 scale-[1.02]'
                                 : currentTheme === 'light'
@@ -7274,9 +7608,9 @@ export default function App() {
               </div>
 
               {/* Compact Search & Administrative Group */}
-              <div className="flex flex-row items-center gap-2 w-full md:w-auto justify-between md:justify-end shrink-0">
+              <div className="flex flex-row items-center gap-2 w-full lg:w-auto justify-between lg:justify-end shrink-0">
                 {/* Mini Search Option */}
-                <div className="relative flex items-center w-full md:w-auto">
+                <div className="relative flex items-center flex-1 lg:flex-initial">
                   <div className={`absolute left-3 pointer-events-none transition-colors duration-200 flex items-center ${
                     affiliateSearchQuery ? 'text-amber-500' : 'text-slate-400'
                   }`}>
@@ -7287,7 +7621,7 @@ export default function App() {
                     value={affiliateSearchQuery}
                     onChange={(e) => setAffiliateSearchQuery(e.target.value)}
                     placeholder="Search gear..."
-                    className={`pl-8 pr-8 py-2 rounded-xl font-mono text-[9px] uppercase tracking-wider w-full md:w-32 md:focus:w-52 transition-all duration-300 outline-none border focus:ring-0 ${
+                    className={`pl-8 pr-8 py-2 rounded-xl font-mono text-[9px] uppercase tracking-wider w-full lg:w-32 lg:focus:w-52 transition-all duration-300 outline-none border focus:ring-0 ${
                       currentTheme === 'light'
                         ? 'bg-white border-slate-200 text-slate-800 placeholder-slate-400 focus:border-amber-500'
                         : currentTheme === 'mono'
@@ -7310,32 +7644,17 @@ export default function App() {
                   <div className="flex items-center gap-1.5 shrink-0">
                     <button
                       onClick={() => setIsEditingCategories(!isEditingCategories)}
-                      className={`px-3 py-1.5 rounded-xl font-mono text-[9px] font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all shadow-sm cursor-pointer border ${
+                      className={`p-2 sm:px-3 sm:py-1.5 rounded-xl font-mono text-[9px] font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all shadow-sm cursor-pointer border ${
                         isEditingCategories
                           ? 'bg-amber-600 border-amber-600 text-white'
                           : currentTheme === 'light'
                             ? 'bg-white border-slate-200 text-slate-700 hover:border-amber-550'
                             : 'bg-white/5 border-white/5 text-slate-200 hover:text-amber-500 hover:bg-white/10'
                       }`}
+                      title={isEditingCategories ? "Close Label Editor" : "Edit Display Labels"}
                     >
                       <Settings size={12} className={isEditingCategories ? "animate-spin" : ""} />
-                      <span>{isEditingCategories ? 'Close' : 'Labels'}</span>
-                    </button>
-
-                    <button
-                      onClick={handleBulkCleanTitles}
-                      disabled={isBulkCleaning}
-                      className={`px-3 py-1.5 rounded-xl font-mono text-[9px] font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all shadow-sm cursor-pointer border ${
-                        isBulkCleaning
-                          ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed dark:bg-zinc-800 dark:border-zinc-750 dark:text-zinc-500'
-                          : currentTheme === 'light'
-                            ? 'bg-amber-50 hover:bg-amber-100 border-amber-200 text-amber-700 hover:border-amber-400'
-                            : 'bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/20 text-amber-400 hover:text-amber-350 hover:border-amber-550/30'
-                      }`}
-                      title="Bulk apply cleanTitle to all affiliate product titles"
-                    >
-                      <Sparkles size={12} className={isBulkCleaning ? "animate-pulse" : "text-amber-500"} />
-                      <span>{isBulkCleaning ? 'Cleaning...' : 'Clean Titles'}</span>
+                      <span className="hidden sm:inline">{isEditingCategories ? 'Close' : 'Labels'}</span>
                     </button>
 
                     <button
@@ -7355,10 +7674,11 @@ export default function App() {
                           }
                         });
                       }}
-                      className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-mono text-[9px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg shadow-amber-500/10 cursor-pointer"
+                      className="p-2 sm:px-3.5 sm:py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-mono text-[9px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg shadow-amber-500/10 cursor-pointer"
+                      title="Add Curated Recommendation Listing"
                     >
                       <Plus size={12} className="stroke-[3px]" />
-                      <span>Add Deal</span>
+                      <span className="hidden sm:inline">Add Deal</span>
                     </button>
                   </div>
                 )}
@@ -7461,7 +7781,7 @@ export default function App() {
               }}
               initial="hidden"
               animate="show"
-              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
+              className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6"
             >
               {isAffiliateLoading ? (
                 [...Array(3)].map((_, i) => (
@@ -7532,33 +7852,6 @@ export default function App() {
               ) : (
                 filteredAffiliateLinks
                   .map((item, index) => {
-                  const categoryBadgeColor = (cat: string) => {
-                    switch (cat) {
-                      case 'photography':
-                        return 'bg-blue-500/10 text-blue-500 dark:text-blue-400 border-blue-500/20';
-                      case 'it_tech':
-                        return 'bg-emerald-500/10 text-emerald-500 dark:text-emerald-400 border-emerald-500/20';
-                      case 'software':
-                        return 'bg-violet-500/10 text-violet-500 dark:text-violet-400 border-violet-500/20';
-                      case 'accessories':
-                        return 'bg-amber-500/10 text-amber-500 border-amber-500/20';
-                      default:
-                        return 'bg-cyan-500/10 text-cyan-500 border-cyan-500/20';
-                    }
-                  };
-
-                  const categoryLabel = (cat: string) => {
-                    if (affiliateLabelMap[cat]) return affiliateLabelMap[cat];
-                    const defaultMap: Record<string, string> = {
-                      photography: 'Photography Gear',
-                      it_tech: 'IT & Support',
-                      software: 'Licensed Software',
-                      accessories: 'Accessories'
-                    };
-                    if (defaultMap[cat]) return defaultMap[cat];
-                    return cat.split(/[_-]/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-                  };
-
                   const handleTrackClick = async (id: string) => {
                     const found = affiliateLinks.find(a => a.id === id);
                     if (found) {
@@ -7586,173 +7879,142 @@ export default function App() {
                     }
                   };
 
-                  const isGif = item.imageUrl?.toLowerCase().includes('.gif');
-
                   return (
                     <motion.div
                       key={item.id}
                       variants={{
                         hidden: { opacity: 0, y: 12 },
-                        show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: 'easeOut' } }
+                        show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: 'easeOut' } }
                       }}
-                      whileHover={{
-                        y: -8,
-                        scale: 1.022,
-                        borderColor: currentTheme === 'light' ? 'rgba(245, 158, 11, 0.45)' : 'rgba(245, 158, 11, 0.55)',
-                        boxShadow: currentTheme === 'light'
-                          ? '0 25px 35px -12px rgba(245, 158, 11, 0.18), 0 0 20px 2px rgba(245, 158, 11, 0.1), 0 12px 16px -4px rgba(0, 0, 0, 0.04)'
-                          : '0 30px 45px -15px rgba(245, 158, 11, 0.35), 0 0 25px 3px rgba(245, 158, 11, 0.22), 0 12px 16px -4px rgba(0, 0, 0, 0.6)'
-                      }}
-                      transition={{ type: 'spring', stiffness: 350, damping: 25 }}
-                      className={`rounded-3xl border overflow-hidden flex flex-col justify-between group transition-[background-color,border-color,outline-color] duration-300 relative h-full outline outline-1 outline-transparent hover:outline-amber-500/30 shadow-sm ${
-                        currentTheme === 'light'
-                          ? 'bg-white border-slate-200'
-                          : 'bg-zinc-950 border-white/5 backdrop-blur-md'
-                      }`}
+                      className="relative flex flex-col h-full group"
                     >
-                      {/* Subtle hover-activated animated border glow outline */}
-                      <div className="absolute inset-0 rounded-3xl border border-amber-500/0 group-hover:border-amber-500/30 opacity-0 group-hover:opacity-100 transition-all duration-500 pointer-events-none z-10 shadow-[inset_0_0_12px_rgba(245,158,11,0.06)] group-hover:shadow-[inset_0_0_20px_rgba(245,158,11,0.12)]" />
-
-                      {/* Asymmetrical Frame Title Bar */}
-                      <div className={`px-4 py-3 border-b flex items-center justify-between gap-2 ${
-                        currentTheme === 'light' ? 'bg-slate-50/50 border-slate-200/50' : 'bg-black/15 border-white/5'
-                      }`}>
-                        <div className="flex flex-wrap items-center gap-1 min-w-0">
-                          {(item.category || '').split(',').map(c => c.trim()).filter(Boolean).map((catId) => (
-                            <span 
-                              key={catId} 
-                              className={`px-2 py-0.5 rounded-full text-[7.5px] uppercase tracking-widest font-mono font-black border ${categoryBadgeColor(catId)}`}
-                            >
-                              {categoryLabel(catId)}
-                            </span>
-                          ))}
-                          
-                          {isAuthorized && (
-                            <span className={`px-1.5 py-0.5 rounded-full text-[8px] font-mono font-bold tracking-wider inline-flex items-center gap-1 border ${
-                              currentTheme === 'light'
-                                ? 'bg-amber-50 text-amber-700 border-amber-200'
-                                : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                            }`} title="Real-time performance feedback (Admin only)">
-                              <span className="w-1 h-1 rounded-full bg-amber-500 animate-pulse inline-block" />
-                              <span>{item.clicks || 0} CLICKS</span>
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Administrative Controls */}
-                        {isAuthorized && (
-                          <div className="flex items-center gap-1 shrink-0">
-                            <button
-                              onClick={() => {
-                                setEditingItem({
-                                  type: 'affiliate_link',
-                                  data: item,
-                                  index
-                                });
-                              }}
-                              className="w-5.5 h-5.5 rounded-lg bg-amber-500/10 hover:bg-amber-500 text-amber-500 hover:text-white flex items-center justify-center transition-all cursor-pointer border border-amber-500/10"
-                              title="Edit product parameters"
-                            >
-                              <Edit size={9} />
-                            </button>
-                            <button
-                              onClick={() => {
-                                triggerConfirm(
-                                  `Confirm deletion: Are you absolutely sure you want to remove the affiliate card "${item.title}"? This cannot be undone.`,
-                                  async () => {
-                                    try {
-                                      await deleteDoc(doc(db, 'affiliate_links', item.id));
-                                      triggerToast('Curated recommendation deleted.', 'info');
-                                    } catch (err) {
-                                      console.error("Error deleting affiliate link from Firestore: ", err);
-                                      handleFirestoreError(err, OperationType.DELETE, 'affiliate_links/' + item.id);
-                                    }
-                                  }
-                                );
-                              }}
-                              className="w-5.5 h-5.5 rounded-lg bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white flex items-center justify-center transition-all cursor-pointer border border-red-500/10"
-                              title="Delete affiliate deal"
-                            >
-                              <X size={9} />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Main Card Content */}
-                      <div className="flex-1 flex flex-col justify-between">
-                        <div>
-                          {/* Visual Frame Image: Post Mode Zoom, Desaturation Cycle, and Glare Sheen Sweep */}
-                          <div className="relative aspect-video w-full overflow-hidden bg-slate-900 border-b border-slate-200/50 dark:border-white/5 group-hover:bg-slate-950 transition-colors">
-                            {/* Verified Equipment Badge Overlay */}
-                            <div className="absolute top-2.5 left-3 px-1.5 py-0.5 rounded bg-amber-500/90 backdrop-blur-md border border-amber-400/20 text-white font-mono text-[7px] font-black tracking-widest uppercase flex items-center gap-0.5 shadow-md z-15">
-                              🛡️ VERIFIED
-                            </div>
-
-                            {/* GIF Tag overlay */}
-                            {isGif && (
-                              <div className="absolute top-2.5 right-3 px-1.5 py-0.5 rounded bg-black/75 backdrop-blur-md border border-emerald-500/30 text-emerald-400 font-mono text-[7px] font-black tracking-widest uppercase flex items-center gap-0.5 shadow-md z-15 select-none animate-pulse">
-                                <span className="w-1 h-1 rounded-full bg-emerald-400 inline-block"></span>
-                                <span>GIF</span>
-                              </div>
-                            )}
-
+                      {/* Fully clickable card container acting as the link */}
+                      <a
+                        href={item.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={() => handleTrackClick(item.id)}
+                        className={`flex flex-col h-full rounded-2xl border overflow-hidden transition-all duration-300 relative text-left select-none group hover:-translate-y-1.5 ${
+                          currentTheme === 'light'
+                            ? 'bg-white border-slate-100 shadow-[0_4px_18px_-4px_rgba(0,0,0,0.03)] hover:border-amber-500/30 hover:shadow-[0_16px_32px_-8px_rgba(245,158,11,0.1),0_8px_16px_-8px_rgba(0,0,0,0.03)]'
+                            : 'bg-zinc-950 border-white/[0.02] shadow-[0_4px_25px_rgba(0,0,0,0.3)] hover:border-amber-500/40 hover:shadow-[0_20px_40px_-10px_rgba(245,158,11,0.22),0_8px_20px_-10px_rgba(0,0,0,0.7)]'
+                        }`}
+                      >
+                        {/* 1. Product Image inside a pristine, modern showroom frame */}
+                        <div className={`relative aspect-[4/3] w-full overflow-hidden flex items-center justify-center p-3.5 border-b transition-colors duration-300 ${
+                          currentTheme === 'light'
+                            ? 'bg-slate-50/50 border-slate-100'
+                            : 'bg-zinc-900/15 border-white/[0.01]'
+                        }`}>
+                          {/* Centered card display block for seamless image blend */}
+                          <div className="w-full h-full rounded-xl overflow-hidden bg-white p-2.5 flex items-center justify-center relative shadow-[inset_0_1px_4px_rgba(0,0,0,0.02)]">
                             <LazyImage
                               src={item.imageUrl || 'https://images.unsplash.com/photo-1542751371-adc38448a05e'}
                               alt={item.title}
-                              className="w-full h-full object-cover transition-transform duration-700 ease-in-out scale-100 group-hover:scale-105"
+                              className="w-full h-full object-contain transition-transform duration-500 ease-out group-hover:scale-[1.04]"
                               placeholderClassName="absolute inset-0 z-0"
                             />
-                            
-                            {/* Glass reflection glider */}
-                            <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/12 to-transparent skew-x-12 transition-transform duration-1000 ease-out group-hover:translate-x-[180%] z-10 pointer-events-none" />
                           </div>
 
-                          {/* Product Title Section */}
-                          <div className="px-4 pt-4 text-left">
-                            <h3 className={`text-xs md:text-sm font-extrabold tracking-tight leading-snug line-clamp-2 ${
-                              currentTheme === 'light' ? 'text-slate-900' : 'text-white'
+                          {/* Refined gradient overlay for depth */}
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/[0.01] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+
+                          {/* Dynamic Micro-Badges for source tagging */}
+                          <div className="absolute top-2.5 left-2.5 z-20 flex items-center gap-1.5">
+                            {/amazon\.(in|com|co\.uk|ca|de|fr|co\.jp|com\.au|es|it|com\.mx|com\.br|com\.tr|ae|sa|sg|se|pl|nl|be|com\.be|co\.za|eg)|\/amzn\.to\//i.test(item.url || '') ? (
+                              <span className="px-2 py-0.5 rounded-full bg-amber-500/90 text-black font-mono text-[8px] font-black tracking-widest uppercase flex items-center gap-1 shadow-sm backdrop-blur-md">
+                                <ShoppingBag size={8} className="stroke-[2.5]" />
+                                <span>AMAZON</span>
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-full bg-emerald-500/90 text-white font-mono text-[8px] font-black tracking-widest uppercase flex items-center gap-1 shadow-sm backdrop-blur-md">
+                                <ExternalLink size={8} className="stroke-[2.5]" />
+                                <span>PARTNER</span>
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* 2. Text Content */}
+                        <div className="flex-1 flex flex-col p-3.5 sm:p-4 min-w-0 justify-between">
+                          <div className="space-y-2">
+                            {/* Product Title */}
+                            <h3 className={`text-xs sm:text-sm font-bold tracking-tight leading-snug line-clamp-2 transition-colors duration-200 ${
+                              currentTheme === 'light' 
+                                ? 'text-slate-900 group-hover:text-amber-600' 
+                                : 'text-zinc-100 group-hover:text-amber-400'
                             }`}>
                               {item.title}
                             </h3>
-                            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                              {item.discountCode && (
-                                <span className="text-[8px] font-mono uppercase bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-1.5 py-0.5 rounded flex items-center gap-1 font-bold shadow-xs">
-                                  <span>🏷️ PROMO:</span>
-                                  <span className="font-mono tracking-wider font-black select-all">{item.discountCode}</span>
-                                </span>
-                              )}
-                            </div>
-                          </div>
 
-                          {/* Curated Testimony Body Block */}
-                          <div className="px-4 py-3 text-left">
-                            <p className={`text-[11px] leading-relaxed font-sans ${
-                              currentTheme === 'light' ? 'text-slate-600 font-medium' : 'text-slate-400'
+                            {/* Product Description */}
+                            <p className={`text-[10px] sm:text-[11px] leading-relaxed font-sans line-clamp-3 sm:line-clamp-4 ${
+                              currentTheme === 'light' ? 'text-slate-500 font-medium' : 'text-slate-400'
                             }`}>
                               {item.description}
                             </p>
                           </div>
-                        </div>
 
-                        {/* Buy Action Box */}
-                        <div className="p-4 pt-0 mt-auto">
-                          <a
-                            href={item.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={() => handleTrackClick(item.id)}
-                            className={`w-full py-3.5 md:py-2.5 rounded-xl font-bold font-mono text-[9px] uppercase tracking-wider flex items-center justify-center gap-2 transition-all duration-300 border cursor-pointer ${
-                              currentTheme === 'light'
-                                ? 'bg-slate-900 border-slate-900 text-white hover:bg-amber-500 hover:border-amber-500 hover:shadow-lg hover:shadow-amber-500/10'
-                                : 'bg-white/5 border-white/5 text-slate-150 hover:bg-amber-500 hover:border-amber-500 hover:text-white hover:shadow-lg hover:shadow-amber-500/10'
-                            }`}
-                          >
-                            <span>SHOP PARTNER DEAL</span>
-                            <ArrowUpRight size={10} className="stroke-[2px] transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-                          </a>
+                          {/* Code Section (Price has been removed per user request) */}
+                          {item.discountCode && (
+                            <div className="mt-4 pt-3 flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 dark:border-white/[0.02]">
+                              <span className="px-1.5 py-0.5 rounded-md bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/20 text-amber-500 font-mono text-[8px] font-bold tracking-wider">
+                                CODE: {item.discountCode}
+                              </span>
+                            </div>
+                          )}
                         </div>
-                      </div>
+                      </a>
+
+                      {/* 3. Administrative overlay (rendered on top of card for authorized admin only) */}
+                      {isAuthorized && (
+                        <div className="absolute top-2 right-2 flex items-center gap-1.5 z-25">
+                          {/* Click analytics badge */}
+                          <span className="px-1.5 py-0.5 rounded bg-black/70 backdrop-blur-md border border-white/10 text-white font-mono text-[8px] font-semibold tracking-wider flex items-center gap-1">
+                            <span className="w-1 h-1 rounded-full bg-amber-500 animate-pulse" />
+                            <span>{item.clicks || 0} clicks</span>
+                          </span>
+
+                          <button
+                            onClick={(ev) => {
+                              ev.preventDefault();
+                              ev.stopPropagation();
+                              setEditingItem({
+                                type: 'affiliate_link',
+                                data: item,
+                                index
+                              });
+                            }}
+                            className="w-7 h-7 rounded-lg bg-black/70 backdrop-blur-md hover:bg-amber-500 text-slate-300 hover:text-white flex items-center justify-center transition-all cursor-pointer border border-white/10 hover:border-amber-400"
+                            title="Edit product parameters"
+                          >
+                            <Edit size={11} className="stroke-[2.5]" />
+                          </button>
+                          
+                          <button
+                            onClick={(ev) => {
+                              ev.preventDefault();
+                              ev.stopPropagation();
+                              triggerConfirm(
+                                `Confirm deletion: Are you absolutely sure you want to remove the affiliate card "${item.title}"? This cannot be undone.`,
+                                async () => {
+                                  try {
+                                    await deleteDoc(doc(db, 'affiliate_links', item.id));
+                                    triggerToast('Curated recommendation deleted.', 'info');
+                                  } catch (err) {
+                                    console.error("Error deleting affiliate link from Firestore: ", err);
+                                    handleFirestoreError(err, OperationType.DELETE, 'affiliate_links/' + item.id);
+                                  }
+                                }
+                              );
+                            }}
+                            className="w-7 h-7 rounded-lg bg-black/70 backdrop-blur-md hover:bg-red-500 text-slate-300 hover:text-white flex items-center justify-center transition-all cursor-pointer border border-white/10 hover:border-red-400"
+                            title="Delete affiliate deal"
+                          >
+                            <X size={11} className="stroke-[2.5]" />
+                          </button>
+                        </div>
+                      )}
                     </motion.div>
                   );
                 })
@@ -8198,14 +8460,16 @@ export default function App() {
 
         {/* BIOS & BOOT MENU KEY FINDER SEPARATE PAGE */}
         {activeTab === 'bios' && (
-          <motion.div
-            key="bios"
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -15 }}
-            transition={{ type: "spring", stiffness: 180, damping: 20 }}
-            className="space-y-8 text-left max-w-4xl mx-auto"
-          >
+          <div className="relative min-h-[600px] w-full px-1 py-2">
+            <BiosKeysBackground currentTheme={currentTheme} />
+            <motion.div
+              key="bios"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+              transition={{ type: "spring", stiffness: 180, damping: 20 }}
+              className="relative z-10 space-y-8 text-left max-w-4xl mx-auto"
+            >
             {/* Navigation back and header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-dashed border-slate-200 dark:border-white/10">
               <div className="space-y-1">
@@ -8499,7 +8763,313 @@ export default function App() {
                 </AnimatePresence>
               </div>
             </div>
+
+            {/* PRODUCTIVITY KEYBOARD SHORTCUTS LIBRARY */}
+            <div className={`p-5 md:p-6 rounded-2xl border ${s.card} shadow-md`} id="shortcut-keys-section">
+              <div className="space-y-5">
+                {/* Header */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-dashed border-slate-200 dark:border-white/10">
+                  <div className="space-y-1 text-left">
+                    <span className="inline-block bg-[#FF5500]/10 text-[#FF5500] text-[10px] font-bold uppercase tracking-widest px-2.5 py-0.5 rounded-full border border-[#FF5500]/20 font-mono">
+                      Productivity Suite
+                    </span>
+                    <h2 className={`text-lg md:text-xl font-black uppercase tracking-tight flex items-center gap-2 ${
+                      currentTheme === 'light' ? 'text-slate-900' : 'text-white'
+                    }`}>
+                      <Keyboard className="text-[#FF5500]" size={18} />
+                      Keyboard Shortcut Library
+                    </h2>
+                    <p className={`text-xs ${currentTheme === 'light' ? 'text-slate-650' : 'text-slate-400'}`}>
+                      Supercharge your workspace flow. Instant lookup for essential OS and professional creative/technical software shortcuts.
+                    </p>
+                  </div>
+
+                  {/* Search Bar for Shortcuts */}
+                  <div className="w-full md:w-72 shrink-0 relative">
+                    <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      id="shortcuts-search-input"
+                      type="text"
+                      value={shortcutsSearchQuery}
+                      onChange={(e) => setShortcutsSearchQuery(e.target.value)}
+                      placeholder="Search shortcuts (e.g. copy, screen, edit)..."
+                      className={`w-full pl-9 pr-14 py-2 rounded-lg text-xs outline-none transition-all duration-200 border ${s.input}`}
+                    />
+                    {shortcutsSearchQuery && (
+                      <button
+                        onClick={() => setShortcutsSearchQuery('')}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-450 hover:text-[#FF5500] text-[10px] font-black uppercase tracking-wider animate-fade-in"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Categories Grid (Only shown when not searching) */}
+                <AnimatePresence mode="wait">
+                  {!shortcutsSearchQuery.trim() ? (
+                    <motion.div
+                      key="categories-board"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="space-y-5"
+                    >
+                      {/* Uniform Width and Height Category Cards */}
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 max-w-4xl mx-auto">
+                        {SHORTCUTS_DATABASE.map((category) => {
+                          const isActive = selectedShortcutCategory === category.id;
+                          
+                          // Accent mapping for premium styling and vibrant dynamic interactive states
+                          const accentColorMap: Record<string, { bg: string, text: string, bgHover: string, borderHover: string, textHover: string }> = {
+                            windows: { bg: 'bg-blue-500/10', text: 'text-blue-500', bgHover: 'group-hover:bg-blue-500/15', borderHover: 'group-hover:border-blue-500/40', textHover: 'group-hover:text-blue-600 dark:group-hover:text-blue-400' },
+                            pc_general: { bg: 'bg-zinc-500/10', text: 'text-zinc-500 dark:text-zinc-400', bgHover: 'group-hover:bg-zinc-500/15', borderHover: 'group-hover:border-zinc-500/40', textHover: 'group-hover:text-zinc-600 dark:group-hover:text-zinc-300' },
+                            ms_word: { bg: 'bg-blue-600/10', text: 'text-blue-600', bgHover: 'group-hover:bg-blue-600/15', borderHover: 'group-hover:border-blue-600/40', textHover: 'group-hover:text-blue-700 dark:group-hover:text-blue-400' },
+                            ms_excel: { bg: 'bg-emerald-500/10', text: 'text-emerald-500', bgHover: 'group-hover:bg-emerald-500/15', borderHover: 'group-hover:border-emerald-500/40', textHover: 'group-hover:text-emerald-600 dark:group-hover:text-emerald-400' },
+                            ms_powerpoint: { bg: 'bg-orange-500/10', text: 'text-orange-500', bgHover: 'group-hover:bg-orange-500/15', borderHover: 'group-hover:border-orange-500/40', textHover: 'group-hover:text-orange-600 dark:group-hover:text-orange-400' },
+                            adobe_photoshop: { bg: 'bg-cyan-500/10', text: 'text-cyan-500', bgHover: 'group-hover:bg-cyan-500/15', borderHover: 'group-hover:border-cyan-500/40', textHover: 'group-hover:text-cyan-600 dark:group-hover:text-cyan-400' },
+                            adobe_premiere: { bg: 'bg-violet-500/10', text: 'text-violet-500', bgHover: 'group-hover:bg-violet-500/15', borderHover: 'group-hover:border-violet-500/40', textHover: 'group-hover:text-violet-600 dark:group-hover:text-violet-400' },
+                            adobe_after_effects: { bg: 'bg-purple-500/10', text: 'text-purple-500', bgHover: 'group-hover:bg-purple-500/15', borderHover: 'group-hover:border-purple-500/40', textHover: 'group-hover:text-purple-600 dark:group-hover:text-purple-400' },
+                            vscode: { bg: 'bg-sky-500/10', text: 'text-sky-500', bgHover: 'group-hover:bg-sky-500/15', borderHover: 'group-hover:border-sky-500/40', textHover: 'group-hover:text-sky-600 dark:group-hover:text-sky-400' },
+                            web_browsers: { bg: 'bg-amber-500/10', text: 'text-amber-500', bgHover: 'group-hover:bg-amber-500/15', borderHover: 'group-hover:border-amber-500/40', textHover: 'group-hover:text-amber-600 dark:group-hover:text-amber-400' },
+                            file_explorer: { bg: 'bg-amber-600/10', text: 'text-amber-600', bgHover: 'group-hover:bg-amber-600/15', borderHover: 'group-hover:border-amber-600/40', textHover: 'group-hover:text-amber-700 dark:group-hover:text-amber-400' },
+                            tally: { bg: 'bg-rose-500/10', text: 'text-rose-500', bgHover: 'group-hover:bg-rose-500/15', borderHover: 'group-hover:border-rose-500/40', textHover: 'group-hover:text-rose-600 dark:group-hover:text-rose-400' },
+                            macos_general: { bg: 'bg-neutral-500/10', text: 'text-neutral-500 dark:text-neutral-300', bgHover: 'group-hover:bg-neutral-500/15', borderHover: 'group-hover:border-neutral-500/40', textHover: 'group-hover:text-neutral-600 dark:group-hover:text-neutral-200' },
+                          };
+
+                          const accent = accentColorMap[category.id] || accentColorMap.windows;
+
+                          return (
+                            <button
+                              key={category.id}
+                              type="button"
+                              onClick={() => setSelectedShortcutCategory(isActive ? '' : category.id)}
+                              className={`flex flex-col justify-between h-[115px] w-full p-4 rounded-2xl border text-left transition-all duration-300 cursor-pointer group relative overflow-hidden ${
+                                isActive
+                                  ? `bg-gradient-to-br ${category.color} border-[#FF5500]/50 shadow-md ring-1 ring-[#FF5500]/20 scale-[1.02]`
+                                  : currentTheme === 'light'
+                                    ? `bg-white hover:bg-slate-50 border-slate-200/80 shadow-[0_1px_2px_rgba(0,0,0,0.02)] ${accent.borderHover}`
+                                    : `bg-zinc-900/30 hover:bg-zinc-900/60 border-white/5 ${accent.borderHover}`
+                              }`}
+                            >
+                              {/* Top row: Category Icon & Count badge */}
+                              <div className="flex items-center justify-between w-full">
+                                <span className={`p-2 rounded-xl transition-all duration-300 ${
+                                  isActive 
+                                    ? 'bg-white/20 dark:bg-white/5 text-[#FF5500] scale-110' 
+                                    : `bg-slate-100 dark:bg-white/5 ${accent.text} ${accent.bgHover}`
+                                }`}>
+                                  {renderShortcutIcon(category.iconName, 15)}
+                                </span>
+                                
+                                {isActive ? (
+                                  <span className="flex h-2 w-2 relative">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#FF5500] opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-[#FF5500]"></span>
+                                  </span>
+                                ) : (
+                                  <span className={`text-[9px] font-mono font-black px-2 py-0.5 rounded-lg border transition-all duration-300 ${
+                                    currentTheme === 'light'
+                                      ? 'bg-slate-50 border-slate-200/60 text-slate-450 group-hover:bg-[#FF5500]/5 group-hover:text-[#FF5500] group-hover:border-[#FF5500]/20'
+                                      : 'bg-white/[0.02] border-white/5 text-slate-500 group-hover:bg-white/10 group-hover:text-[#FF5500]'
+                                  }`}>
+                                    {category.shortcuts.length} keys
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Bottom row: Product Name */}
+                              <div className="space-y-0.5 mt-2">
+                                <span className={`text-xs font-black uppercase tracking-wider block transition-colors duration-300 ${
+                                  isActive 
+                                    ? 'text-[#FF5500]' 
+                                    : currentTheme === 'light' 
+                                      ? 'text-slate-800 group-hover:text-[#FF5500]' 
+                                      : 'text-slate-200 group-hover:text-white'
+                                }`}>
+                                  {category.name}
+                                </span>
+                                <span className={`text-[8px] font-mono uppercase tracking-widest block leading-none transition-colors duration-300 ${
+                                  isActive 
+                                    ? 'text-[#FF5500]/70' 
+                                    : 'text-slate-400 dark:text-zinc-500'
+                                }`}>
+                                  {category.id.replace('_', ' ')}
+                                </span>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Active Category Shortcuts List - Smooth Height Expand/Collapse */}
+                      <AnimatePresence initial={false}>
+                        {(() => {
+                          const activeCat = SHORTCUTS_DATABASE.find(c => c.id === selectedShortcutCategory);
+                          if (!activeCat) return null;
+                          return (
+                            <motion.div
+                              key={`active-category-details-${activeCat.id}`}
+                              initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                              animate={{ opacity: 1, height: 'auto', marginTop: 24 }}
+                              exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                              transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+                              className="overflow-hidden space-y-5 text-left"
+                            >
+                              {/* Sub Header Card */}
+                              <div className={`p-4 rounded-2xl border flex items-start gap-3 bg-black/[0.01] dark:bg-white/[0.01] border-dashed ${
+                                currentTheme === 'light' ? 'border-slate-200' : 'border-white/5'
+                              }`}>
+                                <div className="p-2 bg-[#FF5500]/5 text-[#FF5500] rounded-xl shrink-0">
+                                  {renderShortcutIcon(activeCat.iconName, 18)}
+                                </div>
+                                <div className="space-y-0.5">
+                                  <h3 className={`text-xs font-black uppercase tracking-wider ${
+                                    currentTheme === 'light' ? 'text-slate-855 font-bold' : 'text-white'
+                                  }`}>
+                                    {activeCat.name} Shortcut Set
+                                  </h3>
+                                  <p className={`text-[11px] leading-relaxed ${
+                                    currentTheme === 'light' ? 'text-slate-550' : 'text-slate-400'
+                                  }`}>
+                                    {activeCat.description} All keys are structured for standard QWERTY layouts (Mac/Win system translations apply).
+                                  </p>
+                                </div>
+                              </div>
+
+                              {/* Shortcuts Grid - Displays instantly and cleanly with premium layouts */}
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-w-4xl mx-auto">
+                                {activeCat.shortcuts.map((sh, idx) => (
+                                  <div
+                                    key={idx}
+                                    className={`p-3.5 rounded-2xl border flex items-center justify-between gap-4 transition-all duration-300 shadow-[0_1px_2px_rgba(0,0,0,0.01)] hover:shadow-md hover:border-[#FF5500]/30 hover:scale-[1.01] ${
+                                      currentTheme === 'light'
+                                        ? 'bg-white border-slate-200/85 hover:bg-slate-50/50'
+                                        : 'bg-zinc-900/30 border-white/5 hover:bg-zinc-900/50 hover:border-white/10'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                      <div className="w-1.5 h-1.5 rounded-full bg-[#FF5500]/60 shrink-0" />
+                                      <span className={`text-xs font-semibold leading-snug ${
+                                        currentTheme === 'light' ? 'text-slate-750 font-medium' : 'text-slate-200 font-medium'
+                                      }`}>
+                                        {sh.description}
+                                      </span>
+                                    </div>
+
+                                    {/* Keycaps */}
+                                    <div className="flex items-center shrink-0 flex-wrap gap-1 animate-fade-in">
+                                      {sh.keys.map((keyCap, kIdx) => (
+                                        <React.Fragment key={kIdx}>
+                                          {kIdx > 0 && (
+                                            <span className="text-slate-350 dark:text-zinc-650 text-[10px] font-black mx-0.5 select-none">
+                                              +
+                                            </span>
+                                          )}
+                                          <kbd className={`px-2 py-1 text-[10px] font-mono font-bold rounded-lg border-b-2 shadow-xs select-none transition-all duration-200 shrink-0 ${
+                                            currentTheme === 'light'
+                                              ? 'bg-slate-50 border-slate-300 text-slate-800 shadow-[inset_0_1px_0_rgba(255,255,255,0.4)]'
+                                              : 'bg-zinc-800 border-zinc-700 text-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.1)]'
+                                          }`}>
+                                            {keyCap}
+                                          </kbd>
+                                        </React.Fragment>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </motion.div>
+                          );
+                        })()}
+                      </AnimatePresence>
+                    </motion.div>
+                  ) : (
+                    // Search results view (Direct and clean, no accordion)
+                    <motion.div
+                      key="shortcuts-search-results"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="space-y-4"
+                    >
+                      {/* Search matches header */}
+                      <div className="flex items-center justify-between text-[11px] uppercase font-bold tracking-wider">
+                        <span className="text-slate-400 text-left">
+                          Search results for: <span className="text-[#FF5500] font-black">{shortcutsSearchQuery}</span>
+                        </span>
+                        
+                        <button
+                          onClick={() => setShortcutsSearchQuery('')}
+                          className="text-[#FF5500] hover:underline flex items-center gap-1 cursor-pointer"
+                        >
+                          ← Show All Categories
+                        </button>
+                      </div>
+
+                      {filteredShortcuts && filteredShortcuts.length === 0 ? (
+                        <div className={`py-12 text-center border border-dashed rounded-xl ${
+                          currentTheme === 'light' ? 'border-slate-200' : 'border-white/5'
+                        }`}>
+                          <HelpCircle size={28} className="mx-auto text-slate-400 mb-2 animate-bounce" />
+                          <h4 className="text-xs font-black uppercase text-[#FF5500]">No shortcuts found</h4>
+                          <p className={`text-[10px] mt-1 max-w-xs mx-auto ${currentTheme === 'light' ? 'text-slate-550' : 'text-slate-400'}`}>
+                            We couldn't find any matches for "{shortcutsSearchQuery}". Try looking up general actions like "copy", "paste", "save", or "open".
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-w-4xl mx-auto">
+                          {filteredShortcuts?.map((result, idx) => (
+                            <div
+                              key={idx}
+                              className={`p-3.5 rounded-2xl border flex items-center justify-between gap-4 transition-all duration-300 shadow-[0_1px_2px_rgba(0,0,0,0.01)] hover:shadow-md hover:border-[#FF5500]/30 hover:scale-[1.01] ${
+                                currentTheme === 'light'
+                                  ? 'bg-white border-slate-200/85 hover:bg-slate-50/50'
+                                  : 'bg-zinc-900/30 border-white/5 hover:bg-zinc-900/50 hover:border-white/10'
+                              }`}
+                            >
+                              <div className="flex flex-col items-start gap-1 text-left min-w-0">
+                                <span className="text-[8px] font-mono font-black uppercase tracking-wider text-[#FF5500] mb-0.5 block">
+                                  {result.categoryName}
+                                </span>
+                                <span className={`text-xs font-semibold leading-snug truncate ${
+                                  currentTheme === 'light' ? 'text-slate-750 font-medium' : 'text-slate-200 font-medium'
+                                }`}>
+                                  {result.shortcut.description}
+                                </span>
+                              </div>
+
+                              {/* Keycaps */}
+                              <div className="flex items-center shrink-0 flex-wrap gap-1">
+                                {result.shortcut.keys.map((keyCap, kIdx) => (
+                                  <React.Fragment key={kIdx}>
+                                    {kIdx > 0 && (
+                                      <span className="text-slate-355 dark:text-zinc-655 text-[10px] font-black mx-0.5 select-none">
+                                        +
+                                      </span>
+                                    )}
+                                    <kbd className={`px-2 py-1 text-[10px] font-mono font-bold rounded-lg border-b-2 shadow-xs select-none transition-all duration-200 shrink-0 ${
+                                      currentTheme === 'light'
+                                        ? 'bg-slate-50 border-slate-300 text-slate-850 shadow-[inset_0_1px_0_rgba(255,255,255,0.4)]'
+                                        : 'bg-zinc-800 border-zinc-700 text-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.1)]'
+                                    }`}>
+                                      {keyCap}
+                                    </kbd>
+                                  </React.Fragment>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </div>
           </motion.div>
+          </div>
         )}
 
         {/* BIOS MOTHERBOARD BEEP CODE DIAGNOSTICIAN SEPARATE PAGE */}
@@ -8514,24 +9084,49 @@ export default function App() {
           >
             {/* Header Area */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-dashed border-slate-200 dark:border-white/10">
-              <div className="space-y-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveTab('pixelfix');
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                  className="group flex items-center gap-1.5 text-xs font-black uppercase text-[#FF5500] hover:text-orange-600 cursor-pointer transition-colors duration-200 mb-2"
-                >
-                  <ArrowRight size={12} className="rotate-180 transition-transform duration-200 group-hover:-translate-x-0.5" />
-                  <span>Back to IT Services</span>
-                </button>
-                <h1 className={`text-2xl md:text-4xl font-black uppercase tracking-tight ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
-                  BIOS Beep Diagnostician
-                </h1>
-                <p className={`text-xs ${currentTheme === 'light' ? 'text-slate-650' : 'text-slate-400'}`}>
-                  Instant audio replication, technical fault localization, and troubleshooting guidelines for hardware issues.
-                </p>
+              <div className="flex flex-col md:flex-row md:items-center gap-4 text-left">
+                {/* Sleek Diagnostic Logo */}
+                <div className="relative flex items-center justify-center w-16 h-16 rounded-2xl bg-zinc-950 border border-[#FF5500]/30 shadow-md overflow-hidden shrink-0">
+                  <div className="absolute inset-0 bg-radial-gradient from-[#FF5500]/15 to-transparent pointer-events-none" />
+                  {/* Decorative tech grid lines inside logo */}
+                  <div className="absolute inset-0 bg-[linear-gradient(rgba(255,85,0,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(255,85,0,0.06)_1px,transparent_1px)] bg-[size:6px_6px] opacity-50 pointer-events-none" />
+                  <div className="absolute w-12 h-12 rounded-full border border-dashed border-[#FF5500]/20 animate-spin" style={{ animationDuration: '10s' }} />
+                  {/* Speaker mesh background pattern */}
+                  <div className="absolute inset-1 rounded-full border border-[#FF5500]/10 flex items-center justify-center">
+                    <Activity size={24} className="text-[#FF5500]/25 absolute animate-pulse" />
+                    <Speaker size={18} className="text-[#FF5500] drop-shadow-[0_0_8px_rgba(255,85,0,0.4)]" />
+                  </div>
+                  {/* Glowing diagnostic dot */}
+                  <span className="absolute top-1.5 right-1.5 flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                </div>
+
+                <div className="space-y-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('pixelfix');
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                    className="group flex items-center gap-1.5 text-xs font-black uppercase text-[#FF5500] hover:text-orange-600 cursor-pointer transition-colors duration-200 mb-1"
+                  >
+                    <ArrowRight size={12} className="rotate-180 transition-transform duration-200 group-hover:-translate-x-0.5" />
+                    <span>Back to IT Services</span>
+                  </button>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h1 className={`text-2xl md:text-3xl font-black uppercase tracking-tight ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
+                      BIOS Beep Diagnostician
+                    </h1>
+                    <span className="px-2 py-0.5 rounded bg-[#FF5500]/10 text-[#FF5500] text-[9px] font-mono font-bold border border-[#FF5500]/20 tracking-wider uppercase">
+                      Diag-Probe ADU-X1
+                    </span>
+                  </div>
+                  <p className={`text-xs ${currentTheme === 'light' ? 'text-slate-650' : 'text-slate-400'}`}>
+                    Instant audio replication, technical fault localization, and troubleshooting guidelines for motherboard hardware issues.
+                  </p>
+                </div>
               </div>
 
               {/* Offline-Ready Status & Reset Controls */}
@@ -8618,10 +9213,11 @@ export default function App() {
                         <div className="space-y-4">
                           <div className="flex items-center justify-between">
                             <span className="text-[10px] uppercase font-black tracking-widest text-[#FF5500] font-mono flex items-center gap-1.5">
-                              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                              <Activity size={12} className="text-[#FF5500] animate-pulse" />
                               Acoustic Tone Synthesizer
                             </span>
-                            <span className="text-[9px] font-mono bg-zinc-950 dark:bg-black text-[#FF5500] border border-[#FF5500]/20 px-2 py-0.5 rounded-md font-bold shadow-xs">
+                            <span className="text-[9px] font-mono bg-zinc-950 dark:bg-black text-[#FF5500] border border-[#FF5500]/20 px-2 py-0.5 rounded-md font-bold shadow-xs flex items-center gap-1">
+                              <Waves size={10} className="text-emerald-500 animate-pulse" />
                               Oscilloscope v2.0
                             </span>
                           </div>
@@ -8717,15 +9313,17 @@ export default function App() {
                                 setCustomSequence([...customSequence, 'S']);
                                 playBeepPattern('quick-s', ['S']);
                               }}
-                              className={`py-3 rounded-2xl border font-mono text-xs font-bold cursor-pointer transition-all duration-150 flex flex-col items-center justify-center gap-1 ${
+                              className={`py-3 rounded-2xl border font-mono text-xs font-bold cursor-pointer transition-all duration-150 flex flex-col items-center justify-center gap-1.5 group/pad ${
                                 currentTheme === 'light'
-                                  ? 'bg-slate-50 hover:bg-slate-100 border-slate-200 hover:border-slate-350 text-slate-800'
-                                  : 'bg-[#1C1C24] hover:bg-white/5 border-white/5 hover:border-white/10 text-zinc-200'
+                                  ? 'bg-slate-50 hover:bg-slate-100 border-slate-200 hover:border-slate-350 text-slate-800 shadow-xs'
+                                  : 'bg-[#1C1C24] hover:bg-white/5 border-white/5 hover:border-white/10 text-zinc-200 shadow-md'
                               }`}
                             >
-                              <span className="text-sm text-emerald-500 font-black">•</span>
-                              <span className="text-[10px] uppercase font-black tracking-wider text-emerald-500">Short Beep</span>
-                              <span className="text-[8px] text-slate-400 font-normal">850Hz • 120ms</span>
+                              <div className="flex items-center gap-1">
+                                <BellRing size={12} className="text-emerald-500 group-hover/pad:animate-bounce transition-transform" />
+                                <span className="text-[10px] uppercase font-black tracking-wider text-emerald-500">Short Beep</span>
+                              </div>
+                              <span className="text-[8.5px] font-mono text-slate-400 font-medium">850 Hz • 120ms • Tone [•]</span>
                             </button>
                             <button
                               type="button"
@@ -8733,16 +9331,53 @@ export default function App() {
                                 setCustomSequence([...customSequence, 'L']);
                                 playBeepPattern('quick-l', ['L']);
                               }}
-                              className={`py-3 rounded-2xl border font-mono text-xs font-bold cursor-pointer transition-all duration-150 flex flex-col items-center justify-center gap-1 ${
+                              className={`py-3 rounded-2xl border font-mono text-xs font-bold cursor-pointer transition-all duration-150 flex flex-col items-center justify-center gap-1.5 group/pad ${
                                 currentTheme === 'light'
-                                  ? 'bg-slate-50 hover:bg-slate-100 border-slate-200 hover:border-slate-350 text-slate-800'
-                                  : 'bg-[#1C1C24] hover:bg-white/5 border-white/5 hover:border-white/10 text-zinc-200'
+                                  ? 'bg-slate-50 hover:bg-slate-100 border-slate-200 hover:border-slate-350 text-slate-800 shadow-xs'
+                                  : 'bg-[#1C1C24] hover:bg-white/5 border-white/5 hover:border-white/10 text-zinc-200 shadow-md'
                               }`}
                             >
-                              <span className="text-sm text-[#FF5500] font-black">▬▬</span>
-                              <span className="text-[10px] uppercase font-black tracking-wider text-[#FF5500]">Long Beep</span>
-                              <span className="text-[8px] text-slate-400 font-normal">850Hz • 450ms</span>
+                              <div className="flex items-center gap-1">
+                                <Waves size={12} className="text-[#FF5500] group-hover/pad:scale-110 transition-transform" />
+                                <span className="text-[10px] uppercase font-black tracking-wider text-[#FF5500]">Long Beep</span>
+                              </div>
+                              <span className="text-[8.5px] font-mono text-slate-400 font-medium">850 Hz • 450ms • Tone [▬]</span>
                             </button>
+                          </div>
+
+                          {/* Interactive Audio Transducer Grill with Speaker Icon */}
+                          <div className={`p-4 rounded-2xl border ${currentTheme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-zinc-950 border-white/5'} flex items-center justify-between gap-4 shadow-inner relative overflow-hidden text-left`}>
+                            <div className="flex items-center gap-3">
+                              <div className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 border ${
+                                activePlayingId ? 'bg-emerald-500/10 border-emerald-500/35 text-emerald-500 shadow-md shadow-emerald-500/10' : 'bg-slate-200/50 dark:bg-white/5 border-slate-300 dark:border-white/10 text-slate-400 dark:text-zinc-500'
+                              } transition-all duration-300 relative`}>
+                                {activePlayingId && (
+                                  <>
+                                    <span className="absolute inset-0 rounded-full border border-emerald-500 animate-[ping_1.5s_infinite_0s] opacity-30" />
+                                    <span className="absolute inset-0 rounded-full border border-emerald-500 animate-[ping_1.5s_infinite_0.5s] opacity-15" />
+                                  </>
+                                )}
+                                <Speaker size={18} className={`${activePlayingId ? 'scale-110 rotate-1 animate-[pulse_0.4s_infinite]' : ''} transition-all duration-300`} />
+                              </div>
+                              <div className="space-y-0.5">
+                                <span className="block text-[9px] font-mono uppercase tracking-wider text-[#FF5500] font-black">Acoustic Transducer</span>
+                                <span className={`block text-[11px] font-semibold ${currentTheme === 'light' ? 'text-slate-800' : 'text-slate-200'}`}>
+                                  {activePlayingId ? 'Broadcasting bios_tone.wav' : 'Speaker Standby Mode'}
+                                </span>
+                              </div>
+                            </div>
+                            {/* Decorative speaker mesh detail */}
+                            <div className="flex flex-col gap-0.5 shrink-0 opacity-20 dark:opacity-35 select-none pointer-events-none">
+                              <div className="flex gap-0.5">
+                                {[...Array(6)].map((_, i) => <div key={i} className="w-1 h-1 rounded-full bg-[#FF5500]" />)}
+                              </div>
+                              <div className="flex gap-0.5 ml-1">
+                                {[...Array(5)].map((_, i) => <div key={i} className="w-1 h-1 rounded-full bg-[#FF5500]" />)}
+                              </div>
+                              <div className="flex gap-0.5">
+                                {[...Array(6)].map((_, i) => <div key={i} className="w-1 h-1 rounded-full bg-[#FF5500]" />)}
+                              </div>
+                            </div>
                           </div>
                         </div>
 
@@ -9120,7 +9755,8 @@ export default function App() {
                                   <div className={`mt-3 p-3.5 rounded-2xl flex items-center justify-between border ${
                                     currentTheme === 'light' ? 'bg-slate-50 border-slate-100' : 'bg-black/20 border-white/5'
                                   }`}>
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-2.5">
+                                      <Activity size={13} className="text-[#FF5500] animate-pulse shrink-0" />
                                       <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 font-mono">Acoustic Signature:</span>
                                       <span className="text-sm font-black text-[#FF5500] tracking-widest font-mono">{highlightText(item.patternDescription, beepSearchQuery)}</span>
                                     </div>
@@ -9240,7 +9876,7 @@ export default function App() {
             </div>
 
             {/* SmpsCalculator component wrapper */}
-            <div className={`p-1 sm:p-2 md:p-4 rounded-3xl border ${s.card} shadow-lg relative overflow-hidden`}>
+            <div className={`p-1 sm:p-2 md:p-4 rounded-3xl border ${s.card} shadow-lg relative overflow-visible`}>
               <SmpsCalculator currentTheme={currentTheme} />
             </div>
           </motion.div>
@@ -9311,8 +9947,360 @@ export default function App() {
                   </button>
                 </div>
 
-                {/* AFFILIATE PERFORMANCE MONITORING DESK */}
-                <div className={`p-5 rounded-2xl border ${s.card} space-y-4`}>
+                {/* SUB-TABS NAVIGATION BAR */}
+                <div className="flex flex-wrap items-center gap-1.5 md:gap-2 border-b pb-4 border-slate-100 dark:border-white/5">
+                  <button
+                    onClick={() => setAdminSubTab('overview')}
+                    className={`px-3 py-1.5 rounded-lg text-[10.5px] md:text-xs font-bold uppercase transition-all flex items-center gap-2 cursor-pointer ${
+                      adminSubTab === 'overview'
+                        ? 'bg-[#FF5500] text-white'
+                        : currentTheme === 'light'
+                          ? 'bg-slate-50 hover:bg-slate-100 text-slate-700'
+                          : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-400'
+                    }`}
+                  >
+                    <TrendingUp size={14} />
+                    <span>Overview &amp; Stats</span>
+                  </button>
+
+                  <button
+                    onClick={() => setAdminSubTab('media')}
+                    className={`px-3 py-1.5 rounded-lg text-[10.5px] md:text-xs font-bold uppercase transition-all flex items-center gap-2 cursor-pointer ${
+                      adminSubTab === 'media'
+                        ? 'bg-[#FF5500] text-white'
+                        : currentTheme === 'light'
+                          ? 'bg-slate-50 hover:bg-slate-100 text-slate-700'
+                          : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-400'
+                    }`}
+                  >
+                    <ImageIcon size={14} />
+                    <span>Global Media Hub</span>
+                  </button>
+
+                  <button
+                    onClick={() => setAdminSubTab('gallery')}
+                    className={`px-3 py-1.5 rounded-lg text-[10.5px] md:text-xs font-bold uppercase transition-all flex items-center gap-2 cursor-pointer ${
+                      adminSubTab === 'gallery'
+                        ? 'bg-[#FF5500] text-white'
+                        : currentTheme === 'light'
+                          ? 'bg-slate-50 hover:bg-slate-100 text-slate-700'
+                          : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-400'
+                    }`}
+                  >
+                    <SlidersHorizontal size={14} />
+                    <span>Showcase Gallery</span>
+                  </button>
+
+                  <button
+                    onClick={() => setAdminSubTab('inquiries')}
+                    className={`px-3 py-1.5 rounded-lg text-[10.5px] md:text-xs font-bold uppercase transition-all flex items-center gap-2 cursor-pointer ${
+                      adminSubTab === 'inquiries'
+                        ? 'bg-[#FF5500] text-white'
+                        : currentTheme === 'light'
+                          ? 'bg-slate-50 hover:bg-slate-100 text-slate-700'
+                          : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-400'
+                    }`}
+                  >
+                    <MessageSquare size={14} />
+                    <span>Visitor Inquiries</span>
+                  </button>
+
+                  <button
+                    onClick={() => setAdminSubTab('instagram')}
+                    className={`px-3 py-1.5 rounded-lg text-[10.5px] md:text-xs font-bold uppercase transition-all flex items-center gap-2 cursor-pointer ${
+                      adminSubTab === 'instagram'
+                        ? 'bg-[#FF5500] text-white'
+                        : currentTheme === 'light'
+                          ? 'bg-slate-50 hover:bg-slate-100 text-slate-700'
+                          : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-400'
+                    }`}
+                  >
+                    <Instagram size={14} />
+                    <span>Instagram Sync</span>
+                  </button>
+                </div>
+
+                {/* GLOBAL MEDIA HUB / IMAGE MANAGER */}
+                {adminSubTab === 'media' && (
+                  <div className="space-y-6 text-left">
+                    <div className={`p-6 rounded-3xl border ${s.card} space-y-4`}>
+                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div>
+                          <h2 className={`text-lg font-black flex items-center gap-2 ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
+                            <ImageIcon size={20} className="text-[#FF5500]" />
+                            <span>Global Media Hub</span>
+                          </h2>
+                          <p className={`text-xs ${currentTheme === 'light' ? 'text-slate-600' : 'text-slate-400'}`}>
+                            View, search, edit, replace, upload, or reset every single image asset across your entire website in real time.
+                          </p>
+                        </div>
+                        <div className="text-xs bg-emerald-500/10 text-emerald-500 font-mono font-bold px-3 py-1 rounded-full border border-emerald-500/20 w-fit">
+                          ● Engine Synchronized
+                        </div>
+                      </div>
+
+                      {/* Search and Filters */}
+                      <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                        <div className="relative flex-1">
+                          <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                          <input
+                            type="text"
+                            value={mediaSearchQuery}
+                            onChange={(e) => setMediaSearchQuery(e.target.value)}
+                            placeholder="Search images by name or caption..."
+                            className={`w-full pl-10 pr-4 py-2.5 rounded-xl text-xs outline-none transition-all ${s.input}`}
+                          />
+                          {mediaSearchQuery && (
+                            <button
+                              onClick={() => setMediaSearchQuery('')}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                            >
+                              <X size={12} />
+                            </button>
+                          )}
+                        </div>
+
+                        <select
+                          value={mediaFilterCategory}
+                          onChange={(e) => setMediaFilterCategory(e.target.value)}
+                          className={`px-3 py-2.5 rounded-xl text-xs outline-none cursor-pointer border ${
+                            currentTheme === 'light' ? 'bg-white border-slate-200 text-slate-700' : 'bg-zinc-900 border-white/5 text-zinc-300'
+                          }`}
+                        >
+                          <option value="all">All Image Sources</option>
+                          <option value="profile">Profile Photo</option>
+                          <option value="gallery">Showcase Portfolio</option>
+                          <option value="software">Software Licenses</option>
+                          <option value="affiliate">Affiliate Gear</option>
+                          <option value="testimonial">Customer Testimonials</option>
+                          <option value="review">PixelFix Reviews</option>
+                          <option value="instagram">Instagram Posts</option>
+                        </select>
+                      </div>
+
+                      {/* Filter pills */}
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {[
+                          { id: 'all', label: 'All Assets' },
+                          { id: 'profile', label: 'Profile' },
+                          { id: 'gallery', label: 'Showcase' },
+                          { id: 'software', label: 'Licenses' },
+                          { id: 'affiliate', label: 'Affiliates' },
+                          { id: 'testimonial', label: 'Testimonials' },
+                          { id: 'review', label: 'PixelFix' },
+                          { id: 'instagram', label: 'Instagram' }
+                        ].map((pill) => (
+                          <button
+                            key={pill.id}
+                            onClick={() => setMediaFilterCategory(pill.id)}
+                            className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase transition-all ${
+                              mediaFilterCategory === pill.id
+                                ? 'bg-orange-500/15 text-orange-500 border border-orange-500/25'
+                                : currentTheme === 'light'
+                                  ? 'bg-slate-50 border border-slate-200 text-slate-600 hover:bg-slate-100'
+                                  : 'bg-zinc-900/60 border border-white/5 text-zinc-400 hover:bg-zinc-800'
+                            }`}
+                          >
+                            {pill.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Media Grid */}
+                    {(() => {
+                      const allImages = getWebImages();
+                      const filteredImages = allImages.filter((img) => {
+                        const matchesSearch = img.title.toLowerCase().includes(mediaSearchQuery.toLowerCase()) ||
+                          img.section.toLowerCase().includes(mediaSearchQuery.toLowerCase());
+                        
+                        const matchesCategory = mediaFilterCategory === 'all' || 
+                          (mediaFilterCategory === 'profile' && img.type === 'profile') ||
+                          (mediaFilterCategory === 'gallery' && img.type === 'gallery') ||
+                          (mediaFilterCategory === 'software' && img.type === 'license') ||
+                          (mediaFilterCategory === 'affiliate' && img.type === 'affiliate') ||
+                          (mediaFilterCategory === 'testimonial' && img.type === 'testimonial') ||
+                          (mediaFilterCategory === 'review' && img.type === 'review') ||
+                          (mediaFilterCategory === 'instagram' && img.type === 'instagram');
+
+                        return matchesSearch && matchesCategory;
+                      });
+
+                      if (filteredImages.length === 0) {
+                        return (
+                          <div className={`py-12 text-center font-mono text-xs border border-dashed rounded-3xl ${s.card}`}>
+                            <ImageIcon size={32} className="mx-auto text-slate-500 mb-2 opacity-50" />
+                            <span>-- No active image assets match your query --</span>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                          {filteredImages.map((img) => {
+                            return (
+                              <div
+                                key={img.id}
+                                className={`p-4 rounded-3xl border flex flex-col justify-between space-y-4 ${s.card}`}
+                              >
+                                <div className="space-y-3">
+                                  {/* Thumbnail display */}
+                                  <div className={`relative aspect-video rounded-2xl overflow-hidden border ${
+                                    currentTheme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-black/40 border-white/5'
+                                  }`}>
+                                    {img.url ? (
+                                      <img
+                                        src={img.url}
+                                        alt={img.title}
+                                        referrerPolicy="no-referrer"
+                                        className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
+                                      />
+                                    ) : (
+                                      <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-500 text-[10px] font-mono">
+                                        <X size={18} className="text-rose-500 mb-1" />
+                                        <span>No image URL configured</span>
+                                      </div>
+                                    )}
+
+                                    {/* Action tags */}
+                                    <div className="absolute top-2 left-2 flex gap-1 flex-wrap">
+                                      <span className="px-2 py-0.5 rounded text-[8px] font-mono font-bold uppercase tracking-wider bg-black/70 text-white backdrop-blur-xs">
+                                        {img.type.toUpperCase()}
+                                      </span>
+                                    </div>
+
+                                    {img.url && img.url.startsWith('data:image') && (
+                                      <span className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded text-[8px] font-mono font-bold bg-green-500/90 text-white">
+                                        COMPRESSED BASE64
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {/* Title and section */}
+                                  <div className="text-left space-y-0.5">
+                                    <h4 className={`text-xs font-black truncate leading-tight ${
+                                      currentTheme === 'light' ? 'text-slate-800' : 'text-white'
+                                    }`} title={img.title}>
+                                      {img.title}
+                                    </h4>
+                                    <span className="text-[10px] font-mono text-slate-400 block truncate">
+                                      📍 {img.section}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <div className="space-y-3 pt-1 border-t border-slate-100 dark:border-white/5">
+                                  {/* URL input and action buttons */}
+                                  <div className="space-y-1.5 text-left">
+                                    <label className="text-[9.5px] font-bold text-slate-450 dark:text-slate-400 font-mono block uppercase">
+                                      Configure Image URL:
+                                    </label>
+                                    <div className="flex gap-1.5">
+                                      <input
+                                        type="text"
+                                        defaultValue={img.url}
+                                        id={`url_input_${img.id}`}
+                                        placeholder="Paste image web URL..."
+                                        className={`flex-1 px-2.5 py-1.5 rounded-lg text-[10px] outline-none transition-all font-mono truncate ${s.input}`}
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={async () => {
+                                          const el = document.getElementById(`url_input_${img.id}`) as HTMLInputElement;
+                                          if (el) {
+                                            await handleUpdateWebImage(img, el.value);
+                                          }
+                                        }}
+                                        className="px-2.5 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-[9.5px] font-black uppercase rounded-lg transition-colors cursor-pointer shrink-0"
+                                      >
+                                        Apply
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  {/* Drag-and-drop file uploader area */}
+                                  <div className="relative">
+                                    <input
+                                      type="file"
+                                      id={`file_picker_${img.id}`}
+                                      accept="image/*"
+                                      onChange={async (e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) {
+                                          const reader = new FileReader();
+                                          reader.onload = async (event) => {
+                                            const base64 = event.target?.result as string;
+                                            const compressed = await compressBase64Image(base64);
+                                            await handleUpdateWebImage(img, compressed);
+                                          };
+                                          reader.readAsDataURL(file);
+                                        }
+                                      }}
+                                      className="hidden"
+                                    />
+                                    <div
+                                      onClick={() => document.getElementById(`file_picker_${img.id}`)?.click()}
+                                      className={`py-2 px-3 border border-dashed rounded-xl cursor-pointer hover:border-orange-500/50 transition-colors text-center text-[10px] font-medium ${
+                                        currentTheme === 'light'
+                                          ? 'bg-slate-50 border-slate-300 text-slate-500 hover:bg-slate-100'
+                                          : 'bg-black/20 border-white/10 text-slate-400 hover:bg-zinc-900/60'
+                                      }`}
+                                    >
+                                      <Upload size={12} className="inline-block mr-1 text-[#FF5500]" />
+                                      <span>Upload &amp; Replace Image</span>
+                                    </div>
+                                  </div>
+
+                                  {/* Delete / Reset row */}
+                                  <div className="flex gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        const defaultValue = getInitialValueForImage(img);
+                                        if (confirm('Are you sure you want to restore this image asset to its original default? This will synchronize in real time.')) {
+                                          await handleUpdateWebImage(img, defaultValue);
+                                          const el = document.getElementById(`url_input_${img.id}`) as HTMLInputElement;
+                                          if (el) el.value = defaultValue;
+                                        }
+                                      }}
+                                      className={`flex-1 py-1.5 rounded-lg border text-[9px] font-black uppercase transition-all cursor-pointer ${
+                                        currentTheme === 'light'
+                                          ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300'
+                                          : 'bg-slate-800 hover:bg-slate-750 text-slate-300 border-white/5'
+                                      }`}
+                                    >
+                                      Reset default
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        if (confirm('Are you sure you want to delete / clear this image? This will set it to an empty placeholder in real time.')) {
+                                          await handleUpdateWebImage(img, '');
+                                          const el = document.getElementById(`url_input_${img.id}`) as HTMLInputElement;
+                                          if (el) el.value = '';
+                                        }
+                                      }}
+                                      className="px-3 py-1.5 bg-rose-600/10 hover:bg-rose-600/20 text-rose-400 hover:text-rose-300 border border-rose-500/20 text-[9px] font-black uppercase rounded-lg transition-all cursor-pointer"
+                                    >
+                                      Delete
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+
+                {/* OVERVIEW TAB */}
+                {adminSubTab === 'overview' && (
+                  <>
+                    {/* AFFILIATE PERFORMANCE MONITORING DESK */}
+                    <div className={`p-5 rounded-2xl border ${s.card} space-y-4`}>
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div className="space-y-0.5 text-left">
                       <h3 className={`text-sm font-bold flex items-center gap-1.5 ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
@@ -9582,11 +10570,15 @@ export default function App() {
                     );
                   })()}
                 </div>
+                  </>
+                )}
 
+                {adminSubTab !== 'media' && (
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                   
                   {/* Left Column: Gallery management uploader */}
                   <div className="lg:col-span-6 space-y-6">
+                    {adminSubTab === 'gallery' ? (
                     <div className={`p-6 rounded-3xl border ${s.card} space-y-6`}>
                       <h3 className={`text-lg font-black flex items-center gap-2 ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
                         <Upload size={18} className="text-[#FF5500]" />
@@ -9698,8 +10690,10 @@ export default function App() {
                         </button>
                       </form>
                     </div>
+                    ) : null}
 
                     {/* Notification Alert System */}
+                    {adminSubTab === 'inquiries' ? (
                     <div className={`p-6 rounded-3xl border ${s.card} space-y-4`}>
                       <h3 className={`text-lg font-black flex items-center gap-2 ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
                         <Bell size={18} className="text-[#FF5500]" />
@@ -9761,10 +10755,12 @@ export default function App() {
                         </div>
                       )}
                     </div>
+                    ) : null}
                   </div>
 
                   {/* Right Column: Manage records */}
                   <div className="lg:col-span-6 space-y-6">
+                    {adminSubTab === 'gallery' ? (
                     <div className={`p-6 rounded-3xl border ${s.card} space-y-4`}>
                       <h3 className={`text-lg font-black flex items-center gap-2 ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
                         <SlidersHorizontal size={18} className="text-[#FF5500]" />
@@ -9783,7 +10779,7 @@ export default function App() {
                               currentTheme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-black/35 border-white/5'
                             }`}
                           >
-                            <div className="flex items-center space-x-3 text-left">
+                            <div className="flex items-center space-x-3 text-left min-w-0 flex-1">
                               <div className="w-10 h-10 overflow-hidden rounded-lg relative flex-shrink-0">
                                 <LazyImage
                                   src={item.imageUrl}
@@ -9792,7 +10788,7 @@ export default function App() {
                                   placeholderClassName="absolute inset-0 z-0"
                                 />
                               </div>
-                              <div className="max-w-[200px]">
+                              <div className="min-w-0 flex-1">
                                 <span className={`font-extrabold block truncate ${currentTheme === 'light' ? 'text-slate-800' : 'text-white'}`}>
                                   {item.title}
                                 </span>
@@ -9824,8 +10820,10 @@ export default function App() {
                         ))}
                       </div>
                     </div>
+                    ) : null}
 
                     {/* Booking inquiries from client contact forms logged locally */}
+                    {adminSubTab === 'inquiries' ? (
                     <div className={`p-6 rounded-3xl border ${s.card} space-y-4`}>
                       <h3 className={`text-lg font-black flex items-center gap-2 ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
                         <MessageSquare size={18} className="text-[#FF5500]" />
@@ -9874,7 +10872,7 @@ export default function App() {
                               }`}>
                                 {msg.message}
                               </div>
-                              <div className={`font-mono text-[10px] pt-1.5 border-t mt-1.5 flex gap-3 ${
+                              <div className={`font-mono text-[10px] pt-1.5 border-t mt-1.5 flex flex-col xs:flex-row xs:items-center gap-2 xs:gap-3.5 ${
                                 currentTheme === 'light' ? 'border-slate-200 text-slate-500' : 'border-white/5 text-slate-400'
                               }`}>
                                 <span>📞 Mobile: <a href={`tel:${msg.phone}`} className={`hover:underline ${currentTheme === 'light' ? 'text-slate-900 font-semibold' : 'text-white'}`}>{msg.phone}</a></span>
@@ -9892,8 +10890,10 @@ export default function App() {
                         </div>
                       )}
                     </div>
+                    ) : null}
 
                     {/* Instagram Real-time Api Sync Panel */}
+                    {adminSubTab === 'instagram' ? (
                     <div className={`p-6 rounded-3xl border ${s.card} space-y-4`}>
                       <h3 className={`text-lg font-black flex items-center gap-2 ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
                         <Instagram size={18} className="text-[#FF5500]" />
@@ -9991,8 +10991,10 @@ export default function App() {
                         </div>
                       </div>
                     </div>
+                    ) : null}
 
                     {/* Drag and Drop Social Links Reordering Dashboard Card */}
+                    {adminSubTab === 'gallery' ? (
                     <div id="social-reorder-card" className={`p-6 rounded-3xl border ${s.card} space-y-4`}>
                       <div className="flex items-center justify-between gap-2">
                         <h3 className={`text-lg font-black flex items-center gap-2 ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
@@ -10249,7 +11251,7 @@ export default function App() {
                                     type="button"
                                     onClick={() => moveSocialChannel(idx, 'up')}
                                     disabled={idx === 0}
-                                    className={`p-1 rounded transition-colors ${
+                                    className={`hidden sm:inline-flex p-1 rounded transition-colors ${
                                       idx === 0
                                         ? 'text-slate-300 dark:text-zinc-700 cursor-not-allowed opacity-20'
                                         : 'text-[#FF5500] hover:bg-indigo-500/10 dark:hover:bg-white/5 cursor-pointer'
@@ -10264,7 +11266,7 @@ export default function App() {
                                     type="button"
                                     onClick={() => moveSocialChannel(idx, 'down')}
                                     disabled={idx === socialLinks.length - 1}
-                                    className={`p-1 rounded transition-colors ${
+                                    className={`hidden sm:inline-flex p-1 rounded transition-colors ${
                                       idx === socialLinks.length - 1
                                         ? 'text-slate-300 dark:text-zinc-700 cursor-not-allowed opacity-20'
                                         : 'text-[#FF5500] hover:bg-indigo-500/10 dark:hover:bg-white/5 cursor-pointer'
@@ -10302,9 +11304,12 @@ export default function App() {
                         )}
                       </Reorder.Group>
                     </div>
+                    ) : null}
                   </div>
 
                   {/* HOMEPAGE BRAND & CORE IDENTITY EDITOR */}
+                  {adminSubTab === 'overview' && (
+                  <>
                   <div className={`p-6 rounded-3xl border ${s.card} space-y-6 lg:col-span-12 mt-4 text-left`}>
                     <h3 className={`text-lg font-black flex items-center gap-2 ${
                       currentTheme === 'light' ? 'text-slate-900' : 'text-white'
@@ -10841,10 +11846,13 @@ export default function App() {
                       </div>
                     )}
                   </div>
+                  </>
+                  )}
 
                 </div>
-              </div>
-            )}
+              )}
+            </div>
+          )}
           </motion.div>
         )}
         </AnimatePresence>
@@ -12687,80 +13695,75 @@ export default function App() {
 
                         <div className="p-2 border border-dashed rounded-[32px] border-amber-500/20 bg-amber-500/[0.01] flex items-center justify-center">
                           <div
-                            className={`w-full max-w-sm rounded-3xl border overflow-hidden flex flex-col justify-between group transition-all duration-300 relative h-full ${
+                            className={`w-full max-w-sm rounded-2xl border overflow-hidden transition-all duration-300 relative text-left select-none group ${
                               currentTheme === 'light'
-                                ? 'bg-white border-slate-200 shadow-sm'
-                                : 'bg-zinc-950 border-white/5 shadow-2xl'
+                                ? 'bg-white border-slate-100 shadow-[0_4px_18px_-4px_rgba(0,0,0,0.03)]'
+                                : 'bg-zinc-950 border-white/[0.02] shadow-[0_4px_25px_rgba(0,0,0,0.3)]'
                             }`}
                           >
-                            <div className={`px-4 py-3 border-b flex items-center justify-between gap-2 ${
-                              currentTheme === 'light' ? 'bg-slate-50/50 border-slate-200/50' : 'bg-black/15 border-white/5'
+                            {/* 1. Product Image inside the pristine showroom frame */}
+                            <div className={`relative aspect-[4/3] w-full overflow-hidden flex items-center justify-center p-3.5 border-b transition-colors duration-300 ${
+                              currentTheme === 'light'
+                                ? 'bg-slate-50/50 border-slate-100'
+                                : 'bg-zinc-900/15 border-white/[0.01]'
                             }`}>
-                              <div className="flex flex-wrap items-center gap-1 min-w-0">
-                                {(editingItem.data.category || 'photography').split(',').map(c => c.trim()).filter(Boolean).map((catId) => {
-                                  const categoryLabelStr = affiliateLabelMap[catId] || catId;
-                                  return (
-                                    <span 
-                                      key={catId} 
-                                      className="px-2 py-0.5 rounded-full text-[7px] uppercase tracking-widest font-mono font-black border bg-amber-500/10 text-amber-500 border-amber-500/20"
-                                    >
-                                      {categoryLabelStr}
-                                    </span>
-                                  );
-                                })}
-                              </div>
-                              <span className="text-[7.5px] font-mono font-bold bg-amber-500 text-black px-1.5 py-0.5 rounded-full uppercase tracking-wider">
-                                LIVE PREVIEW
-                              </span>
-                            </div>
-
-                            <div className="relative aspect-video w-full overflow-hidden bg-slate-950 border-b border-slate-200/50 dark:border-white/5">
-                              <div className="absolute top-2.5 left-3 px-1.5 py-0.5 rounded bg-amber-500/90 text-white font-mono text-[7px] font-black tracking-widest uppercase z-10">
-                                🛡️ VERIFIED
-                              </div>
                               {editingItem.data.imageUrl ? (
-                                <img
-                                  src={editingItem.data.imageUrl}
-                                  alt="Live preview"
-                                  className="w-full h-full object-cover"
-                                />
+                                <div className="w-full h-full rounded-xl overflow-hidden bg-white p-2.5 flex items-center justify-center relative shadow-[inset_0_1px_4px_rgba(0,0,0,0.02)]">
+                                  <img
+                                    src={editingItem.data.imageUrl}
+                                    alt="Live preview"
+                                    className="w-full h-full object-contain"
+                                  />
+                                </div>
                               ) : (
-                                <div className="w-full h-full flex flex-col items-center justify-center text-slate-600 bg-slate-900 text-[10px] font-mono uppercase tracking-wider p-4 text-center">
+                                <div className="w-full h-full flex flex-col items-center justify-center text-slate-500 bg-slate-900/40 dark:bg-zinc-900/40 text-[10px] font-mono uppercase tracking-wider p-4 text-center">
                                   <span>No image defined</span>
-                                  <span className="text-[8px] text-slate-500 mt-1">Paste URL or select image above</span>
+                                  <span className="text-[8px] text-slate-400 mt-1">Paste URL or select image above</span>
                                 </div>
                               )}
-                            </div>
 
-                            <div className="px-4 pt-4 text-left">
-                              <h3 className={`text-xs md:text-sm font-extrabold tracking-tight leading-snug line-clamp-2 ${
-                                currentTheme === 'light' ? 'text-slate-900' : 'text-white'
-                              }`}>
-                                {editingItem.data.title || 'Untitled Recommendation Listing'}
-                              </h3>
-                              <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                                {editingItem.data.discountCode && (
-                                  <span className="text-[8px] font-mono uppercase bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-1.5 py-0.5 rounded flex items-center gap-1 font-bold shadow-xs">
-                                    <span>🏷️ PROMO:</span>
-                                    <span className="font-mono tracking-wider font-black">{editingItem.data.discountCode}</span>
+                              {/* Dynamic Micro-Badges for source tagging in preview */}
+                              <div className="absolute top-2.5 left-2.5 z-20 flex items-center gap-1.5">
+                                {/amazon\.(in|com|co\.uk|ca|de|fr|co\.jp|com\.au|es|it|com\.mx|com\.br|com\.tr|ae|sa|sg|se|pl|nl|be|com\.be|co\.za|eg)|\/amzn\.to\//i.test(editingItem.data.url || '') ? (
+                                  <span className="px-2 py-0.5 rounded-full bg-amber-500/90 text-black font-mono text-[8px] font-black tracking-widest uppercase flex items-center gap-1 shadow-sm backdrop-blur-md">
+                                    <ShoppingBag size={8} className="stroke-[2.5]" />
+                                    <span>AMAZON</span>
+                                  </span>
+                                ) : (
+                                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/90 text-white font-mono text-[8px] font-black tracking-widest uppercase flex items-center gap-1 shadow-sm backdrop-blur-md">
+                                    <ExternalLink size={8} className="stroke-[2.5]" />
+                                    <span>PARTNER</span>
                                   </span>
                                 )}
                               </div>
                             </div>
 
-                            <div className="px-4 py-3 text-left">
-                              <p className={`text-[11px] leading-relaxed font-sans line-clamp-3 ${
-                                currentTheme === 'light' ? 'text-slate-600 font-medium' : 'text-slate-400'
-                              }`}>
-                                {editingItem.data.description || 'Provide a brief, compelling testimony explaining why this gear is recommended...'}
-                              </p>
-                            </div>
+                            {/* 2. Text Content */}
+                            <div className="flex-1 flex flex-col p-3.5 sm:p-4 min-w-0 justify-between">
+                              <div className="space-y-2">
+                                {/* Product Title */}
+                                <h3 className={`text-xs sm:text-sm font-bold tracking-tight leading-snug line-clamp-2 transition-colors duration-200 ${
+                                  currentTheme === 'light' ? 'text-slate-900' : 'text-zinc-100'
+                                }`}>
+                                  {editingItem.data.title || 'Untitled Recommendation Listing'}
+                                </h3>
 
-                            <div className="p-4 pt-0 mt-auto">
-                              <div className="w-full py-3.5 md:py-2.5 rounded-xl font-bold font-mono text-[9px] uppercase tracking-wider flex items-center justify-center gap-2 border border-slate-700 bg-white/5 text-slate-400">
-                                <span>SHOP PARTNER DEAL</span>
-                                <ArrowUpRight size={10} />
+                                {/* Product Description */}
+                                <p className={`text-[10px] sm:text-[11px] leading-relaxed font-sans line-clamp-3 sm:line-clamp-4 ${
+                                  currentTheme === 'light' ? 'text-slate-500 font-medium' : 'text-slate-400'
+                                }`}>
+                                  {editingItem.data.description || 'Provide a brief, compelling testimony explaining why this gear is recommended...'}
+                                </p>
                               </div>
+
+                              {/* Code Section (Price has been removed per user request) */}
+                              {editingItem.data.discountCode && (
+                                <div className="mt-4 pt-3 flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 dark:border-white/[0.02]">
+                                  <span className="px-1.5 py-0.5 rounded-md bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/20 text-amber-500 font-mono text-[8px] font-bold tracking-wider">
+                                    CODE: {editingItem.data.discountCode}
+                                  </span>
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
