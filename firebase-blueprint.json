@@ -27,7 +27,8 @@
         "id": { "type": "string" },
         "labels": { "type": "object" },
         "status": { "type": "string" },
-        "lastRefreshTimestamp": { "type": "string" }
+        "lastRefreshTimestamp": { "type": "string" },
+        "showPrices": { "type": "boolean" }
       }
     },
     "SocialLink": {
@@ -62,6 +63,8 @@
         "contactPhonePhotos": { "type": "string" },
         "logoText": { "type": "string" },
         "logoSubtext": { "type": "string" },
+        "logoUrl": { "type": "string" },
+        "faviconUrl": { "type": "string" },
         "bannerText": { "type": "string" },
         "exploreButtonText": { "type": "string" },
         "exploreButtonLink": { "type": "string" },

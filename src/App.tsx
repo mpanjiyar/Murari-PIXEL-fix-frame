@@ -103,6 +103,7 @@ import {
   getExtraInclusionsAndSpecs
 } from './data';
 import { GalleryItem, ContactMessage, NotificationLog, AffiliateLink, SocialLink, SoftwareLicense } from './types';
+import { LicenseProductCardVisual } from './components/LicenseProductCardVisual';
 import PFLogo from './components/PFLogo';
 import CursorEffect from './components/CursorEffect';
 import WhatsAppIcon from './components/WhatsAppIcon';
@@ -808,6 +809,8 @@ export default function App() {
   // Dynamic Site Customization States (Firebase & Live Admin Sync)
   const [logoText, setLogoText] = useState<string>('MURARI PANJIYAR');
   const [logoSubtext, setLogoSubtext] = useState<string>('Pixel Fix & Pixel Frame');
+  const [logoUrl, setLogoUrl] = useState<string>('');
+  const [faviconUrl, setFaviconUrl] = useState<string>('');
   const [bannerText, setBannerText] = useState<string>('🚨 Guwahati local area doorstep dispatcher • Booking & Live Quote Estimator Engine Active 📱');
   const [exploreButtonText, setExploreButtonText] = useState<string>('Explore Collections');
   const [exploreButtonLink, setExploreButtonLink] = useState<string>('#affiliate');
@@ -1030,6 +1033,18 @@ export default function App() {
 
   const [affiliateSyncStatus, setAffiliateSyncStatus] = useState<{ lastRefreshTimestamp: string; status: string } | null>(null);
   const [isSyncingDeals, setIsSyncingDeals] = useState(false);
+
+  const [inquirySearchText, setInquirySearchText] = useState('');
+  const [inquiryFilter, setInquiryFilter] = useState<'all' | 'unread' | 'it_fix' | 'photography'>('all');
+
+  const [showAffiliatePrices, setShowAffiliatePrices] = useState<boolean>(() => {
+    const saved = localStorage.getItem('mp_show_affiliate_prices');
+    return saved !== 'false';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('mp_show_affiliate_prices', String(showAffiliatePrices));
+  }, [showAffiliatePrices]);
 
   const [socialLinks, setSocialLinks] = useState<SocialLink[]>(() => {
     const saved = localStorage.getItem('mp_social_links');
@@ -1311,6 +1326,22 @@ export default function App() {
       handleFirestoreError(error, OperationType.GET, 'affiliate_config/status');
     });
 
+    const unsubPriceToggle = onSnapshot(doc(db, 'affiliate_config', 'price_toggle'), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data && typeof data.showPrices === 'boolean') {
+          setShowAffiliatePrices(data.showPrices);
+        }
+      } else {
+        setDoc(doc(db, 'affiliate_config', 'price_toggle'), { id: 'price_toggle', showPrices: true }).catch(err => {
+          console.error("Error seeding price toggle to config: ", err);
+        });
+      }
+    }, (error) => {
+      console.error("Firestore onSnapshot error for affiliate_config/price_toggle: ", error);
+      handleFirestoreError(error, OperationType.GET, 'affiliate_config/price_toggle');
+    });
+
     const unsubMessages = onSnapshot(collection(db, 'contact_messages'), (snapshot) => {
       const msgs: ContactMessage[] = [];
       snapshot.forEach((doc) => {
@@ -1328,6 +1359,7 @@ export default function App() {
       unsubLinks();
       unsubConfig();
       unsubSyncStatus();
+      unsubPriceToggle();
       unsubMessages();
     };
   }, []);
@@ -1346,6 +1378,8 @@ export default function App() {
         if (data.bioText) setBioText(data.bioText);
         if (data.logoText) setLogoText(data.logoText);
         if (data.logoSubtext) setLogoSubtext(data.logoSubtext);
+        if (data.logoUrl !== undefined) setLogoUrl(data.logoUrl);
+        if (data.faviconUrl !== undefined) setFaviconUrl(data.faviconUrl);
         if (data.bannerText !== undefined) setBannerText(data.bannerText);
         if (data.exploreButtonText) setExploreButtonText(data.exploreButtonText);
         if (data.exploreButtonLink) setExploreButtonLink(data.exploreButtonLink);
@@ -1424,6 +1458,8 @@ export default function App() {
           bioText,
           logoText,
           logoSubtext,
+          logoUrl,
+          faviconUrl,
           bannerText,
           exploreButtonText,
           exploreButtonLink,
@@ -1528,6 +1564,47 @@ export default function App() {
     };
   }, []);
 
+  // Dynamically sync and update the browser favicon when faviconUrl changes
+  useEffect(() => {
+    if (faviconUrl) {
+      const links = document.querySelectorAll("link[rel*='icon']");
+      if (links.length > 0) {
+        links.forEach((link: any) => {
+          link.href = faviconUrl;
+          if (faviconUrl.startsWith('data:image/svg') || faviconUrl.includes('.svg')) {
+            link.type = 'image/svg+xml';
+          } else if (faviconUrl.startsWith('data:image/x-icon') || faviconUrl.includes('.ico')) {
+            link.type = 'image/x-icon';
+          } else if (faviconUrl.startsWith('data:image/png') || faviconUrl.includes('.png')) {
+            link.type = 'image/png';
+          } else if (faviconUrl.startsWith('data:image/webp') || faviconUrl.includes('.webp')) {
+            link.type = 'image/webp';
+          } else {
+            link.type = 'image/jpeg';
+          }
+        });
+      } else {
+        const link = document.createElement('link');
+        link.rel = 'icon';
+        link.href = faviconUrl;
+        document.head.appendChild(link);
+      }
+    } else {
+      const links = document.querySelectorAll("link[rel*='icon']");
+      if (links.length > 0) {
+        links.forEach((link: any) => {
+          if (link.getAttribute('href')?.includes('favicon.svg')) {
+            link.href = '/favicon.svg';
+            link.type = 'image/svg+xml';
+          } else {
+            link.href = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' fill='none'%3E%3Cg fill='%23FF5500'%3E%3Crect x='0' y='20' width='20' height='80' rx='1'/%3E%3Crect x='20' y='20' width='40' height='20' rx='1'/%3E%3Crect x='40' y='40' width='20' height='40' rx='1'/%3E%3Crect x='20' y='60' width='20' height='20' rx='1'/%3E%3Crect x='40' y='0' width='60' height='20' rx='1'/%3E%3Crect x='60' y='40' width='20' height='20' rx='1'/%3E%3C/g%3E%3C/svg%3E";
+            link.type = 'image/svg+xml';
+          }
+        });
+      }
+    }
+  }, [faviconUrl]);
+
   const [editingItem, setEditingItem] = useState<{
     type: 'it_service' | 'photo_service' | 'instagram' | 'hero' | 'about' | 'gallery_item' | 'testimonial' | 'pixelfix_review' | 'affiliate_link' | 'social_link' | 'software_license';
     index?: number;
@@ -1587,13 +1664,12 @@ export default function App() {
       };
     });
 
-    // Merge them ensuring no duplicate IDs
-    const existingIds = new Set(list.map(a => a.id));
-    mappedLicenses.forEach(item => {
-      if (!existingIds.has(item.id)) {
-        list.push(item as any);
-      }
-    });
+    // Merge them ensuring no duplicate IDs. Mapped licenses from the Software Licenses section ALWAYS take priority and overwrite/replace any duplicate IDs to ensure real-time identical sync.
+    const mappedIds = new Set(mappedLicenses.map(m => m.id));
+    // Filter out any static affiliate links with matching IDs
+    list = list.filter(a => !mappedIds.has(a.id));
+    // Append the mapped software licenses
+    list.push(...(mappedLicenses as any[]));
 
     if (editingItem && editingItem.type === 'affiliate_link' && editingItem.data) {
       const editData = editingItem.data;
@@ -2267,7 +2343,112 @@ export default function App() {
   const [isAuthorized, setIsAuthorized] = useState(() => {
     return localStorage.getItem('mp_admin_authorized') === 'true';
   });
-  const [adminSubTab, setAdminSubTab] = useState<'overview' | 'media' | 'gallery' | 'inquiries' | 'instagram'>('overview');
+  const [adminSubTab, setAdminSubTab] = useState<'overview' | 'media' | 'gallery' | 'inquiries' | 'instagram' | 'branding'>('overview');
+  const [draftLogoUrl, setDraftLogoUrl] = useState<string>('');
+  const [draftFaviconUrl, setDraftFaviconUrl] = useState<string>('');
+
+  useEffect(() => {
+    setDraftLogoUrl(logoUrl);
+  }, [logoUrl]);
+
+  useEffect(() => {
+    setDraftFaviconUrl(faviconUrl);
+  }, [faviconUrl]);
+
+  const handleLogoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml', 'image/webp', 'image/gif'];
+    const fileExtension = file.name.split('.').pop()?.toLowerCase();
+    
+    if (!validTypes.includes(file.type) && !['svg', 'webp', 'gif'].includes(fileExtension || '')) {
+      triggerToast('Invalid format. Please select a PNG, JPG, JPEG, SVG, WebP, or GIF image.', 'error');
+      return;
+    }
+
+    if (file.size > 1024 * 400) {
+      if (['svg', 'gif'].includes(fileExtension || '')) {
+        triggerToast('SVG and GIF files must be under 400KB to fit database boundaries.', 'error');
+        return;
+      }
+    } else if (file.size > 1024 * 1024 * 4) {
+      triggerToast('Logo files must be under 4MB.', 'error');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const base64 = event.target?.result as string;
+      try {
+        if (['svg', 'gif'].includes(fileExtension || '')) {
+          setDraftLogoUrl(base64);
+          triggerToast('New custom logo loaded. Click "Save Branding Changes" to apply.', 'info');
+        } else {
+          const compressed = await compressBase64Image(base64, 400, 0.7);
+          setDraftLogoUrl(compressed);
+          triggerToast('New custom logo optimized and loaded. Click "Save Branding Changes" to apply.', 'info');
+        }
+      } catch (err) {
+        triggerToast('Failed to process logo image.', 'error');
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleFaviconFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const fileExtension = file.name.split('.').pop()?.toLowerCase() || '';
+    const validExtensions = ['ico', 'png', 'svg', 'webp', 'jpg', 'jpeg'];
+    
+    if (!validExtensions.includes(fileExtension)) {
+      triggerToast('Invalid format. Please select an ICO, PNG, SVG, WebP, or JPG file.', 'error');
+      return;
+    }
+
+    if (file.size > 1024 * 150) {
+      triggerToast('Favicon file must be under 150KB for fast website loads.', 'error');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const base64 = event.target?.result as string;
+      try {
+        if (['ico', 'svg'].includes(fileExtension)) {
+          setDraftFaviconUrl(base64);
+          triggerToast('New custom favicon loaded. Click "Save Branding Changes" to apply.', 'info');
+        } else {
+          const compressed = await compressBase64Image(base64, 64, 0.7);
+          setDraftFaviconUrl(compressed);
+          triggerToast('New custom favicon optimized and loaded. Click "Save Branding Changes" to apply.', 'info');
+        }
+      } catch (err) {
+        triggerToast('Failed to process favicon image.', 'error');
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSaveBranding = async () => {
+    if (confirm('Are you sure you want to save these branding changes? This will instantly replace the website logo and favicon across all connected devices.')) {
+      setIsSavingIdentity(true);
+      try {
+        await updateSiteConfig({
+          logoUrl: draftLogoUrl,
+          faviconUrl: draftFaviconUrl
+        });
+        triggerToast('Website branding identity successfully updated and live synced!', 'success');
+      } catch (err) {
+        triggerToast('Error updating branding identity.', 'error');
+      } finally {
+        setIsSavingIdentity(false);
+      }
+    }
+  };
+
   const [mediaSearchQuery, setMediaSearchQuery] = useState('');
   const [mediaFilterCategory, setMediaFilterCategory] = useState<string>('all');
 
@@ -4052,7 +4233,16 @@ export default function App() {
           
           {/* Brand Logo */}
           <div className="flex items-center space-x-2 sm:space-x-3 cursor-pointer select-none" onClick={() => { setActiveTab('home'); setIsMobileMenuOpen(false); }}>
-            <PFLogo className={currentTheme === 'mono' ? 'text-zinc-300' : 'text-[#FF5500]'} />
+            {logoUrl ? (
+              <img
+                src={logoUrl}
+                alt="Logo"
+                className="w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 shrink-0 object-contain rounded-md transition-all duration-300 hover:scale-105"
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <PFLogo className={currentTheme === 'mono' ? 'text-zinc-300' : 'text-[#FF5500]'} />
+            )}
             <div className="min-w-0">
               <span className={`font-semibold text-sm sm:text-base md:text-lg tracking-wide block uppercase leading-none whitespace-nowrap ${
                 currentTheme === 'light' ? 'text-slate-900' : 'text-white'
@@ -4264,7 +4454,16 @@ export default function App() {
               <div className="flex items-center justify-between pb-6 border-b border-dashed border-slate-200/50 dark:border-white/5">
                 {/* Logo Brand Identity */}
                 <div className="flex items-center space-x-2 cursor-pointer" onClick={() => { setActiveTab('home'); setIsMobileMenuOpen(false); }}>
-                  <PFLogo className={currentTheme === 'mono' ? 'text-zinc-300' : 'text-[#FF5500]'} />
+                  {logoUrl ? (
+                    <img
+                      src={logoUrl}
+                      alt="Logo"
+                      className="w-7 h-7 shrink-0 object-contain rounded-md"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <PFLogo className={currentTheme === 'mono' ? 'text-zinc-300' : 'text-[#FF5500]'} />
+                  )}
                   <div>
                     <span className={`font-semibold text-xs uppercase leading-none block ${
                       currentTheme === 'light' ? 'text-slate-900' : 'text-white'
@@ -4755,7 +4954,7 @@ export default function App() {
                 )}
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+              <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                 {(() => {
                   const activeSoftware = softwareLicensesToRender.filter(l => l.category !== 'gear');
                   return activeSoftware.map((license, idx) => {
@@ -4806,44 +5005,67 @@ export default function App() {
                           </div>
                         )}
 
-                        <div className="space-y-4">
-                          {license.imageUrl && (
+                        <div className="space-y-4 flex-1 flex flex-col justify-between">
+                          <div className="space-y-4">
+                            {/* MODERN LUXURY BRAND VISUAL CARD */}
                             <div className="w-full aspect-[4/3] rounded-xl overflow-hidden bg-slate-100 dark:bg-zinc-800/60 relative">
-                              <img 
-                                src={license.imageUrl} 
-                                alt={license.name}
-                                referrerPolicy="no-referrer"
-                                className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-300"
+                              <LicenseProductCardVisual
+                                licenseId={license.id}
+                                licenseName={license.name}
+                                licenseType={license.licenseType}
+                                currentTheme={currentTheme}
+                                customImageUrl={license.imageUrl}
                               />
                             </div>
-                          )}
 
-                          <div className="flex items-start justify-between">
-                            <div className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors bg-slate-500/10 text-slate-400 group-hover:text-green-500 group-hover:bg-green-500/10">
-                              <Laptop size={14} />
+                            <div className="flex items-start justify-between">
+                              <div className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors bg-slate-500/10 text-slate-400 group-hover:text-green-500 group-hover:bg-green-500/10">
+                                <Laptop size={14} />
+                              </div>
+                              {license.badge && (
+                                <span className="text-[8px] font-extrabold uppercase px-2 py-0.5 rounded-full border tracking-widest bg-slate-100 text-slate-500 border-slate-200 dark:bg-white/5 dark:text-zinc-400 dark:border-white/5 group-hover:border-green-500/20 group-hover:bg-green-500/10 group-hover:text-green-500 transition-colors">
+                                  {license.badge}
+                                </span>
+                              )}
                             </div>
-                            {license.badge && (
-                              <span className="text-[8px] font-extrabold uppercase px-2 py-0.5 rounded-full border tracking-widest bg-slate-100 text-slate-500 border-slate-200 dark:bg-white/5 dark:text-zinc-400 dark:border-white/5 group-hover:border-green-500/20 group-hover:bg-green-500/10 group-hover:text-green-500 transition-colors">
-                                {license.badge}
-                              </span>
-                            )}
+
+                            <div>
+                              <h3 className={`text-xs sm:text-sm font-black leading-tight group-hover:text-green-500 transition-colors ${
+                                currentTheme === 'light' ? 'text-slate-900' : 'text-white'
+                              }`}>
+                                {license.name}
+                              </h3>
+                              
+                              <div className="mt-1 flex items-center gap-1 text-[8.5px] sm:text-[10px] text-emerald-500 font-bold uppercase tracking-wider">
+                                <KeyRound size={10} className="sm:size-[11px]" />
+                                <span>{license.licenseType || 'Lifetime Key'}</span>
+                              </div>
+
+                              <p className="text-[9.5px] sm:text-[11px] text-slate-400 mt-1.5 leading-relaxed line-clamp-2">
+                                {license.description}
+                              </p>
+                            </div>
                           </div>
 
-                          <div>
-                            <h3 className={`text-xs sm:text-sm font-black leading-tight group-hover:text-green-500 transition-colors ${
-                              currentTheme === 'light' ? 'text-slate-900' : 'text-white'
-                            }`}>
-                              {license.name}
-                            </h3>
+                          {/* DYNAMIC SPECS & FEATURES */}
+                          <div className="space-y-1.5 mt-2 pt-2 border-t border-slate-500/5">
+                            {license.compatibility && (
+                              <div className="flex items-center gap-1.5 text-[8.5px] font-mono uppercase tracking-wider text-slate-500">
+                                <Laptop size={10} className="shrink-0" />
+                                <span className="line-clamp-1">{license.compatibility}</span>
+                              </div>
+                            )}
                             
-                            <div className="mt-1 flex items-center gap-1 text-[8.5px] sm:text-[10px] text-emerald-500 font-bold uppercase tracking-wider">
-                              <KeyRound size={10} className="sm:size-[11px]" />
-                              <span>{license.licenseType || 'Lifetime Key'}</span>
-                            </div>
-
-                            <p className="text-[9.5px] sm:text-[11px] text-slate-400 mt-1.5 leading-relaxed line-clamp-2 sm:line-clamp-none">
-                              {license.description}
-                            </p>
+                            {license.features && (
+                              <div className="space-y-1">
+                                {license.features.split(',').slice(0, 2).map((f: string, i: number) => (
+                                  <div key={i} className="flex items-center gap-1.5 text-[9px] sm:text-[10px] text-slate-400">
+                                    <CheckCircle size={9} className="text-emerald-500 shrink-0" />
+                                    <span className="line-clamp-1">{f.trim()}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         </div>
 
@@ -6027,7 +6249,7 @@ export default function App() {
                 )}
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-6">
+              <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 gap-3 md:gap-6">
                 {pixelFixReviews.map((t, index) => (
                   <div key={t.id || index} className={`p-3.5 sm:p-5 rounded-2xl border ${s.card} text-left space-y-3 sm:space-y-4 flex flex-col justify-between h-full`}>
                     <div className="space-y-3 sm:space-y-4">
@@ -6318,7 +6540,7 @@ export default function App() {
                   </button>
                 )}
               </ScrollReveal>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-6">
+              <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 gap-3 md:gap-6">
                 {testimonials.map((t, index) => (
                   <motion.div
                     key={t.id || index}
@@ -6522,7 +6744,7 @@ export default function App() {
 
             {/* Pictures layout list */}
             {isGalleryLoading ? (
-              <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
+              <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
                 {[...Array(6)].map((_, i) => (
                   <div
                     key={`gallery-sk-${i}`}
@@ -6598,7 +6820,7 @@ export default function App() {
                 }}
                 initial="hidden"
                 animate="show"
-                className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6"
+                className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6"
               >
                 {filteredItems.map((item, index) => (
                   <motion.div
@@ -6961,7 +7183,7 @@ export default function App() {
 
               {/* Dynamic Content Stream */}
               {isFetchingInstagram && instagramPosts.length === 0 ? (
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 gap-4">
                   {[1, 2, 3, 4, 5, 6].map((n) => (
                     <div
                       key={n}
@@ -7007,7 +7229,7 @@ export default function App() {
                     }
 
                     return (
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 gap-4">
                         {filtered.map((post, idx) => {
                           const isReel = isVideoPost(post);
                           return (
@@ -7470,7 +7692,7 @@ export default function App() {
             <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4 border-b border-slate-200/50 dark:border-white/5 pb-4">
               <div className="flex items-center gap-1.5 overflow-x-auto pb-2 lg:pb-0 scrollbar-none w-full lg:w-auto -mx-4 px-4 lg:mx-0 lg:px-0 flex-nowrap lg:flex-wrap [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                 {(() => {
-                  const rawCategories = Array.from(new Set(affiliateLinks.flatMap(a => (a.category || '').split(',').map(c => c.trim()).filter(Boolean)))) as string[];
+                  const rawCategories = Array.from(new Set(affiliateLinksToRender.flatMap(a => (a.category || '').split(',').map(c => c.trim()).filter(Boolean)))) as string[];
                   const filteredRawCategories = rawCategories.filter(c => c !== 'my_gears');
 
                   const getCategoryLabel = (cat: string) => {
@@ -7480,8 +7702,8 @@ export default function App() {
                   };
 
                   const getCount = (cat: string) => {
-                    if (cat === 'all') return affiliateLinks.length;
-                    return affiliateLinks.filter(a => (a.category || '').split(',').map(c => c.trim()).includes(cat)).length;
+                    if (cat === 'all') return affiliateLinksToRender.length;
+                    return affiliateLinksToRender.filter(a => (a.category || '').split(',').map(c => c.trim()).includes(cat)).length;
                   };
 
                   return (
@@ -7781,7 +8003,7 @@ export default function App() {
               }}
               initial="hidden"
               animate="show"
-              className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6"
+              className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6"
             >
               {isAffiliateLoading ? (
                 [...Array(3)].map((_, i) => (
@@ -7907,13 +8129,23 @@ export default function App() {
                             : 'bg-zinc-900/15 border-white/[0.01]'
                         }`}>
                           {/* Centered card display block for seamless image blend */}
-                          <div className="w-full h-full rounded-xl overflow-hidden bg-white p-2.5 flex items-center justify-center relative shadow-[inset_0_1px_4px_rgba(0,0,0,0.02)]">
-                            <LazyImage
-                              src={item.imageUrl || 'https://images.unsplash.com/photo-1542751371-adc38448a05e'}
-                              alt={item.title}
-                              className="w-full h-full object-contain transition-transform duration-500 ease-out group-hover:scale-[1.04]"
-                              placeholderClassName="absolute inset-0 z-0"
-                            />
+                          <div className="w-full h-full rounded-xl overflow-hidden bg-white flex items-center justify-center relative shadow-[inset_0_1px_4px_rgba(0,0,0,0.02)]">
+                            {item.isSyncedLicense ? (
+                              <LicenseProductCardVisual
+                                licenseId={item.id}
+                                licenseName={item.title}
+                                licenseType={item.category === 'software' ? 'Lifetime License Key' : undefined}
+                                currentTheme={currentTheme}
+                                customImageUrl={item.imageUrl}
+                              />
+                            ) : (
+                              <LazyImage
+                                src={item.imageUrl || 'https://images.unsplash.com/photo-1542751371-adc38448a05e'}
+                                alt={item.title}
+                                className="w-full h-full object-contain transition-transform duration-500 ease-out group-hover:scale-[1.04]"
+                                placeholderClassName="absolute inset-0 z-0"
+                              />
+                            )}
                           </div>
 
                           {/* Refined gradient overlay for depth */}
@@ -7921,7 +8153,12 @@ export default function App() {
 
                           {/* Dynamic Micro-Badges for source tagging */}
                           <div className="absolute top-2.5 left-2.5 z-20 flex items-center gap-1.5">
-                            {/amazon\.(in|com|co\.uk|ca|de|fr|co\.jp|com\.au|es|it|com\.mx|com\.br|com\.tr|ae|sa|sg|se|pl|nl|be|com\.be|co\.za|eg)|\/amzn\.to\//i.test(item.url || '') ? (
+                            {item.isSyncedLicense ? (
+                              <span className="px-2 py-0.5 rounded-full bg-cyan-500/90 text-white font-mono text-[8px] font-black tracking-widest uppercase flex items-center gap-1 shadow-sm backdrop-blur-md animate-pulse">
+                                <Cpu size={8} className="stroke-[2.5]" />
+                                <span>GENUINE KEY</span>
+                              </span>
+                            ) : /amazon\.(in|com|co\.uk|ca|de|fr|co\.jp|com\.au|es|it|com\.mx|com\.br|com\.tr|ae|sa|sg|se|pl|nl|be|com\.be|co\.za|eg)|\/amzn\.to\//i.test(item.url || '') ? (
                               <span className="px-2 py-0.5 rounded-full bg-amber-500/90 text-black font-mono text-[8px] font-black tracking-widest uppercase flex items-center gap-1 shadow-sm backdrop-blur-md">
                                 <ShoppingBag size={8} className="stroke-[2.5]" />
                                 <span>AMAZON</span>
@@ -7955,12 +8192,33 @@ export default function App() {
                             </p>
                           </div>
 
-                          {/* Code Section (Price has been removed per user request) */}
-                          {item.discountCode && (
-                            <div className="mt-4 pt-3 flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 dark:border-white/[0.02]">
-                              <span className="px-1.5 py-0.5 rounded-md bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/20 text-amber-500 font-mono text-[8px] font-bold tracking-wider">
-                                CODE: {item.discountCode}
-                              </span>
+                          {/* Price and Code Section (Automatically synced in real-time) */}
+                          {((item.price && (item.isSyncedLicense || item.category === 'software')) || item.discountCode) && (
+                            <div className="mt-4 pt-3 flex items-center justify-between gap-2 border-t border-slate-100 dark:border-white/[0.02]">
+                              {(item.price && (item.isSyncedLicense || item.category === 'software')) ? (
+                                <div className="flex flex-col text-left">
+                                  <span className="text-[7px] sm:text-[8px] uppercase font-bold tracking-widest text-slate-400 dark:text-zinc-500 block leading-none">Price</span>
+                                  <div className="flex items-center gap-1.5 mt-0.5">
+                                    <span className={`text-[11px] sm:text-[13px] font-black ${
+                                      currentTheme === 'light' ? 'text-slate-900' : 'text-emerald-400'
+                                    }`}>
+                                      {item.price}
+                                    </span>
+                                    {item.isSyncedLicense && (
+                                      <span className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-[6.5px] font-black tracking-widest uppercase animate-pulse">
+                                        <span className="w-1 h-1 rounded-full bg-cyan-400 animate-ping" />
+                                        SYNCED
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              ) : <div />}
+
+                              {item.discountCode && (
+                                <span className="px-1.5 py-0.5 rounded-md bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/20 text-amber-500 font-mono text-[8px] font-bold tracking-wider">
+                                  CODE: {item.discountCode}
+                                </span>
+                              )}
                             </div>
                           )}
                         </div>
@@ -7979,11 +8237,27 @@ export default function App() {
                             onClick={(ev) => {
                               ev.preventDefault();
                               ev.stopPropagation();
-                              setEditingItem({
-                                type: 'affiliate_link',
-                                data: item,
-                                index
-                              });
+                              if (item.isSyncedLicense) {
+                                const lic = softwareLicenses.find(l => l.id === item.id);
+                                setEditingItem({
+                                  type: 'software_license',
+                                  data: lic || {
+                                    id: item.id,
+                                    name: item.title,
+                                    description: item.description,
+                                    price: item.price || '',
+                                    imageUrl: item.imageUrl || '',
+                                    badge: item.discountCode || ''
+                                  },
+                                  index: softwareLicenses.findIndex(l => l.id === item.id)
+                                });
+                              } else {
+                                setEditingItem({
+                                  type: 'affiliate_link',
+                                  data: item,
+                                  index
+                                });
+                              }
                             }}
                             className="w-7 h-7 rounded-lg bg-black/70 backdrop-blur-md hover:bg-amber-500 text-slate-300 hover:text-white flex items-center justify-center transition-all cursor-pointer border border-white/10 hover:border-amber-400"
                             title="Edit product parameters"
@@ -7995,18 +8269,33 @@ export default function App() {
                             onClick={(ev) => {
                               ev.preventDefault();
                               ev.stopPropagation();
-                              triggerConfirm(
-                                `Confirm deletion: Are you absolutely sure you want to remove the affiliate card "${item.title}"? This cannot be undone.`,
-                                async () => {
-                                  try {
-                                    await deleteDoc(doc(db, 'affiliate_links', item.id));
-                                    triggerToast('Curated recommendation deleted.', 'info');
-                                  } catch (err) {
-                                    console.error("Error deleting affiliate link from Firestore: ", err);
-                                    handleFirestoreError(err, OperationType.DELETE, 'affiliate_links/' + item.id);
+                              if (item.isSyncedLicense) {
+                                triggerConfirm(
+                                  `Confirm deletion: Are you absolutely sure you want to remove the software license "${item.title}"? This cannot be undone.`,
+                                  async () => {
+                                    try {
+                                      await deleteDoc(doc(db, 'software_licenses', item.id));
+                                      triggerToast('Software license deleted and unsynced.', 'info');
+                                    } catch (err) {
+                                      console.error("Error deleting software license from Firestore: ", err);
+                                      handleFirestoreError(err, OperationType.DELETE, 'software_licenses/' + item.id);
+                                    }
                                   }
-                                }
-                              );
+                                );
+                              } else {
+                                triggerConfirm(
+                                  `Confirm deletion: Are you absolutely sure you want to remove the affiliate card "${item.title}"? This cannot be undone.`,
+                                  async () => {
+                                    try {
+                                      await deleteDoc(doc(db, 'affiliate_links', item.id));
+                                      triggerToast('Curated recommendation deleted.', 'info');
+                                    } catch (err) {
+                                      console.error("Error deleting affiliate link from Firestore: ", err);
+                                      handleFirestoreError(err, OperationType.DELETE, 'affiliate_links/' + item.id);
+                                    }
+                                  }
+                                );
+                              }
                             }}
                             className="w-7 h-7 rounded-lg bg-black/70 backdrop-blur-md hover:bg-red-500 text-slate-300 hover:text-white flex items-center justify-center transition-all cursor-pointer border border-white/10 hover:border-red-400"
                             title="Delete affiliate deal"
@@ -10018,6 +10307,20 @@ export default function App() {
                     <Instagram size={14} />
                     <span>Instagram Sync</span>
                   </button>
+
+                  <button
+                    onClick={() => setAdminSubTab('branding')}
+                    className={`px-3 py-1.5 rounded-lg text-[10.5px] md:text-xs font-bold uppercase transition-all flex items-center gap-2 cursor-pointer ${
+                      adminSubTab === 'branding'
+                        ? 'bg-[#FF5500] text-white'
+                        : currentTheme === 'light'
+                          ? 'bg-slate-50 hover:bg-slate-100 text-slate-700'
+                          : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-400'
+                    }`}
+                  >
+                    <Globe size={14} />
+                    <span>Logo &amp; Favicon</span>
+                  </button>
                 </div>
 
                 {/* GLOBAL MEDIA HUB / IMAGE MANAGER */}
@@ -10293,6 +10596,318 @@ export default function App() {
                         </div>
                       );
                     })()}
+                  </div>
+                )}
+
+                {/* LOGO & FAVICON BRANDING SUITE */}
+                {adminSubTab === 'branding' && (
+                  <div className="space-y-6 text-left animate-in fade-in duration-200">
+                    <div className={`p-6 rounded-3xl border ${s.card} space-y-4`}>
+                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div>
+                          <h2 className={`text-lg font-black flex items-center gap-2 ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
+                            <Globe size={20} className="text-[#FF5500]" />
+                            <span>Logo &amp; Favicon Identity Desk</span>
+                          </h2>
+                          <p className={`text-xs ${currentTheme === 'light' ? 'text-slate-650' : 'text-slate-400'}`}>
+                            Configure and live-sync custom logos and web browser favicons instantly across all visitor sessions.
+                          </p>
+                        </div>
+                        <div className="text-xs bg-orange-500/10 text-[#FF5500] font-mono font-bold px-3 py-1 rounded-full border border-orange-500/20 w-fit">
+                          ● Branding Engine Active
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pt-4">
+                        
+                        {/* WEBSITE LOGO SECTOR */}
+                        <div className={`p-5 rounded-2xl border ${currentTheme === 'light' ? 'bg-slate-50/50 border-slate-200' : 'bg-white/5 border-white/5'} space-y-4`}>
+                          <div className="flex items-center justify-between">
+                            <h3 className={`text-sm font-black uppercase tracking-wider ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
+                              1. Website Brand Logo
+                            </h3>
+                            <span className="text-[10px] bg-[#FF5500]/10 text-[#FF5500] font-bold px-2 py-0.5 rounded">
+                              Header &amp; Footer
+                            </span>
+                          </div>
+                          
+                          {/* Upload Area */}
+                          <div className="space-y-3">
+                            <label className={`block text-xs font-bold ${currentTheme === 'light' ? 'text-slate-750' : 'text-slate-300'}`}>
+                              Upload Logo File
+                            </label>
+                            
+                            <input
+                              type="file"
+                              id="logo_file_input"
+                              accept=".png,.jpg,.jpeg,.svg,.webp,.gif"
+                              onChange={handleLogoFileChange}
+                              className="hidden"
+                            />
+                            
+                            <div
+                              onClick={() => document.getElementById('logo_file_input')?.click()}
+                              className={`border-2 border-dashed rounded-xl p-4 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all ${
+                                currentTheme === 'light'
+                                  ? 'border-slate-300 hover:border-[#FF5500] hover:bg-slate-100/50 bg-white'
+                                  : 'border-white/10 hover:border-[#FF5500] hover:bg-white/5 bg-black/20'
+                              }`}
+                            >
+                              <Upload size={20} className="text-[#FF5500]" />
+                              <div className="text-center">
+                                <p className={`text-[11px] font-bold ${currentTheme === 'light' ? 'text-slate-800' : 'text-slate-200'}`}>
+                                  Click to browse your device
+                                </p>
+                                <p className="text-[9px] text-zinc-500 mt-1">
+                                  PNG, JPG, JPEG, SVG, WebP, GIF • Max 400KB
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Image URL option */}
+                          <div className="space-y-2 pt-1">
+                            <label className={`block text-xs font-bold ${currentTheme === 'light' ? 'text-slate-700' : 'text-slate-300'}`}>
+                              Or enter direct Logo URL
+                            </label>
+                            <input
+                              type="url"
+                              value={draftLogoUrl}
+                              onChange={(e) => {
+                                setDraftLogoUrl(e.target.value);
+                              }}
+                              placeholder="https://example.com/logo.png"
+                              className={`w-full px-3 py-2.5 rounded-xl text-xs outline-none transition-all ${s.input}`}
+                            />
+                          </div>
+
+                          {/* Live Preview and Clear */}
+                          <div className="space-y-3 pt-2 border-t border-dashed border-slate-200/50 dark:border-white/5">
+                            <div className="flex items-center justify-between">
+                              <span className={`text-xs font-bold ${currentTheme === 'light' ? 'text-slate-700' : 'text-slate-300'}`}>
+                                Live Preview
+                              </span>
+                              {draftLogoUrl && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setDraftLogoUrl('');
+                                    triggerToast('Draft logo cleared (reverted to default SVG). Click Save to publish.', 'info');
+                                  }}
+                                  className="text-rose-500 hover:text-rose-600 text-[10px] font-bold flex items-center gap-1 cursor-pointer uppercase tracking-wider"
+                                >
+                                  Clear / Reset to Default
+                                </button>
+                              )}
+                            </div>
+
+                            {/* Mock Header Brand Preview */}
+                            <div className={`border rounded-xl overflow-hidden shadow-sm ${currentTheme === 'light' ? 'border-slate-200 bg-white' : 'border-white/10 bg-black/40'}`}>
+                              <div className={`p-4 border-b flex items-center justify-between ${currentTheme === 'light' ? 'border-slate-100 bg-slate-50' : 'border-white/5 bg-zinc-900/30'}`}>
+                                <div className="flex items-center gap-2">
+                                  {draftLogoUrl ? (
+                                    <img
+                                      src={draftLogoUrl}
+                                      alt="Logo"
+                                      className="w-8 h-8 object-contain rounded-md animate-fade-in"
+                                      onError={() => {
+                                        triggerToast('Provided Logo URL appears broken or unaccessible.', 'error');
+                                      }}
+                                      referrerPolicy="no-referrer"
+                                    />
+                                  ) : (
+                                    <PFLogo className="w-8 h-8 text-[#FF5500]" />
+                                  )}
+                                  <div className="text-left">
+                                    <div className={`text-[10px] font-black uppercase leading-none ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>{logoText}</div>
+                                    <div className="text-[7px] uppercase tracking-widest text-[#FF5500] mt-0.5 font-bold">{logoSubtext}</div>
+                                  </div>
+                                </div>
+                                <div className="flex gap-1.5">
+                                  <div className="w-8 h-2 bg-slate-300/60 dark:bg-zinc-700/60 rounded-full" />
+                                  <div className="w-8 h-2 bg-slate-300/60 dark:bg-zinc-700/60 rounded-full" />
+                                </div>
+                              </div>
+                              <div className={`p-3 text-[10px] font-mono flex items-center justify-between ${currentTheme === 'light' ? 'text-slate-500' : 'text-zinc-500'}`}>
+                                <span>Logo Render Preview</span>
+                                <span className="text-[9px] text-emerald-500 font-bold bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/10">
+                                  {draftLogoUrl ? 'Custom Image' : 'Default Dynamic SVG'}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* WEBSITE FAVICON SECTOR */}
+                        <div className={`p-5 rounded-2xl border ${currentTheme === 'light' ? 'bg-slate-50/50 border-slate-200' : 'bg-white/5 border-white/5'} space-y-4`}>
+                          <div className="flex items-center justify-between">
+                            <h3 className={`text-sm font-black uppercase tracking-wider ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
+                              2. Website Favicon
+                            </h3>
+                            <span className="text-[10px] bg-[#FF5500]/10 text-[#FF5500] font-bold px-2 py-0.5 rounded">
+                              Browser Tab Icon
+                            </span>
+                          </div>
+
+                          {/* Upload Area */}
+                          <div className="space-y-3">
+                            <label className={`block text-xs font-bold ${currentTheme === 'light' ? 'text-slate-750' : 'text-slate-300'}`}>
+                              Upload Favicon File
+                            </label>
+
+                            <input
+                              type="file"
+                              id="favicon_file_input"
+                              accept=".ico,.png,.svg,.webp,.jpg,.jpeg"
+                              onChange={handleFaviconFileChange}
+                              className="hidden"
+                            />
+
+                            <div
+                              onClick={() => document.getElementById('favicon_file_input')?.click()}
+                              className={`border-2 border-dashed rounded-xl p-4 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all ${
+                                currentTheme === 'light'
+                                  ? 'border-slate-300 hover:border-[#FF5500] hover:bg-slate-100/50 bg-white'
+                                  : 'border-white/10 hover:border-[#FF5500] hover:bg-white/5 bg-black/20'
+                              }`}
+                            >
+                              <Upload size={20} className="text-[#FF5500]" />
+                              <div className="text-center">
+                                <p className={`text-[11px] font-bold ${currentTheme === 'light' ? 'text-slate-800' : 'text-slate-200'}`}>
+                                  Click to browse your device
+                                </p>
+                                <p className="text-[9px] text-zinc-500 mt-1">
+                                  ICO, PNG, SVG, WebP, JPG • Max 150KB
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Image URL option */}
+                          <div className="space-y-2 pt-1">
+                            <label className={`block text-xs font-bold ${currentTheme === 'light' ? 'text-slate-700' : 'text-slate-300'}`}>
+                              Or enter direct Favicon URL
+                            </label>
+                            <input
+                              type="url"
+                              value={draftFaviconUrl}
+                              onChange={(e) => {
+                                setDraftFaviconUrl(e.target.value);
+                              }}
+                              placeholder="https://example.com/favicon.ico"
+                              className={`w-full px-3 py-2.5 rounded-xl text-xs outline-none transition-all ${s.input}`}
+                            />
+                          </div>
+
+                          {/* Live Preview and Clear */}
+                          <div className="space-y-3 pt-2 border-t border-dashed border-slate-200/50 dark:border-white/5">
+                            <div className="flex items-center justify-between">
+                              <span className={`text-xs font-bold ${currentTheme === 'light' ? 'text-slate-700' : 'text-slate-300'}`}>
+                                Live Preview
+                              </span>
+                              {draftFaviconUrl && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setDraftFaviconUrl('');
+                                    triggerToast('Draft favicon cleared (reverted to default SVG). Click Save to publish.', 'info');
+                                  }}
+                                  className="text-rose-500 hover:text-rose-600 text-[10px] font-bold flex items-center gap-1 cursor-pointer uppercase tracking-wider"
+                                >
+                                  Clear / Reset to Default
+                                </button>
+                              )}
+                            </div>
+
+                            {/* Mock Browser Tab Preview */}
+                            <div className={`border rounded-xl overflow-hidden shadow-sm ${currentTheme === 'light' ? 'border-slate-200 bg-white' : 'border-white/10 bg-black/40'}`}>
+                              <div className={`p-1.5 flex items-center gap-1.5 border-b ${currentTheme === 'light' ? 'border-slate-100 bg-slate-50' : 'border-white/5 bg-zinc-900/30'}`}>
+                                <div className="flex gap-1">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+                                  <div className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                                </div>
+                                <div className={`ml-2 rounded-t-md px-2 py-1 flex items-center gap-1.5 w-40 truncate ${currentTheme === 'light' ? 'bg-white border-t border-x border-slate-200' : 'bg-zinc-800 border-t border-x border-white/5'}`}>
+                                  {draftFaviconUrl ? (
+                                    <img
+                                      src={draftFaviconUrl}
+                                      alt="Favicon"
+                                      className="w-3.5 h-3.5 object-contain"
+                                      onError={() => {
+                                        triggerToast('Provided Favicon URL appears broken or unaccessible.', 'error');
+                                      }}
+                                      referrerPolicy="no-referrer"
+                                    />
+                                  ) : (
+                                    <PFLogo className="w-3.5 h-3.5 text-[#FF5500]" />
+                                  )}
+                                  <span className={`text-[9px] font-semibold truncate ${currentTheme === 'light' ? 'text-slate-700' : 'text-slate-300'}`}>
+                                    {logoText}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className={`p-3 text-[10px] font-mono flex items-center justify-between ${currentTheme === 'light' ? 'text-slate-500' : 'text-zinc-500'}`}>
+                                <span>Favicon Browser Preview</span>
+                                <span className="text-[9px] text-emerald-500 font-bold bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/10">
+                                  {draftFaviconUrl ? 'Custom Icon' : 'Default Dynamic SVG'}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                      </div>
+
+                      {/* SAVE/PUBLISH ACTIONS */}
+                      <div className={`mt-6 p-4 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
+                        currentTheme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-white/5 border-white/5'
+                      }`}>
+                        <div className="space-y-1">
+                          <p className={`text-xs font-bold ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
+                            Confirm Brand Synchronization
+                          </p>
+                          <p className="text-[10px] text-zinc-500">
+                            Saving will replace current brand assets in Firestore and update all connected visitor devices instantly.
+                          </p>
+                        </div>
+                        <div className="flex gap-3">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDraftLogoUrl(logoUrl);
+                              setDraftFaviconUrl(faviconUrl);
+                              triggerToast('Draft changes discarded. Branding reset to live configurations.', 'info');
+                            }}
+                            className={`px-4 py-2 text-xs font-bold rounded-xl border transition-all cursor-pointer uppercase ${
+                              currentTheme === 'light'
+                                ? 'bg-white border-slate-300 hover:bg-slate-50 text-slate-700'
+                                : 'bg-transparent border-white/10 hover:bg-white/5 text-zinc-300'
+                            }`}
+                          >
+                            Discard Draft
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isSavingIdentity}
+                            onClick={handleSaveBranding}
+                            className="px-5 py-2 text-xs font-black rounded-xl bg-[#FF5500] hover:bg-orange-600 text-white shadow-md hover:shadow-lg transition-all cursor-pointer uppercase disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                          >
+                            {isSavingIdentity ? (
+                              <>
+                                <RefreshCw size={12} className="animate-spin" />
+                                <span>Saving Changes...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Check size={14} />
+                                <span>Save Branding Changes</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+
+                    </div>
                   </div>
                 )}
 
@@ -10823,74 +11438,313 @@ export default function App() {
                     ) : null}
 
                     {/* Booking inquiries from client contact forms logged locally */}
-                    {adminSubTab === 'inquiries' ? (
-                    <div className={`p-6 rounded-3xl border ${s.card} space-y-4`}>
-                      <h3 className={`text-lg font-black flex items-center gap-2 ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
-                        <MessageSquare size={18} className="text-[#FF5500]" />
-                        <span>Client Inquiry Log Stream</span>
-                      </h3>
+                    {adminSubTab === 'inquiries' ? (() => {
+                      const unreadCount = contactMessages.filter(m => m.status !== 'read').length;
+                      const totalCount = contactMessages.length;
+                      const itCount = contactMessages.filter(m => m.serviceType === 'it_fix').length;
+                      const photoCount = contactMessages.filter(m => m.serviceType === 'photography').length;
 
-                      {contactMessages.length === 0 ? (
-                        <div className={`py-8 text-center font-mono text-xs ${currentTheme === 'light' ? 'text-slate-400' : 'text-zinc-650'}`}>
-                          -- No logging operations stream yet --
-                        </div>
-                      ) : (
-                        <div className="space-y-3 max-h-[300px] overflow-y-auto">
-                          {contactMessages.map((msg) => (
-                            <div key={msg.id} className={`p-3 rounded-xl border text-xs text-left relative ${
-                              currentTheme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-black/40 border-white/5'
-                            }`}>
-                              <button
-                                onClick={async () => {
-                                  if (confirm('Delete inquiry entry?')) {
-                                    setContactMessages(prev => prev.filter(c => c.id !== msg.id));
-                                    try {
-                                      await deleteDoc(doc(db, 'contact_messages', msg.id));
-                                    } catch (err) {
-                                      console.error("Failed to delete message from Firestore: ", err);
-                                    }
-                                  }
-                                }}
-                                className="absolute top-3 right-3 text-slate-500 hover:text-rose-400 cursor-pointer"
-                              >
-                                <X size={11} />
-                              </button>
-                              
-                              <div className={`font-extrabold flex items-center gap-2 ${
-                                currentTheme === 'light' ? 'text-slate-900' : 'text-white'
-                              }`}>
-                                <span>{msg.name}</span>
-                                <span className={`text-[10px] font-mono font-normal ${currentTheme === 'light' ? 'text-slate-400' : 'text-slate-500'}`}>
-                                  ({msg.timestamp})
-                                </span>
+                      const filteredInquiries = contactMessages.filter((msg) => {
+                        // 1. Filter by tab
+                        if (inquiryFilter === 'unread' && msg.status === 'read') return false;
+                        if (inquiryFilter === 'it_fix' && msg.serviceType !== 'it_fix') return false;
+                        if (inquiryFilter === 'photography' && msg.serviceType !== 'photography') return false;
+
+                        // 2. Filter by search text
+                        if (!inquirySearchText) return true;
+                        const search = inquirySearchText.toLowerCase();
+                        return (
+                          (msg.name || '').toLowerCase().includes(search) ||
+                          (msg.phone || '').toLowerCase().includes(search) ||
+                          (msg.email || '').toLowerCase().includes(search) ||
+                          (msg.message || '').toLowerCase().includes(search)
+                        );
+                      });
+
+                      const handleToggleInquiryStatus = async (msgId: string, currentStatus: string) => {
+                        const nextStatus = currentStatus === 'read' ? 'unread' : 'read';
+                        try {
+                          await setDoc(doc(db, 'contact_messages', msgId), { status: nextStatus }, { merge: true });
+                          triggerToast(`Inquiry marked as ${nextStatus.toUpperCase()}`, 'success');
+                        } catch (err) {
+                          console.error("Error updating inquiry: ", err);
+                          triggerToast('Error updating status', 'error');
+                        }
+                      };
+
+                      const handleClearAllReadInquiries = () => {
+                        const readInquiries = contactMessages.filter(m => m.status === 'read');
+                        if (readInquiries.length === 0) {
+                          triggerToast('No read inquiries to clear!', 'info');
+                          return;
+                        }
+                        triggerConfirm(`Are you sure you want to delete all ${readInquiries.length} read inquiries from the live database?`, async () => {
+                          try {
+                            const deletePromises = readInquiries.map(m => deleteDoc(doc(db, 'contact_messages', m.id)));
+                            await Promise.all(deletePromises);
+                            triggerToast(`Cleared ${readInquiries.length} read inquiries successfully.`, 'success');
+                          } catch (err) {
+                            console.error("Error clearing inquiries: ", err);
+                            triggerToast('Error clearing inquiries', 'error');
+                          }
+                        });
+                      };
+
+                      return (
+                        <div className={`p-6 rounded-3xl border ${s.card} space-y-6 text-left`}>
+                          {/* Live Stats Header */}
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4 border-slate-200/50 dark:border-white/5">
+                            <div className="flex items-center gap-2.5">
+                              <div className="p-2 bg-orange-500/10 rounded-xl text-[#FF5500]">
+                                <MessageSquare size={20} />
                               </div>
-                              <div className="text-[#FF5500] font-mono text-[9px] uppercase tracking-wider mt-0.5">
-                                {msg.serviceType === 'it_fix' ? 'Pixel Fix Service' : 'Pixel Frame shoot'}
-                              </div>
-                              <div className={`text-[11px] leading-relaxed mt-1 font-sans ${
-                                currentTheme === 'light' ? 'text-slate-700' : 'text-slate-350'
-                              }`}>
-                                {msg.message}
-                              </div>
-                              <div className={`font-mono text-[10px] pt-1.5 border-t mt-1.5 flex flex-col xs:flex-row xs:items-center gap-2 xs:gap-3.5 ${
-                                currentTheme === 'light' ? 'border-slate-200 text-slate-500' : 'border-white/5 text-slate-400'
-                              }`}>
-                                <span>📞 Mobile: <a href={`tel:${msg.phone}`} className={`hover:underline ${currentTheme === 'light' ? 'text-slate-900 font-semibold' : 'text-white'}`}>{msg.phone}</a></span>
-                                <a
-                                  href={`https://wa.me/${msg.phone.replace(/[^0-9]/g, '')}?text=Hi%20${msg.name},%20this%20is%20Murari.`}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="text-green-500 hover:underline inline-flex items-center justify-center text-center gap-1 font-semibold"
-                                >
-                                  <WhatsAppIcon size={12} /> <span className="text-center">WhatsApp Callback</span>
-                                </a>
+                              <div className="space-y-0.5">
+                                <h3 className={`text-base font-black tracking-tight ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
+                                  Client Inquiry Log Stream
+                                </h3>
+                                <p className="text-[10px] font-mono text-slate-500 uppercase tracking-widest">
+                                  Real-time synchronization active • {totalCount} total entries
+                                </p>
                               </div>
                             </div>
-                          ))}
+
+                            {/* Unread Indicator Badge */}
+                            <div className="flex items-center gap-2">
+                              {unreadCount > 0 ? (
+                                <div className="px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-500 font-mono text-[9px] uppercase tracking-wider font-extrabold flex items-center gap-1.5 animate-pulse">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                                  {unreadCount} UNREAD INQUIRIES
+                                </div>
+                              ) : (
+                                <div className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 font-mono text-[9px] uppercase tracking-wider font-extrabold flex items-center gap-1.5">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                  ALL RESOLVED
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Quick Toolbar (Search & Bulk Operations) */}
+                          <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+                            <div className="md:col-span-8 relative flex items-center">
+                              <Search size={14} className="absolute left-3.5 text-slate-400 pointer-events-none" />
+                              <input
+                                type="text"
+                                value={inquirySearchText}
+                                onChange={(e) => setInquirySearchText(e.target.value)}
+                                placeholder="Search client name, contact number, message content..."
+                                className={`w-full pl-9 pr-8 py-2.5 rounded-xl text-xs outline-none transition-all ${s.input}`}
+                              />
+                              {inquirySearchText && (
+                                <button
+                                  onClick={() => setInquirySearchText('')}
+                                  className="absolute right-3 text-slate-400 hover:text-slate-600 dark:hover:text-white"
+                                >
+                                  <X size={12} />
+                                </button>
+                              )}
+                            </div>
+
+                            <button
+                              onClick={handleClearAllReadInquiries}
+                              className={`md:col-span-4 px-4 py-2.5 rounded-xl text-[10px] uppercase font-mono tracking-wider font-extrabold border flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                                currentTheme === 'light'
+                                  ? 'bg-rose-50 hover:bg-rose-100 border-rose-200 text-rose-700'
+                                  : 'bg-rose-950/20 hover:bg-rose-950/35 border-rose-500/20 text-rose-400'
+                              }`}
+                            >
+                              <Trash2 size={12} />
+                              <span>Clear All Read</span>
+                            </button>
+                          </div>
+
+                          {/* Responsive Filter Chips */}
+                          <div className="flex flex-wrap gap-1.5 border-b pb-4 border-slate-200/50 dark:border-white/5">
+                            {[
+                              { id: 'all', label: 'All Logs', count: totalCount },
+                              { id: 'unread', label: 'Unread', count: unreadCount, isOrange: true },
+                              { id: 'it_fix', label: 'Pixel Fix Support', count: itCount },
+                              { id: 'photography', label: 'Photography', count: photoCount }
+                            ].map((tab) => {
+                              const isActive = inquiryFilter === tab.id;
+                              return (
+                                <button
+                                  key={tab.id}
+                                  onClick={() => setInquiryFilter(tab.id as any)}
+                                  className={`px-3 py-1.5 rounded-xl font-mono text-[9px] uppercase tracking-wider font-extrabold transition-all cursor-pointer flex items-center gap-1.5 border ${
+                                    isActive
+                                      ? currentTheme === 'light'
+                                        ? 'bg-slate-900 border-slate-900 text-white'
+                                        : 'bg-[#FF5500] border-[#FF5500] text-white shadow-md'
+                                      : currentTheme === 'light'
+                                        ? 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-600'
+                                        : 'bg-white/5 border-white/5 hover:bg-white/10 text-slate-300'
+                                  }`}
+                                >
+                                  {tab.isOrange && tab.count > 0 && (
+                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                                  )}
+                                  <span>{tab.label}</span>
+                                  <span className={`px-1.5 py-0.5 rounded-md text-[8px] ${
+                                    isActive 
+                                      ? 'bg-white/20 text-white' 
+                                      : currentTheme === 'light' ? 'bg-slate-200 text-slate-700' : 'bg-white/5 text-slate-400'
+                                  }`}>
+                                    {tab.count}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          {/* Scrollable Live message container */}
+                          {filteredInquiries.length === 0 ? (
+                            <div className={`py-12 text-center rounded-2xl border border-dashed flex flex-col items-center justify-center gap-2 ${
+                              currentTheme === 'light' ? 'bg-slate-50/50 border-slate-200' : 'bg-black/20 border-white/5'
+                            }`}>
+                              <MessageSquare size={24} className="text-slate-500 opacity-60" />
+                              <div className={`font-mono text-xs font-bold uppercase tracking-wider ${currentTheme === 'light' ? 'text-slate-500' : 'text-zinc-650'}`}>
+                                -- No matching inquiry entries found --
+                              </div>
+                              <p className="text-[10px] text-slate-500 max-w-xs text-center leading-normal">
+                                Try adjusting your filter category tabs or clearing the search text input.
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="space-y-3.5 max-h-[480px] overflow-y-auto pr-1 scrollbar-thin">
+                              <AnimatePresence initial={false}>
+                                {filteredInquiries.map((msg) => {
+                                  const isMsgUnread = msg.status !== 'read';
+                                  return (
+                                    <motion.div
+                                      key={msg.id}
+                                      initial={{ opacity: 0, y: 12, scale: 0.98 }}
+                                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                                      exit={{ opacity: 0, y: -12, scale: 0.98 }}
+                                      transition={{ type: "spring", stiffness: 220, damping: 22 }}
+                                      className={`p-4 rounded-2xl border text-xs text-left relative transition-all duration-300 group ${
+                                        isMsgUnread
+                                          ? currentTheme === 'light'
+                                            ? 'bg-amber-50/40 border-amber-200/70 shadow-sm shadow-amber-100/50'
+                                            : 'bg-amber-950/5 border-amber-500/20 shadow-sm shadow-amber-950/10'
+                                          : currentTheme === 'light'
+                                            ? 'bg-slate-50 border-slate-200 hover:bg-slate-100/70'
+                                            : 'bg-black/30 border-white/5 hover:bg-black/50'
+                                      }`}
+                                    >
+                                      {/* Delete action */}
+                                      <button
+                                        onClick={() => {
+                                          triggerConfirm('Delete this client inquiry permanently from the live system?', async () => {
+                                            try {
+                                              await deleteDoc(doc(db, 'contact_messages', msg.id));
+                                              triggerToast('Inquiry removed from cloud database', 'success');
+                                            } catch (err) {
+                                              console.error("Failed to delete message: ", err);
+                                              triggerToast('Error deleting inquiry', 'error');
+                                            }
+                                          });
+                                        }}
+                                        className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-500 hover:text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                                        title="Delete Inquiry permanently"
+                                      >
+                                        <X size={12} className="stroke-[2.5]" />
+                                      </button>
+
+                                      <div className="flex flex-col sm:flex-row sm:items-start gap-2.5 justify-between pr-8">
+                                        <div className="space-y-1">
+                                          {/* Name and Tag */}
+                                          <div className="flex items-center flex-wrap gap-2">
+                                            <span className={`text-sm font-black tracking-tight ${
+                                              currentTheme === 'light' ? 'text-slate-900' : 'text-white'
+                                            }`}>
+                                              {msg.name}
+                                            </span>
+                                            <span className={`px-2 py-0.5 rounded-md font-mono text-[8px] uppercase font-bold tracking-widest ${
+                                              msg.serviceType === 'it_fix'
+                                                ? 'bg-sky-500/10 text-sky-400 border border-sky-500/20'
+                                                : 'bg-[#FF5500]/10 text-[#FF5500] border border-[#FF5500]/20'
+                                            }`}>
+                                              {msg.serviceType === 'it_fix' ? 'Pixel Fix' : 'Pixel Frame'}
+                                            </span>
+                                          </div>
+
+                                          {/* Timestamp and Email */}
+                                          <div className={`flex items-center flex-wrap gap-x-3 gap-y-1 font-mono text-[10px] ${
+                                            currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'
+                                          }`}>
+                                            <span>📅 {msg.timestamp}</span>
+                                            {msg.email && (
+                                              <span className="opacity-75">📧 {msg.email}</span>
+                                            )}
+                                          </div>
+                                        </div>
+
+                                        {/* Real-time Interactive Status Switcher */}
+                                        <button
+                                          onClick={() => handleToggleInquiryStatus(msg.id, msg.status)}
+                                          className={`px-2.5 py-1 rounded-xl font-mono text-[8px] uppercase tracking-wider font-extrabold flex items-center gap-1.5 border transition-all cursor-pointer self-start sm:self-center ${
+                                            isMsgUnread
+                                              ? 'bg-amber-500/10 border-amber-500/25 text-amber-500 hover:bg-amber-500/20'
+                                              : 'bg-emerald-500/10 border-emerald-500/25 text-emerald-500 hover:bg-emerald-500/20'
+                                          }`}
+                                          title="Click to toggle processed/unprocessed status"
+                                        >
+                                          <span className={`w-1.5 h-1.5 rounded-full ${isMsgUnread ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
+                                          <span>{isMsgUnread ? 'Unread' : 'Read'}</span>
+                                        </button>
+                                      </div>
+
+                                      {/* Message Details block */}
+                                      <div className={`mt-3 p-3 rounded-xl border leading-relaxed font-sans text-[11px] whitespace-pre-line ${
+                                        currentTheme === 'light' ? 'bg-white border-slate-150 text-slate-700' : 'bg-black/20 border-white/5 text-slate-300'
+                                      }`}>
+                                        {msg.message}
+                                      </div>
+
+                                      {/* Action Callbacks bar */}
+                                      <div className={`font-mono text-[10px] pt-3 border-t mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 ${
+                                        currentTheme === 'light' ? 'border-slate-200 text-slate-500' : 'border-white/5 text-slate-400'
+                                      }`}>
+                                        <span className="flex items-center gap-1">
+                                          📞 Contact: <a href={`tel:${msg.phone}`} className={`hover:underline font-extrabold tracking-wide ${currentTheme === 'light' ? 'text-slate-800' : 'text-white'}`}>{msg.phone}</a>
+                                        </span>
+
+                                        <div className="flex items-center gap-3 ml-auto">
+                                          {/* Direct Call Mobile */}
+                                          <a
+                                            href={`tel:${msg.phone}`}
+                                            className={`inline-flex items-center gap-1 font-bold uppercase text-[9px] px-2.5 py-1 rounded-lg border transition-all ${
+                                              currentTheme === 'light'
+                                                ? 'bg-slate-100 hover:bg-slate-200 border-slate-250 text-slate-700'
+                                                : 'bg-white/5 hover:bg-white/10 border-white/5 text-slate-300'
+                                            }`}
+                                          >
+                                            <Phone size={10} />
+                                            <span>Dial Call</span>
+                                          </a>
+
+                                          {/* WhatsApp Callback */}
+                                          <a
+                                            href={`https://wa.me/${msg.phone.replace(/[^0-9]/g, '')}?text=Hi%20${msg.name},%20this%20is%20Murari.`}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="px-2.5 py-1 rounded-lg bg-green-600 hover:bg-green-700 text-white font-bold inline-flex items-center justify-center text-center gap-1 text-[9px] uppercase transition-all shadow-sm"
+                                          >
+                                            <WhatsAppIcon size={10} />
+                                            <span>WhatsApp Callback</span>
+                                          </a>
+                                        </div>
+                                      </div>
+                                    </motion.div>
+                                  );
+                                })}
+                              </AnimatePresence>
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
-                    ) : null}
+                      );
+                    })() : null}
 
                     {/* Instagram Real-time Api Sync Panel */}
                     {adminSubTab === 'instagram' ? (
@@ -12372,16 +13226,25 @@ export default function App() {
         <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
           
           <div className="col-span-1 md:col-span-4 space-y-4">
-            <div className="flex items-center space-x-2 sm:space-x-3">
-              <PFLogo className={currentTheme === 'mono' ? 'text-zinc-500' : 'text-[#FF5500]'} />
+            <div className="flex items-center space-x-2 sm:space-x-3 cursor-pointer" onClick={() => { setActiveTab('home'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
+              {logoUrl ? (
+                <img
+                  src={logoUrl}
+                  alt="Logo"
+                  className="w-7 h-7 sm:w-8 sm:h-8 shrink-0 object-contain rounded-md"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <PFLogo className={currentTheme === 'mono' ? 'text-zinc-500' : 'text-[#FF5500]'} />
+              )}
               <div>
                 <span className={`font-black text-xs sm:text-sm tracking-wider uppercase block leading-none ${
                   currentTheme === 'light' ? 'text-slate-900' : 'text-white'
                 }`}>
-                  MURARI PANJIYAR
+                  {logoText}
                 </span>
                 <span className="text-[9px] uppercase tracking-[0.1em] sm:tracking-[0.2em] text-[#FF5500] font-bold block mt-1 leading-none">
-                  Pixel Fix &amp; Pixel Frame
+                  {logoSubtext}
                 </span>
               </div>
             </div>

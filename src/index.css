@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+@theme {
+  --breakpoint-xs: 480px;
+}
+
 /* 
  * MOBILE PREMIUM GRAPHICS & LAYOUT OPTIMIZATION ENGINE
  * Target screens: max-width 639px (standard mobile device viewport breakpoint)

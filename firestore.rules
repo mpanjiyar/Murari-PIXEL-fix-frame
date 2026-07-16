@@ -39,7 +39,9 @@ service cloud.firestore {
         ? (data.id is string && data.id.size() <= 128 && 'labels' in data && data.labels is map)
         : (configId == 'status'
           ? (data.status is string && data.status.size() <= 50 && data.lastRefreshTimestamp is string && data.lastRefreshTimestamp.size() <= 100)
-          : false);
+          : (configId == 'price_toggle'
+            ? (data.id is string && data.id.size() <= 128 && 'showPrices' in data && data.showPrices is bool)
+            : false));
     }
 
     function isValidSocialLink(data) {
@@ -65,6 +67,8 @@ service cloud.firestore {
         && (!('contactPhonePhotos' in data) || (data.contactPhonePhotos is string && data.contactPhonePhotos.size() <= 100))
         && (!('logoText' in data) || (data.logoText is string && data.logoText.size() <= 200))
         && (!('logoSubtext' in data) || (data.logoSubtext is string && data.logoSubtext.size() <= 500))
+        && (!('logoUrl' in data) || (data.logoUrl is string && data.logoUrl.size() <= 10000000))
+        && (!('faviconUrl' in data) || (data.faviconUrl is string && data.faviconUrl.size() <= 10000000))
         && (!('bannerText' in data) || (data.bannerText is string && data.bannerText.size() <= 1000))
         && (!('exploreButtonText' in data) || (data.exploreButtonText is string && data.exploreButtonText.size() <= 100))
         && (!('exploreButtonLink' in data) || (data.exploreButtonLink is string && data.exploreButtonLink.size() <= 500))

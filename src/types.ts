@@ -71,6 +71,7 @@ export interface AffiliateLink {
   clickHistory?: Record<string, number>;
   last_clicked?: string;
   daily_click_count?: Record<string, number>;
+  isSyncedLicense?: boolean;
 }
 
 export interface SoftwareLicense {
