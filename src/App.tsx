@@ -55,6 +55,12 @@ import {
   Compass,
   FileCode,
   SlidersHorizontal,
+  Wifi,
+  Wrench,
+  Aperture,
+  Building,
+  Sun,
+  Film,
   ChevronDown,
   ChevronUp,
   User,
@@ -148,6 +154,77 @@ const hashString = (str: string): number => {
     hash |= 0;
   }
   return Math.abs(hash);
+};
+
+// Distinct Lucide icon mapping for IT & Photography service package items
+const getPackageItemIcon = (text: string, category: string = 'it', index: number = 0) => {
+  const lower = (text || '').toLowerCase();
+
+  if (category === 'it' || lower.includes('ram') || lower.includes('ssd') || lower.includes('wifi') || lower.includes('virus') || lower.includes('windows')) {
+    if (lower.includes('virus') || lower.includes('security') || lower.includes('firewall') || lower.includes('clean') || lower.includes('protect')) {
+      return ShieldCheck;
+    }
+    if (lower.includes('hardware') || lower.includes('ram') || lower.includes('ssd') || lower.includes('cpu') || lower.includes('chip') || lower.includes('upgrade')) {
+      return Cpu;
+    }
+    if (lower.includes('speed') || lower.includes('fast') || lower.includes('boost') || lower.includes('optimize') || lower.includes('performance')) {
+      return Zap;
+    }
+    if (lower.includes('wi-fi') || lower.includes('wifi') || lower.includes('router') || lower.includes('network') || lower.includes('signal')) {
+      return Wifi;
+    }
+    if (lower.includes('data') || lower.includes('backup') || lower.includes('recovery') || lower.includes('drive') || lower.includes('disk')) {
+      return HardDrive;
+    }
+    if (lower.includes('os') || lower.includes('windows') || lower.includes('setup') || lower.includes('partition') || lower.includes('format') || lower.includes('boot')) {
+      return Wrench;
+    }
+    if (lower.includes('driver') || lower.includes('setting') || lower.includes('config') || lower.includes('registry')) {
+      return SlidersHorizontal;
+    }
+    if (lower.includes('office') || lower.includes('pdf') || lower.includes('excel') || lower.includes('email') || lower.includes('outlook') || lower.includes('macro') || lower.includes('doc')) {
+      return FileText;
+    }
+    if (lower.includes('cleaning') || lower.includes('thermal') || lower.includes('fan') || lower.includes('diagnostic')) {
+      return RefreshCw;
+    }
+    if (lower.includes('doorstep') || lower.includes('troubleshoot') || lower.includes('laptop') || lower.includes('desktop') || lower.includes('pc')) {
+      return Laptop;
+    }
+    const itFallbacks = [ShieldCheck, Cpu, Zap, Wifi, HardDrive, Wrench, FileText, SlidersHorizontal];
+    return itFallbacks[index % itFallbacks.length];
+  } else {
+    // Photography / Creative Services
+    if (lower.includes('wedding') || lower.includes('rasam') || lower.includes('haldi') || lower.includes('varmala') || lower.includes('love') || lower.includes('couple') || lower.includes('bride')) {
+      return Heart;
+    }
+    if (lower.includes('cinematic') || lower.includes('film') || lower.includes('video') || lower.includes('motion') || lower.includes('movie')) {
+      return Film;
+    }
+    if (lower.includes('baby') || lower.includes('shower') || lower.includes('maternity') || lower.includes('godh bharai') || lower.includes('blessing')) {
+      return Sparkles;
+    }
+    if (lower.includes('party') || lower.includes('birthday') || lower.includes('celebration') || lower.includes('gathering') || lower.includes('event')) {
+      return Award;
+    }
+    if (lower.includes('corporate') || lower.includes('business') || lower.includes('meeting') || lower.includes('conference') || lower.includes('headshot') || lower.includes('formal') || lower.includes('pr')) {
+      return Briefcase;
+    }
+    if (lower.includes('outdoor') || lower.includes('garden') || lower.includes('portrait') || lower.includes('fashion') || lower.includes('natural') || lower.includes('sun')) {
+      return Sun;
+    }
+    if (lower.includes('lens') || lower.includes('aperture') || lower.includes('focal') || lower.includes('bokeh') || lower.includes('optics') || lower.includes('nikon')) {
+      return Aperture;
+    }
+    if (lower.includes('album') || lower.includes('print') || lower.includes('photobook') || lower.includes('gallery') || lower.includes('webp') || lower.includes('image')) {
+      return ImageIcon;
+    }
+    if (lower.includes('candid') || lower.includes('photo') || lower.includes('camera') || lower.includes('shoot') || lower.includes('coverage')) {
+      return Camera;
+    }
+    const photoFallbacks = [Camera, Film, Heart, Sparkles, ImageIcon, Award, Briefcase, Aperture, Sun];
+    return photoFallbacks[index % photoFallbacks.length];
+  }
 };
 
 // Structuring our Theme Styles
@@ -4722,10 +4799,14 @@ export default function App() {
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center relative z-10">
                 <div className="lg:col-span-7 col-span-1 text-left space-y-6">
                   
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="inline-flex items-center space-x-2 bg-[#FF5500]/10 border border-[#FF5500]/20 rounded-full px-3 py-1 text-xs text-[#FF5500] font-bold tracking-wider uppercase">
-                      <CheckCircle size={12} />
-                      <span>Multi-Disciplinary Pro Portfolio &amp; Direct Booking Hub</span>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/25 rounded-full px-3 py-1 text-[11px] text-emerald-500 font-extrabold tracking-wider uppercase">
+                      <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                      </span>
+                      <Activity size={12} className="animate-pulse shrink-0" />
+                      <span className="line-clamp-1">LIVE DISPATCH HUB: On-Site IT Engineer &amp; Photo Crew Active in Guwahati</span>
                     </div>
                     {isAuthorized && (
                       <button
@@ -4743,72 +4824,108 @@ export default function App() {
 
                   <ScrollRevealText
                     tag="h1"
-                    className={`text-4xl md:text-5xl lg:text-6xl font-black tracking-tight leading-none ${
+                    className={`text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black tracking-tight leading-tight ${
                       currentTheme === 'light' ? 'text-slate-900' : 'text-white'
                     }`}
                     text={heroHeadline}
                   />
 
                   <ScrollReveal variant="fade-up" delay={0.2} duration={0.6}>
-                    <p className={`text-sm md:text-base max-w-xl leading-relaxed whitespace-pre-line ${
+                    <p className={`text-xs sm:text-sm md:text-base max-w-xl leading-relaxed whitespace-pre-line ${
                       currentTheme === 'light' ? 'text-slate-600' : 'text-slate-300'
                     }`}>
                       {heroSubheadline}
                     </p>
                   </ScrollReveal>
 
+                  {/* Responsive High-Impact Action CTAs */}
                   <div className="flex flex-col sm:flex-row gap-3 pt-2">
                     <button
                       onClick={() => {
                         handleEstimateCostRedirect('pixelfix');
                       }}
-                      className="bg-[#FF5500] hover:bg-[#FF4400] text-white px-6 py-3.5 rounded-xl font-extrabold text-sm uppercase tracking-wider flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 cursor-pointer"
+                      className="bg-[#FF5500] hover:bg-[#FF4400] text-white px-6 py-3.5 rounded-xl font-extrabold text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2 transition-all duration-200 hover:-translate-y-0.5 shadow-lg shadow-[#FF5500]/25 cursor-pointer active:scale-95"
                     >
                       <Laptop size={16} />
                       <span>Configure IT Support Quote</span>
+                      <ChevronRight size={14} className="stroke-[3]" />
                     </button>
                     <button
                       onClick={() => {
                         handleEstimateCostRedirect('pixelframe');
                       }}
-                      className={`border px-6 py-3.5 rounded-xl font-extrabold text-sm uppercase tracking-wider flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 cursor-pointer ${
+                      className={`border px-6 py-3.5 rounded-xl font-extrabold text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2 transition-all duration-200 hover:-translate-y-0.5 cursor-pointer active:scale-95 ${
                         currentTheme === 'light'
-                          ? 'border-slate-300 hover:border-slate-800 text-slate-800 hover:bg-slate-100 bg-white'
+                          ? 'border-slate-300 hover:border-slate-800 text-slate-800 hover:bg-slate-100 bg-white shadow-sm'
                           : 'border-white/20 hover:border-white bg-white/5 hover:bg-white/10 text-white'
                       }`}
                     >
                       <Camera size={16} />
                       <span>Estimate Event Photography</span>
+                      <ChevronRight size={14} className="stroke-[3]" />
                     </button>
                   </div>
 
+                  {/* Trust & Dispatch Speed Micro Badges */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-2 text-[10px] sm:text-xs font-bold">
+                    <div className="flex items-center gap-1.5 text-slate-400">
+                      <Zap size={13} className="text-[#FF5500] shrink-0" />
+                      <span>2-Hour Rapid On-Site Arrival</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-slate-400">
+                      <ShieldCheck size={13} className="text-emerald-500 shrink-0" />
+                      <span>100% Data Privacy Guaranteed</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-slate-400 col-span-2 sm:col-span-1">
+                      <Award size={13} className="text-amber-400 shrink-0" />
+                      <span>4K HDR Visual Capture</span>
+                    </div>
+                  </div>
+
                   {/* Immediate Quick Call Dialing Indicators */}
-                  <div className={`pt-8 border-t ${s.divider} grid grid-cols-2 md:grid-cols-3 gap-4 text-xs font-mono`}>
-                    <div className={`p-3 rounded-xl border text-left ${
+                  <div className={`pt-6 border-t ${s.divider} grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs font-mono`}>
+                    <div className={`p-3 rounded-xl border text-left transition-all duration-200 hover:border-[#FF5500]/40 ${
                       currentTheme === 'light' ? 'bg-white border-slate-200 text-slate-800 shadow-sm' : 'bg-white/5 border-white/5'
                     }`}>
-                      <span className="text-[10px] text-zinc-500 uppercase block">Pixel Fix support:</span>
-                      <a href={`tel:${contactPhoneIt}`} className={`hover:text-[#FF5500] font-black text-sm block mt-1 ${
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-zinc-500 uppercase block font-sans font-bold">Pixel Fix IT Support:</span>
+                        <span className="inline-flex items-center gap-1 text-[9px] text-emerald-500 font-bold bg-emerald-500/10 px-1.5 py-0.5 rounded-full">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live
+                        </span>
+                      </div>
+                      <a href={`tel:${contactPhoneIt}`} className={`hover:text-[#FF5500] font-black text-xs sm:text-sm flex items-center justify-between gap-1 mt-1.5 ${
                         currentTheme === 'light' ? 'text-slate-900' : 'text-white'
                       }`}>
-                        📞 +91 {contactPhoneIt}
+                        <span>📞 +91 {contactPhoneIt}</span>
+                        <span className="text-[9px] font-sans font-extrabold uppercase px-2 py-0.5 rounded bg-[#FF5500]/10 text-[#FF5500]">Call</span>
                       </a>
                     </div>
-                    <div className={`p-3 rounded-xl border text-left ${
+
+                    <div className={`p-3 rounded-xl border text-left transition-all duration-200 hover:border-indigo-400/40 ${
                       currentTheme === 'light' ? 'bg-white border-slate-200 text-slate-800 shadow-sm' : 'bg-white/5 border-white/5'
                     }`}>
-                      <span className="text-[10px] text-zinc-500 uppercase block">Pixel Frame wedding:</span>
-                      <a href={`tel:${contactPhonePhotos}`} className={`hover:text-[#FF5500] font-black text-sm block mt-1 ${
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-zinc-500 uppercase block font-sans font-bold">Pixel Frame Photography:</span>
+                        <span className="inline-flex items-center gap-1 text-[9px] text-indigo-400 font-bold bg-indigo-500/10 px-1.5 py-0.5 rounded-full">
+                          <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" /> Ready
+                        </span>
+                      </div>
+                      <a href={`tel:${contactPhonePhotos}`} className={`hover:text-[#FF5500] font-black text-xs sm:text-sm flex items-center justify-between gap-1 mt-1.5 ${
                         currentTheme === 'light' ? 'text-slate-900' : 'text-white'
                       }`}>
-                        📸 +91 {contactPhonePhotos}
+                        <span>📸 +91 {contactPhonePhotos}</span>
+                        <span className="text-[9px] font-sans font-extrabold uppercase px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-400">Call</span>
                       </a>
                     </div>
-                    <div className={`p-3 rounded-xl border text-left col-span-2 md:col-span-1 ${
+
+                    <div className={`p-3 rounded-xl border text-left sm:col-span-1 col-span-1 ${
                       currentTheme === 'light' ? 'bg-white border-slate-200 text-slate-800 shadow-sm' : 'bg-white/5 border-white/5'
                     }`}>
-                      <span className="text-[10px] text-zinc-500 uppercase block">Dispatch Hub:</span>
-                      <span className="text-[#FF5500] font-black tracking-wider block mt-1">Guwahati &amp; Northeast</span>
+                      <span className="text-[10px] text-zinc-500 uppercase block font-sans font-bold">Guwahati Dispatch Hub:</span>
+                      <div className="flex items-center justify-between mt-1.5">
+                        <span className="text-[#FF5500] font-black tracking-wider text-xs block">Guwahati &amp; Northeast</span>
+                        <span className="text-[9px] text-slate-400 font-mono">24x7 HQ</span>
+                      </div>
                     </div>
                   </div>
 
@@ -4827,34 +4944,58 @@ export default function App() {
                       }
                     }
                   }}
-                  className="lg:col-span-5 grid grid-cols-1 sm:grid-cols-2 gap-4"
+                  className="lg:col-span-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-4"
                 >
                   <motion.div 
                     variants={{
                       hidden: { opacity: 0, x: 25 },
                       show: { opacity: 1, x: 0, transition: { type: "spring", stiffness: 100, damping: 15 } }
                     }}
-                    whileHover={{ scale: 1.03, y: -4 }}
-                    className={`p-5 rounded-2xl border ${s.card} ${s.cardHover} text-left flex flex-col justify-between aspect-square group`}
+                    whileHover={{ scale: 1.02, y: -4 }}
+                    className={`p-5 sm:p-6 rounded-2xl border ${s.card} ${s.cardHover} text-left flex flex-col justify-between relative overflow-hidden group shadow-md transition-all duration-300`}
                   >
-                    <div>
-                      <div className="w-10 h-10 rounded-xl bg-orange-500/10 flex items-center justify-center text-[#FF5500] mb-4">
-                        <Cpu size={20} />
+                    {/* Subtle animated background gradient glow */}
+                    <div className="absolute -top-12 -right-12 w-32 h-32 bg-[#FF5500]/10 rounded-full blur-2xl pointer-events-none group-hover:scale-150 transition-transform duration-500" />
+                    
+                    <div className="space-y-3 relative z-10">
+                      <div className="flex items-center justify-between">
+                        <div className="w-10 h-10 rounded-xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center text-[#FF5500]">
+                          <Cpu size={20} className="group-hover:rotate-12 transition-transform duration-300" />
+                        </div>
+                        <span className="text-[9px] font-extrabold uppercase px-2.5 py-1 rounded-full bg-[#FF5500]/10 text-[#FF5500] border border-[#FF5500]/20 tracking-wider">
+                          Doorstep Support
+                        </span>
                       </div>
-                      <h4 className="font-extrabold uppercase text-xs tracking-widest text-[#FF5500]">Pixel Fix IT</h4>
-                      <h3 className={`text-lg font-black mt-1 ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>On-Site Solutions</h3>
-                      <p className={`text-xs mt-2 line-clamp-4 ${s.textMuted}`}>
-                        Troubleshooting malware registry, mounting memory drives, and setting genuine Windows packages on doorstep.
+
+                      <div>
+                        <h4 className="font-extrabold uppercase text-[11px] tracking-widest text-[#FF5500]">Pixel Fix IT Services</h4>
+                        <h3 className={`text-lg font-black mt-0.5 ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>Laptop &amp; Desktop Engineering</h3>
+                      </div>
+
+                      <p className={`text-xs leading-relaxed ${s.textMuted}`}>
+                        Malware virus cleanup, Windows 10/11 installation, RAM/SSD memory upgrades, and hardware diagnostics right at your location.
                       </p>
+
+                      <ul className="space-y-1.5 pt-1 text-[11px]">
+                        <li className="flex items-center gap-1.5 text-slate-400">
+                          <CheckCircle2 size={12} className="text-[#FF5500] shrink-0" />
+                          <span>Zero Diagnostic Fee if issue is unresolved</span>
+                        </li>
+                        <li className="flex items-center gap-1.5 text-slate-400">
+                          <CheckCircle2 size={12} className="text-[#FF5500] shrink-0" />
+                          <span>Express 2-hour doorstep dispatch available</span>
+                        </li>
+                      </ul>
                     </div>
+
                     <button
                       onClick={() => setActiveTab('pixelfix')}
-                      className={`mt-4 text-xs font-bold uppercase flex items-center gap-1 hover:text-[#FF5500] justify-start cursor-pointer ${
+                      className={`mt-5 text-xs font-black uppercase flex items-center gap-1.5 hover:text-[#FF5500] justify-start cursor-pointer transition-colors relative z-10 ${
                         currentTheme === 'light' ? 'text-slate-900' : 'text-white'
                       }`}
                     >
-                      <span>Explore Rates</span>
-                      <ChevronRight size={14} />
+                      <span>Explore Rates &amp; Packages</span>
+                      <ChevronRight size={15} className="group-hover:translate-x-1 transition-transform" />
                     </button>
                   </motion.div>
 
@@ -4863,27 +5004,51 @@ export default function App() {
                       hidden: { opacity: 0, x: 25 },
                       show: { opacity: 1, x: 0, transition: { type: "spring", stiffness: 100, damping: 15 } }
                     }}
-                    whileHover={{ scale: 1.03, y: -4 }}
-                    className={`p-5 rounded-2xl border ${s.card} ${s.cardHover} text-left flex flex-col justify-between aspect-square group`}
+                    whileHover={{ scale: 1.02, y: -4 }}
+                    className={`p-5 sm:p-6 rounded-2xl border ${s.card} ${s.cardHover} text-left flex flex-col justify-between relative overflow-hidden group shadow-md transition-all duration-300`}
                   >
-                    <div>
-                      <div className="w-10 h-10 rounded-xl bg-orange-500/10 flex items-center justify-center text-[#FF5500] mb-4">
-                        <Camera size={20} />
+                    {/* Subtle animated background gradient glow */}
+                    <div className="absolute -top-12 -right-12 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none group-hover:scale-150 transition-transform duration-500" />
+
+                    <div className="space-y-3 relative z-10">
+                      <div className="flex items-center justify-between">
+                        <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+                          <Camera size={20} className="group-hover:rotate-12 transition-transform duration-300" />
+                        </div>
+                        <span className="text-[9px] font-extrabold uppercase px-2.5 py-1 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-400/20 tracking-wider">
+                          4K Cinematic
+                        </span>
                       </div>
-                      <h4 className={`font-extrabold uppercase text-xs tracking-widest ${currentTheme === 'light' ? 'text-slate-500' : 'text-zinc-400'}`}>Pixel Frame Photo</h4>
-                      <h3 className={`text-lg font-black mt-1 ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>Timeless Stories</h3>
-                      <p className={`text-xs mt-2 line-clamp-4 ${s.textMuted}`}>
-                        Cinematically colored wedding shoots, candid wedding visual compositions, and high-energy celebrations.
+
+                      <div>
+                        <h4 className={`font-extrabold uppercase text-[11px] tracking-widest ${currentTheme === 'light' ? 'text-slate-500' : 'text-zinc-400'}`}>Pixel Frame Photography</h4>
+                        <h3 className={`text-lg font-black mt-0.5 ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>Wedding &amp; Event Cinematography</h3>
+                      </div>
+
+                      <p className={`text-xs leading-relaxed ${s.textMuted}`}>
+                        Cinematically color-graded wedding shoots, candid couple frames, high-energy events, and 4K aerial drone videography.
                       </p>
+
+                      <ul className="space-y-1.5 pt-1 text-[11px]">
+                        <li className="flex items-center gap-1.5 text-slate-400">
+                          <CheckCircle2 size={12} className="text-indigo-400 shrink-0" />
+                          <span>4K Ultra HD Drone &amp; Candid Multi-Cam Coverage</span>
+                        </li>
+                        <li className="flex items-center gap-1.5 text-slate-400">
+                          <CheckCircle2 size={12} className="text-indigo-400 shrink-0" />
+                          <span>30-Page Printed Premium Coffee Table Album</span>
+                        </li>
+                      </ul>
                     </div>
+
                     <button
                       onClick={() => setActiveTab('pixelframe')}
-                      className={`mt-4 text-xs font-bold uppercase flex items-center gap-1 hover:text-[#FF5500] justify-start cursor-pointer ${
+                      className={`mt-5 text-xs font-black uppercase flex items-center gap-1.5 hover:text-indigo-400 justify-start cursor-pointer transition-colors relative z-10 ${
                         currentTheme === 'light' ? 'text-slate-900' : 'text-white'
                       }`}
                     >
-                      <span>Explore Work</span>
-                      <ChevronRight size={14} />
+                      <span>Explore Portfolio &amp; Work</span>
+                      <ChevronRight size={15} className="group-hover:translate-x-1 transition-transform" />
                     </button>
                   </motion.div>
                 </motion.div>
@@ -4894,11 +5059,12 @@ export default function App() {
             <section className="space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
                 <ScrollReveal variant="fade-up" delay={0.15} className="text-left">
-                  <span className={`text-[10px] uppercase tracking-[0.2em] font-bold block mb-1 ${s.tagline}`}>
-                    OFFICIAL PRODUCT KEYS
-                  </span>
+                  <div className="inline-flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-2.5 py-0.5 text-[9px] text-emerald-500 font-extrabold uppercase tracking-widest font-mono mb-2">
+                    <ShieldCheck size={11} className="animate-pulse" />
+                    <span>VERIFIED RETAIL ACTIVATION KEYS</span>
+                  </div>
                   <h2 className={`text-2xl md:text-3xl font-black ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
-                    Software Licenses
+                    Genuine Software Licenses
                   </h2>
                   <p className="text-slate-400 text-xs mt-1">
                     100% genuine retail activation keys with instant digital delivery and lifetime support. Each purchase includes a lifetime license key.
@@ -4932,7 +5098,27 @@ export default function App() {
                 )}
               </div>
 
-              <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+              {/* Security & Reliability Feature Highlights */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 p-3 rounded-2xl bg-emerald-500/5 border border-emerald-500/15 text-[11px] font-bold text-emerald-500">
+                <div className="flex items-center gap-2">
+                  <KeyRound size={14} className="shrink-0" />
+                  <span>100% Genuine Retail Key</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Zap size={14} className="shrink-0" />
+                  <span>Instant WhatsApp Delivery</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <ShieldCheck size={14} className="shrink-0" />
+                  <span>Lifetime License Security</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 size={14} className="shrink-0" />
+                  <span>Free Installation Guidance</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
                 {(() => {
                   const activeSoftware = softwareLicensesToRender.filter(l => l.category !== 'gear');
                   return activeSoftware.map((license, idx) => {
@@ -5350,6 +5536,85 @@ export default function App() {
                   </button>
                 </div>
 
+                {/* Fast Preset Configuration Chips */}
+                <div className="flex flex-wrap items-center gap-2 pt-1 pb-2">
+                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 font-mono flex items-center gap-1 mr-1">
+                    <Zap size={12} className="text-[#FF5500]" /> Popular Presets:
+                  </span>
+                  {quoteType === 'pixelfix' ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setItDeviceCount(1);
+                          setItNeedOS(false);
+                          setItNeedOffice(false);
+                          setItSsdUpgrade(false);
+                          setItServiceSpeed('standard');
+                        }}
+                        className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 hover:border-[#FF5500] hover:text-[#FF5500] transition-colors cursor-pointer"
+                      >
+                        ⚡ Basic Hardware Check
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setItDeviceCount(1);
+                          setItNeedOS(true);
+                          setItNeedOffice(true);
+                          setItSsdUpgrade(false);
+                          setItServiceSpeed('express');
+                        }}
+                        className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-[#FF5500]/10 border border-[#FF5500]/30 text-[#FF5500] hover:bg-[#FF5500] hover:text-white transition-colors cursor-pointer"
+                      >
+                        🔥 OS + Office Doorstep Express
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setItDeviceCount(1);
+                          setItNeedOS(true);
+                          setItNeedOffice(true);
+                          setItSsdUpgrade(true);
+                          setItServiceSpeed('express');
+                        }}
+                        className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 hover:border-[#FF5500] hover:text-[#FF5500] transition-colors cursor-pointer"
+                      >
+                        🚀 Full SSD Speed Overhaul
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPhotoType('wedding');
+                          setPhotoDays(1);
+                          setPhotoNeedPreWedding(true);
+                          setPhotoNeedDrone(false);
+                          setPhotoNeedAlbum(false);
+                        }}
+                        className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 hover:border-[#FF5500] hover:text-[#FF5500] transition-colors cursor-pointer"
+                      >
+                        📸 Pre-Wedding Shoot Package
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPhotoType('wedding');
+                          setPhotoDays(2);
+                          setPhotoNeedPreWedding(true);
+                          setPhotoNeedDrone(true);
+                          setPhotoNeedAlbum(true);
+                        }}
+                        className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-[#FF5500]/10 border border-[#FF5500]/30 text-[#FF5500] hover:bg-[#FF5500] hover:text-white transition-colors cursor-pointer"
+                      >
+                        💍 Complete 2-Day Wedding + 4K Drone
+                      </button>
+                    </>
+                  )}
+                </div>
+
                 {/* Parameter Details Block */}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                   
@@ -5713,14 +5978,19 @@ export default function App() {
                     <div className={`pt-6 mt-6 border-t ${s.divider} space-y-3`}>
                       <button
                         onClick={quoteType === 'pixelfix' ? handleSendITQuoteWhatsApp : handleSendPhotoQuoteWhatsApp}
-                        className="w-full bg-green-600 hover:bg-green-700 text-white py-3.5 sm:py-4 px-4 rounded-xl font-extrabold text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2.5 text-center transition-all duration-200 shadow-lg hover:shadow-green-600/20 active:scale-[0.98] select-none cursor-pointer"
+                        className="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-3.5 sm:py-4 px-4 rounded-xl font-extrabold text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2.5 text-center transition-all duration-200 shadow-xl shadow-emerald-600/30 hover:shadow-emerald-500/50 hover:-translate-y-0.5 active:scale-[0.98] select-none cursor-pointer group"
                       >
-                        <WhatsAppIcon size={16} className="shrink-0" />
-                        <span className="leading-none">Send Details to WhatsApp</span>
+                        <WhatsAppIcon size={18} className="shrink-0 group-hover:rotate-12 transition-transform" />
+                        <span className="leading-none">Send Live Blueprint to WhatsApp</span>
+                        <ChevronRight size={16} className="shrink-0 stroke-[3] group-hover:translate-x-1 transition-transform" />
                       </button>
 
-                      <div className="text-center">
-                        <span className="text-[10px] text-slate-500">
+                      <div className="text-center space-y-1">
+                        <div className="flex items-center justify-center gap-1.5 text-[10px] text-emerald-500 font-bold">
+                          <CheckCircle2 size={11} />
+                          <span>Direct instant connection with Murari Panjiyar</span>
+                        </div>
+                        <span className="text-[10px] text-slate-500 block">
                           Directly logs booking query into admin system before opening WhatsApp.
                         </span>
                       </div>
@@ -6115,13 +6385,16 @@ export default function App() {
                         </span>
                       </div>
 
-                      <ul className="space-y-2 mt-4">
-                        {srv.features.map((f, fIdx) => (
-                          <li key={fIdx} className={`flex gap-2 text-xs ${currentTheme === 'light' ? 'text-slate-700' : 'text-slate-300'}`}>
-                            <Check size={14} className="text-[#FF5500] shrink-0 mt-0.5" />
-                            <span>{f}</span>
-                          </li>
-                        ))}
+                      <ul className="space-y-2.5 mt-4">
+                        {srv.features.map((f: string, fIdx: number) => {
+                          const ItemIcon = getPackageItemIcon(f, 'it', fIdx);
+                          return (
+                            <li key={fIdx} className={`flex gap-2.5 items-start text-xs ${currentTheme === 'light' ? 'text-slate-700' : 'text-slate-300'}`}>
+                              <ItemIcon size={14} className="text-[#FF5500] shrink-0 mt-0.5" />
+                              <span className="leading-snug">{f}</span>
+                            </li>
+                          );
+                        })}
                       </ul>
                     </div>
 
@@ -6426,15 +6699,18 @@ export default function App() {
                         </span>
                       </div>
 
-                      <ul className={`space-y-1.5 mt-4 text-[11px] ${
+                      <ul className={`space-y-2 mt-4 text-[11px] ${
                         currentTheme === 'light' ? 'text-slate-700' : 'text-slate-300'
                       }`}>
-                        {srv.features.slice(0, 3).map((f, fIdx) => (
-                          <li key={fIdx} className="flex gap-1.5">
-                            <CheckCircle2 size={12} className="text-[#FF5500] shrink-0 mt-0.5" />
-                            <span>{f}</span>
-                          </li>
-                        ))}
+                        {srv.features.slice(0, 4).map((f: string, fIdx: number) => {
+                          const ItemIcon = getPackageItemIcon(f, 'photography', fIdx);
+                          return (
+                            <li key={fIdx} className="flex gap-2 items-start">
+                              <ItemIcon size={13} className="text-[#FF5500] shrink-0 mt-0.5" />
+                              <span className="leading-snug">{f}</span>
+                            </li>
+                          );
+                        })}
                       </ul>
                     </div>
 
@@ -6722,7 +6998,7 @@ export default function App() {
 
             {/* Pictures layout list */}
             {isGalleryLoading ? (
-              <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5 sm:gap-6">
                 {[...Array(6)].map((_, i) => (
                   <div
                     key={`gallery-sk-${i}`}
@@ -6789,24 +7065,35 @@ export default function App() {
                 key={`${activeGalleryFilter}-${activeGalleryTagFilter}`}
                 variants={{
                   hidden: { opacity: 0 },
+                  visible: {
+                    opacity: 1,
+                    transition: {
+                      staggerChildren: 0.1,
+                      delayChildren: 0.05
+                    }
+                  },
                   show: {
                     opacity: 1,
                     transition: {
-                      staggerChildren: 0.04
+                      staggerChildren: 0.1,
+                      delayChildren: 0.05
                     }
                   }
                 }}
                 initial="hidden"
-                animate="show"
-                className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6"
+                whileInView="visible"
+                animate="visible"
+                viewport={{ once: true, margin: "-40px" }}
+                className="grid grid-cols-2 md:grid-cols-3 gap-2.5 sm:gap-6"
               >
                 {filteredItems.map((item, index) => (
                   <motion.div
                     key={item.id}
                     onClick={() => setPreviewImage(item)}
                     variants={{
-                      hidden: { opacity: 0, y: 15 },
-                      show: { opacity: 1, y: 0, transition: { duration: 0.45, ease: "easeOut" } }
+                      hidden: { opacity: 0, y: 20 },
+                      visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.215, 0.61, 0.355, 1] } },
+                      show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.215, 0.61, 0.355, 1] } }
                     }}
                     whileHover={{ y: -6, scale: 1.02, transition: { type: "spring", stiffness: 400, damping: 22 } }}
                     className={`group rounded-2xl overflow-hidden border ${s.card} flex flex-col justify-between aspect-square relative cursor-pointer shadow-sm hover:shadow-lg hover:border-[#FF5500]/30 transition-all duration-300`}
@@ -7161,7 +7448,7 @@ export default function App() {
 
               {/* Dynamic Content Stream */}
               {isFetchingInstagram && instagramPosts.length === 0 ? (
-                <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5 sm:gap-4">
                   {[1, 2, 3, 4, 5, 6].map((n) => (
                     <div
                       key={n}
@@ -7207,7 +7494,7 @@ export default function App() {
                     }
 
                     return (
-                      <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 gap-4">
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5 sm:gap-4">
                         {filtered.map((post, idx) => {
                           const isReel = isVideoPost(post);
                           return (
@@ -8226,16 +8513,19 @@ export default function App() {
                         </span>
                       </div>
 
-                      {/* Top 3 key features checklist */}
-                      <ul className={`space-y-1.5 mt-5 pt-4 border-t ${s.divider} text-[11px] ${
+                      {/* Top key features with categorized icons */}
+                      <ul className={`space-y-2 mt-5 pt-4 border-t ${s.divider} text-[11px] ${
                         currentTheme === 'light' ? 'text-slate-700' : 'text-slate-300'
                       }`}>
-                        {srv.features?.slice(0, 3).map((f: string, fIdx: number) => (
-                          <li key={fIdx} className="flex gap-1.5 items-start">
-                            <Check size={12} className="text-[#FF5500] shrink-0 mt-0.5" />
-                            <span className="line-clamp-2">{f}</span>
-                          </li>
-                        ))}
+                        {srv.features?.slice(0, 4).map((f: string, fIdx: number) => {
+                          const ItemIcon = getPackageItemIcon(f, srv.type || 'it', fIdx);
+                          return (
+                            <li key={fIdx} className="flex gap-2 items-start">
+                              <ItemIcon size={13} className="text-[#FF5500] shrink-0 mt-0.5" />
+                              <span className="line-clamp-2 leading-snug">{f}</span>
+                            </li>
+                          );
+                        })}
                       </ul>
                     </div>
 
@@ -13109,14 +13399,17 @@ export default function App() {
                       <h4 className="text-sm font-black uppercase tracking-wider">Service Inclusions</h4>
                     </div>
                     <ul className="space-y-3">
-                      {extra.inclusions.map((inc: string, idx: number) => (
-                        <li key={idx} className="flex gap-2.5 items-start text-xs">
-                          <span className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-[#FF5500] mt-1.5" />
-                          <span className={currentTheme === 'light' ? 'text-slate-700' : 'text-slate-300'}>
-                            {inc}
-                          </span>
-                        </li>
-                      ))}
+                      {extra.inclusions.map((inc: string, idx: number) => {
+                        const ItemIcon = getPackageItemIcon(inc, activeDetailService.type || 'it', idx);
+                        return (
+                          <li key={idx} className="flex gap-2.5 items-start text-xs">
+                            <ItemIcon size={15} className="text-[#FF5500] shrink-0 mt-0.5" />
+                            <span className={`leading-relaxed ${currentTheme === 'light' ? 'text-slate-700' : 'text-slate-300'}`}>
+                              {inc}
+                            </span>
+                          </li>
+                        );
+                      })}
                     </ul>
                   </div>
 
