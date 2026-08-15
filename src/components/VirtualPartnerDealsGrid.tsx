@@ -54,8 +54,15 @@ export const VirtualPartnerDealsGrid: React.FC<VirtualPartnerDealsGridProps> = (
         <motion.div
           key={item.id}
           variants={{
-            hidden: { opacity: 0, y: 15 },
-            visible: { opacity: 1, y: 0, transition: { duration: 0.45, ease: 'easeOut' } }
+            hidden: { opacity: 0, y: 24 },
+            visible: { 
+              opacity: 1, 
+              y: 0, 
+              transition: { 
+                duration: 0.5, 
+                ease: [0.215, 0.61, 0.355, 1] 
+              } 
+            }
           }}
           className="relative flex flex-col h-full group"
           style={{
