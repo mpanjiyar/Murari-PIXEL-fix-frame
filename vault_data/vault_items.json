@@ -1,0 +1,50 @@
+[
+  {
+    "id": "vault_doc_1",
+    "name": "PC Repair Diagnostic SOP & Flowchart",
+    "description": "Standard operating procedure for hardware diagnostics, RAM testing, thermal throttling inspection, and blue screen troubleshooting.",
+    "category": "Repair Notes",
+    "fileType": "text",
+    "content": "# Pixel Fix — Diagnostic Standard Operating Procedure\n\n1. Hardware Initial Inspection\n- Inspect power supply rails (12V, 5V, 3.3V) with digital multimeter.\n- Reseat memory modules (RAM) in alternating DIMM slots (A2/B2).\n- Clean thermal compound on CPU/GPU and reapply high-performance paste.\n\n2. Software & Storage Diagnostics\n- Boot into WinPE live diagnostic USB.\n- Run SMART health test for NVMe SSD and SATA drives.\n- Run MemTest86 for 4 passes to ensure zero memory errors.\n\n3. Clean OS Installation Steps\n- Verify UEFI Secure Boot status.\n- Load manufacturer chipset and graphics drivers.\n- Install licensed productivity software suites.",
+    "links": [
+      {
+        "title": "Official MemTest86 Diagnostic USB Tool",
+        "url": "https://www.memtest86.com/download.htm",
+        "status": "valid"
+      },
+      {
+        "title": "Pixel Fix Essential Driver Repository (Google Drive)",
+        "url": "https://drive.google.com/drive/folders/1PixelFixDriverRepo",
+        "status": "valid"
+      }
+    ],
+    "sizeBytes": 885,
+    "createdAt": "2026-10-02T08:18:40.930Z",
+    "updatedAt": "2026-10-03T08:18:40.931Z",
+    "createdBy": "admin"
+  },
+  {
+    "id": "vault_doc_2",
+    "name": "Windows 11 Setup & Driver Repository Links",
+    "description": "Verified direct repository links for Intel, AMD, NVIDIA, Realtek audio, and network controller drivers.",
+    "category": "Drivers & Utilities",
+    "fileType": "text",
+    "content": "# Verified OEM Driver Download Portals\n\nAlways download official WHQL signed drivers. Never use third-party driver-pack utilities that bundle adware.\n\n- Intel Chipset & Wi-Fi INF Utilities: https://www.intel.com/content/www/us/en/download-center/home.html\n- AMD Ryzen Motherboard Chipset Drivers: https://www.amd.com/en/support\n- NVIDIA GeForce WHQL Studio & Game Ready Drivers: https://www.nvidia.com/Download/index.aspx\n- Realtek High Definition Audio Codecs: https://www.realtek.com/en/",
+    "links": [
+      {
+        "title": "Google Drive Master Technician Backup",
+        "url": "https://drive.google.com/drive/folders/1PixelFixTechnicianTools",
+        "status": "valid"
+      },
+      {
+        "title": "Microsoft Media Creation Tool",
+        "url": "https://www.microsoft.com/software-download/windows11",
+        "status": "valid"
+      }
+    ],
+    "sizeBytes": 520,
+    "createdAt": "2026-10-01T08:18:40.931Z",
+    "updatedAt": "2026-10-03T20:18:40.931Z",
+    "createdBy": "admin"
+  }
+]

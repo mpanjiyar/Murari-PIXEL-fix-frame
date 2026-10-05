@@ -12,6 +12,14 @@
         "url": { "type": "string" },
         "imageUrl": { "type": "string" },
         "discountCode": { "type": "string" },
+        "price": { "type": "string" },
+        "originalPrice": { "type": "string" },
+        "discountPercentage": { "type": "string" },
+        "availability": { "type": "string" },
+        "partnerSource": { "type": "string" },
+        "isPublished": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
         "clicks": { "type": "integer" },
         "clickHistory": { "type": "object" },
         "last_clicked": { "type": "string" },
@@ -113,9 +121,93 @@
         "category": { "type": "string" }
       },
       "required": ["id", "name", "price"]
+    },
+    "VaultItem": {
+      "title": "VaultItem",
+      "description": "Secure document or file stored inside the Pixel Fix Vault with real-time multi-device sync.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "category": { "type": "string" },
+        "fileType": { "type": "string" },
+        "originalFileName": { "type": "string" },
+        "storedFileName": { "type": "string" },
+        "mimeType": { "type": "string" },
+        "content": { "type": "string" },
+        "links": { "type": "array" },
+        "sizeBytes": { "type": "integer" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "createdBy": { "type": "string" },
+        "folder": { "type": "string" },
+        "fileDataUrl": { "type": "string" }
+      },
+      "required": ["id", "name"]
+    },
+    "VaultFolder": {
+      "title": "VaultFolder",
+      "description": "Directory folder for organizing vault documents and files in real-time.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "color": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "name"]
+    },
+    "VaultDraft": {
+      "title": "VaultDraft",
+      "description": "Auto-saved document draft protecting against browser crashes and interruptions.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "documentId": { "type": "string" },
+        "documentName": { "type": "string" },
+        "draftContent": { "type": "string" },
+        "lastSavedTimestamp": { "type": "string" },
+        "deviceId": { "type": "string" }
+      },
+      "required": ["id", "documentId", "draftContent"]
+    },
+    "VaultLink": {
+      "title": "VaultLink",
+      "description": "Curated technical resource link with metadata and category tagging.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "description": { "type": "string" },
+        "url": { "type": "string" },
+        "icon": { "type": "string" },
+        "notes": { "type": "string" },
+        "order": { "type": "integer" }
+      },
+      "required": ["id", "name", "url", "category"]
     }
   },
   "firestore": {
+    "/vault_items/{itemId}": {
+      "schema": "VaultItem",
+      "description": "Encrypted and secured Pixel Fix Vault documents synchronized across devices in real time."
+    },
+    "/vault_folders/{folderId}": {
+      "schema": "VaultFolder",
+      "description": "Directories and organization folders for vault documents and files."
+    },
+    "/vault_drafts/{draftId}": {
+      "schema": "VaultDraft",
+      "description": "Temporary auto-saved document drafts synchronized across active sessions."
+    },
+    "/vault_links/{linkId}": {
+      "schema": "VaultLink",
+      "description": "Curated technical tools and diagnostic web links."
+    },
     "/software_licenses/{licenseId}": {
       "schema": "SoftwareLicense",
       "description": "Collection of available software licenses managed by the administrator."

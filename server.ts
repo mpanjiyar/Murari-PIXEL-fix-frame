@@ -4,6 +4,7 @@ import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 import fs from "fs";
+import { registerVaultRoutes } from "./src/serverVault";
 
 dotenv.config();
 
@@ -22,19 +23,23 @@ app.use((req, res, next) => {
   next();
 });
 
-// Enable JSON parsing with a generous limit
-app.use(express.json({ limit: "5mb" }));
+// Enable JSON parsing with a generous 50mb limit for file uploads
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 // Handle CORS and preflight OPTIONS requests to prevent 405 or access issues
 app.use((req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
-  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization, x-admin-key");
   res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
   if (req.method === "OPTIONS") {
     return res.sendStatus(200);
   }
   next();
 });
+
+// Register Pixel Fix Secure Vault routes
+registerVaultRoutes(app);
 
 // Lazy initialization of Gemini Client to prevent crash on startup if key is missing
 let aiClient: GoogleGenAI | null = null;
@@ -553,10 +558,150 @@ function mapAmazonCategory(url: string, title: string, description: string, html
   return "accessories";
 }
 
+// Helpers for Flipkart & Partner Store Support
+function isFlipkartUrl(url: string): boolean {
+  if (!url) return false;
+  return /flipkart\.(com)|dl\.flipkart\.com|fkrt\.(it|co)/i.test(url);
+}
+
+function isAmazonUrl(url: string): boolean {
+  if (!url) return false;
+  return /amazon\.(in|com|co\.uk|ca|de|fr|co\.jp|com\.au|es|it|com\.mx|com\.br|com\.tr|ae|sa|sg|se|pl|nl|be|com\.be|co\.za|eg)|\/amzn\.(to|in)\/|a\.co/i.test(url);
+}
+
+function detectPartnerSource(url: string): 'Amazon' | 'Flipkart' | 'Direct' {
+  if (isAmazonUrl(url)) return 'Amazon';
+  if (isFlipkartUrl(url)) return 'Flipkart';
+  return 'Direct';
+}
+
+function extractFlipkartDetails(url: string, html: string): {
+  title?: string;
+  description?: string;
+  imageUrl?: string;
+  price?: string;
+  category?: string;
+} {
+  const result: { title?: string; description?: string; imageUrl?: string; price?: string; category?: string } = {};
+
+  // Extract slug from URL if possible: /product-name-slug/p/itm...
+  try {
+    const parsed = new URL(url);
+    const slugMatch = parsed.pathname.match(/\/([^\/]+)\/p\/(?:itm[a-zA-Z0-9]+)/i);
+    if (slugMatch && slugMatch[1]) {
+      const cleanSlug = slugMatch[1]
+        .replace(/[-_]/g, ' ')
+        .split(' ')
+        .filter(Boolean)
+        .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(' ');
+      if (cleanSlug.length > 3) {
+        result.title = cleanSlug;
+      }
+    }
+  } catch (e) {}
+
+  if (html) {
+    // OpenGraph & Twitter tags
+    const ogTitle = extractMetaTag(html, "og:title") || extractMetaTag(html, "twitter:title");
+    if (ogTitle) {
+      result.title = cleanProductTitle(ogTitle);
+    }
+
+    const ogDesc = extractMetaTag(html, "og:description") || extractMetaTag(html, "twitter:description") || extractMetaTag(html, "description");
+    if (ogDesc) {
+      result.description = cleanProductDescription(ogDesc);
+    }
+
+    // High-resolution Flipkart image from og:image
+    const ogImg = extractMetaTag(html, "og:image") || extractMetaTag(html, "twitter:image");
+    if (ogImg) {
+      result.imageUrl = ogImg.replace(/\/image\/[0-9]+\/[0-9]+\//, "/image/832/832/");
+    }
+
+    // Flipkart DOM Price
+    const priceMatch = html.match(/class=["'][^"']*(?:_30jeq3|_16J0d0|Nx9bqj|CxhGGd)[^"']*["'][^>]*>([^<]+)</i) ||
+                       html.match(/class=["'][^"']*_30jeq3[^"']*["'][^>]*>([^<]+)</i) ||
+                       html.match(/"price":\s*"([^"]+)"/i) ||
+                       html.match(/"price":\s*([0-9.]+)/i);
+    if (priceMatch) {
+      const rawPrice = priceMatch[1].trim();
+      result.price = rawPrice.startsWith("₹") ? rawPrice : `₹${rawPrice}`;
+    }
+
+    // JSON-LD structured data extraction
+    const jsonLdMatches = html.match(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi);
+    if (jsonLdMatches) {
+      for (const block of jsonLdMatches) {
+        try {
+          const content = block.replace(/<\/?script[^>]*>/gi, '').trim();
+          const parsed = JSON.parse(content);
+          if (parsed['@type'] === 'Product' || parsed['name']) {
+            if (parsed.name && !result.title) result.title = cleanProductTitle(parsed.name);
+            if (parsed.description && !result.description) result.description = cleanProductDescription(parsed.description);
+            if (parsed.image && !result.imageUrl) {
+              const img = Array.isArray(parsed.image) ? parsed.image[0] : parsed.image;
+              if (typeof img === 'string') result.imageUrl = img.replace(/\/image\/[0-9]+\/[0-9]+\//, "/image/832/832/");
+            }
+            if (parsed.offers) {
+              const offer = Array.isArray(parsed.offers) ? parsed.offers[0] : parsed.offers;
+              if (offer && offer.price && !result.price) {
+                const currency = offer.priceCurrency === 'INR' ? '₹' : (offer.priceCurrency || '₹');
+                result.price = `${currency}${offer.price}`;
+              }
+            }
+          }
+        } catch (e) {}
+      }
+    }
+  }
+
+  // Category determination
+  const fullText = `${result.title || ''} ${result.description || ''}`.toLowerCase();
+  if (/camera|lens|tripod|gimbal|sony|canon|nikon|lumix|fujifilm|cinematography|lighting|ring light|microphone|rode/i.test(fullText)) {
+    result.category = "photography";
+  } else if (/ssd|ram|motherboard|processor|cpu|gpu|rtx|router|switch|networking|laptop|desktop|monitor|hard drive|nvme/i.test(fullText)) {
+    result.category = "it_tech";
+  } else if (/windows|office|antivirus|license|activation|key|software|adobe/i.test(fullText)) {
+    result.category = "software";
+  } else {
+    result.category = "accessories";
+  }
+
+  return result;
+}
+
 // Helper function to extract product metadata programmatically from HTML when Gemini is unavailable or rate-limited
 function fallbackExtractFromHtml(url: string, fullHtml: string) {
   const asin = extractAmazonAsin(url);
+  const isFk = isFlipkartUrl(url);
   let title = "";
+  
+  if (isFk) {
+    const fk = extractFlipkartDetails(url, fullHtml);
+    if (fk.title) title = fk.title;
+    let description = fk.description || "";
+    let imageUrl = fk.imageUrl || "";
+    let price = fk.price || "";
+    let category = fk.category || "accessories";
+
+    if (!description || description.length < 30) {
+      description = `Selected ${title || 'gear'} available on Flipkart with fast delivery in Assam. High-rated equipment vetted for performance and reliability.`;
+    }
+
+    if (!imageUrl) {
+      imageUrl = "https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=600&auto=format&fit=crop";
+    }
+
+    return {
+      title: title || "Flipkart Partner Product",
+      description,
+      imageUrl,
+      price,
+      category,
+      partnerSource: "Flipkart"
+    };
+  }
   
   if (fullHtml) {
     // High-priority Amazon-specific DOM selectors matching Amazon product titles
@@ -1385,17 +1530,24 @@ function checkAffiliateTracking(url: string): { valid: boolean; warning?: string
   }
 }
 
-// Explicit GET route for product fetching
+// Explicit routes for Amazon & Partner product fetching
 app.get("/api/fetch-amazon-product", async (req, res) => {
   await handleFetchProduct(req, res);
 });
 
-// Explicit POST route for product fetching
 app.post("/api/fetch-amazon-product", async (req, res) => {
   await handleFetchProduct(req, res);
 });
 
-// Main handler for fetching product details
+app.get("/api/fetch-partner-product", async (req, res) => {
+  await handleFetchProduct(req, res);
+});
+
+app.post("/api/fetch-partner-product", async (req, res) => {
+  await handleFetchProduct(req, res);
+});
+
+// Main handler for fetching product details from Amazon, Flipkart, and Partner stores
 async function handleFetchProduct(req: express.Request, res: express.Response) {
   const url = req.method === "GET" ? (req.query.url as string) : (req.body?.url as string);
   if (!url || typeof url !== "string") {
@@ -1521,7 +1673,10 @@ async function handleFetchProduct(req: express.Request, res: express.Response) {
           `;
         }
 
-        const systemPrompt = `You are an expert product metadata extractor specializing in e-commerce and product websites.
+        const isFk = isFlipkartUrl(targetUrl);
+        const detectedSource = detectPartnerSource(targetUrl);
+
+        const systemPrompt = `You are an expert product metadata extractor specializing in e-commerce and product websites (Amazon, Flipkart, and authorized partner stores).
 Your task is to extract key details for the provided product URL and details.
 Use the provided HTML page context if available, and use Google Search grounding to find the exact, accurate, and current information for this specific product.
 
@@ -1529,9 +1684,9 @@ Specifically:
 1. Extract or determine:
    - title: A clear, professional, and easy-to-understand product title that is strictly no longer than 15 words (e.g., "Apple iPhone 15 Pro (128 GB) - Blue Titanium" or "Sony Alpha 7 IV Mirrorless Camera"). Ensure the title is complete, accurate, professionally formatted, and fits beautifully within the 15-word limit without needing any trailing ellipsis or truncation.
    - description: A compelling, elegant, and professionally written product summary or recommendation text (strictly 2-3 sentences max). Ensure it highlights the key specifications, utility, and build quality in clear, grammatically complete sentences. It must be a helpful, polished review-style text, entirely free from incomplete sentences, promotional hype, repetitive text, or raw HTML tags.
-   - imageUrl: A high-quality, valid, direct image URL of the actual product. Seek out real high-resolution listing images. Prioritize official Amazon image domain URLs starting with "https://images-na.ssl-images-amazon.com/images/I/" or "https://m.media-amazon.com/images/I/" if they exist. Do NOT return blank, generic, low-resolution, or placeholder images. It must be a proper, clear, direct photo of the actual product.
-   - price: The current sale price formatted with currency (e.g. ₹64,990 or $799 or £999).
-   - originalPrice: The original or list price before discounts formatted with currency (e.g. ₹79,900 or $999 or £1,199). If there is no discount, this can be empty.
+   - imageUrl: A high-quality, valid, direct image URL of the actual product. Seek out real high-resolution listing images. For Amazon, prioritize official image domain URLs starting with "https://images-na.ssl-images-amazon.com/images/I/" or "https://m.media-amazon.com/images/I/". For Flipkart, prioritize "https://rukminim1.flixcart.com/" or "https://rukminim2.flixcart.com/" with "/image/832/832/". Do NOT return blank, generic, low-resolution, or placeholder images. It must be a proper, clear, direct photo of the actual product.
+   - price: The current sale price formatted with currency (e.g. ₹64,990 or ₹1,499).
+   - originalPrice: The original or list price before discounts formatted with currency (e.g. ₹79,900 or ₹2,499). If there is no discount, this can be empty.
    - discountPercentage: The discount percent calculation or label (e.g., "18% OFF" or "20% saving").
    - availability: Product stock availability status (e.g., "In Stock", "Out of Stock", "Only 3 left in stock!").
    - category: Map the product strictly to one of the following category strings:
@@ -1540,18 +1695,20 @@ Specifically:
      - "software": Operating systems, licenses, office subscriptions, professional creator tools, antivirus, activation keys.
      - "accessories": Lifestyle items, smartphone accessories, cables, adapters, protective cases, chargers, laptop stands, or general tech gifts.
      - If you are unsure, default to "accessories".
+   - partnerSource: Either "Amazon", "Flipkart", or "Direct".
 
 Make sure to return valid JSON matching the requested schema. Ensure the imageUrl is a real, absolute, direct image URL.`;
 
         const contents = `Extract the product details from this page data and/or URL.
 Product Target URL: ${targetUrl}
-Product ASIN Code: ${asin || "Not Available"}
+Store Provider: ${detectedSource}
+Product Code/ASIN: ${asin || "Not Available"}
 Inferred Title Cue: ${slugTitle || "Not Available"}
 
-${htmlContent ? `HTML Scraping Snippet:\n${htmlContent}` : "Note: Direct scraping was rate-limited or blocked. Please perform a Google Search query for this product (using the ASIN or Inferred Title Cue if available) to fetch the correct title, price, originalPrice, discountPercentage, availability, high-resolution product image, category, and review-style description."}`;
+${htmlContent ? `HTML Scraping Snippet:\n${htmlContent}` : `Note: Direct scraping was rate-limited or blocked. Please perform a Google Search query for this product (using the title or product code if available) to fetch the correct title, price, originalPrice, discountPercentage, availability, high-resolution product image, category, and review-style description for ${detectedSource}.`}`;
 
         const geminiResponse = await ai.models.generateContent({
-          model: "gemini-3.5-flash",
+          model: "gemini-2.5-flash",
           contents: contents,
           config: {
             systemInstruction: systemPrompt,
@@ -1569,6 +1726,10 @@ ${htmlContent ? `HTML Scraping Snippet:\n${htmlContent}` : "Note: Direct scrapin
                 category: { 
                   type: Type.STRING,
                   enum: ["photography", "it_tech", "software", "accessories"]
+                },
+                partnerSource: {
+                  type: Type.STRING,
+                  enum: ["Amazon", "Flipkart", "Direct"]
                 }
               },
               required: ["title", "description", "imageUrl", "price", "category"]
@@ -1589,9 +1750,16 @@ ${htmlContent ? `HTML Scraping Snippet:\n${htmlContent}` : "Note: Direct scrapin
           }
           if (productData.imageUrl) {
             productData.imageUrl = makeUrlAbsolute(targetUrl, productData.imageUrl);
-            productData.imageUrl = getHighResAmazonUrl(productData.imageUrl);
+            if (!isFk) {
+              productData.imageUrl = getHighResAmazonUrl(productData.imageUrl);
+            } else {
+              productData.imageUrl = productData.imageUrl.replace(/\/image\/[0-9]+\/[0-9]+\//, "/image/832/832/");
+            }
           }
           
+          productData.partnerSource = productData.partnerSource || detectedSource;
+          productData.url = targetUrl;
+
           const allowedCategories = ["photography", "it_tech", "software", "accessories"];
           const originalCategory = productData.category;
           if (!originalCategory || !allowedCategories.includes(originalCategory) || originalCategory === "accessories") {
@@ -1603,7 +1771,7 @@ ${htmlContent ? `HTML Scraping Snippet:\n${htmlContent}` : "Note: Direct scrapin
             }
           }
           
-          if (fullHtml) {
+          if (fullHtml && !isFk) {
             const candidateImages = extractProductImagesFromHtml(fullHtml);
             if (candidateImages.length > 0) {
               productData.imageUrl = getHighResAmazonUrl(candidateImages[0]);
@@ -1672,6 +1840,8 @@ ${htmlContent ? `HTML Scraping Snippet:\n${htmlContent}` : "Note: Direct scrapin
     fallbackProduct.originalPrice = originalPrice || "";
     fallbackProduct.discountPercentage = discountPercentage || "";
     fallbackProduct.availability = availability;
+    fallbackProduct.partnerSource = fallbackProduct.partnerSource || detectPartnerSource(targetUrl);
+    fallbackProduct.url = targetUrl;
 
     return { success: true, product: fallbackProduct, isFallback: true, warning: trackingWarning };
   })();

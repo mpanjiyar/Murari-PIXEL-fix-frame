@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   Phone,
   Mail,
@@ -110,6 +110,8 @@ import {
 } from './data';
 import { GalleryItem, ContactMessage, NotificationLog, AffiliateLink, SocialLink, SoftwareLicense } from './types';
 import { LicenseProductCardVisual } from './components/LicenseProductCardVisual';
+import { GalleryItemCard } from './components/GalleryItemCard';
+import { SoftwareLicenseCard } from './components/SoftwareLicenseCard';
 import { VirtualPartnerDealsGrid, PartnerDealItem } from './components/VirtualPartnerDealsGrid';
 import PFLogo from './components/PFLogo';
 import CursorEffect from './components/CursorEffect';
@@ -126,13 +128,18 @@ import CoverageMap from './components/CoverageMap';
 import PhotoResizer from './components/PhotoResizer';
 import { ReviewQRCode } from './components/ReviewQRCode';
 import { QRCodeGenerator } from './components/QRCodeGenerator';
+import { PrivacyPolicyPage } from './components/PrivacyPolicyPage';
+import { PixelFixVault } from './components/PixelFixVault';
+import { AdminVaultManager } from './components/AdminVaultManager';
+import { AdminPartnerDealsManager } from './components/AdminPartnerDealsManager';
+import { VaultTriggerButton } from './components/VaultTriggerButton';
 import { initAuth, googleSignIn, googleSignOut } from './lib/driveAuth';
 import { uploadBackupToDrive, listBackupsOnDrive, downloadBackupFromDrive, deleteBackupFromDrive, upsertLiveSyncBackup, getOrCreateFolder, uploadPhotoFileToDrive } from './lib/driveService';
 import type { DriveBackupFile } from './lib/driveService';
 import type { User as FirebaseUser } from 'firebase/auth';
 import { db, OperationType, handleFirestoreError } from './firebase';
 import { collection, doc, setDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
-import { HardDrive, Cloud, LogOut, AlertCircle, FolderOpen, Download, UploadCloud, GripVertical, MousePointerClick, CornerDownRight, Home } from 'lucide-react';
+import { HardDrive, Cloud, LogOut, AlertCircle, FolderOpen, Download, UploadCloud, GripVertical, MousePointerClick, CornerDownRight, Home, Lock, Unlock } from 'lucide-react';
 import {
   AreaChart,
   Area,
@@ -597,7 +604,7 @@ const renderShortcutIcon = (iconName: string, size: number = 16, className: stri
 
 export default function App() {
   // Navigation & Primary Settings
-  const [activeTab, setActiveTab] = useState<'home' | 'about' | 'pixelfix' | 'pixelframe' | 'gallery' | 'contact' | 'dashboard' | 'affiliate' | 'packages' | 'bios' | 'beep' | 'smps'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'about' | 'pixelfix' | 'pixelframe' | 'gallery' | 'contact' | 'dashboard' | 'affiliate' | 'packages' | 'bios' | 'beep' | 'smps' | 'privacy' | 'vault'>('home');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [hoveredTab, setHoveredTab] = useState<string | null>(null);
   const [isDiagDropdownOpen, setIsDiagDropdownOpen] = useState(false);
@@ -609,6 +616,26 @@ export default function App() {
     return (saved as any) || 'light';
   });
 
+  const [isVaultOpen, setIsVaultOpen] = useState(false);
+
+  // Full-Screen Vault Route Navigators
+  const openVaultPage = useCallback(() => {
+    setIsVaultOpen(true);
+    setActiveTab('vault');
+    if (window.location.pathname !== '/vault') {
+      window.history.pushState(null, '', '/vault');
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
+  const closeVaultPage = useCallback(() => {
+    setIsVaultOpen(false);
+    setActiveTab('home');
+    if (window.location.pathname !== '/') {
+      window.history.pushState(null, '', '/');
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
 
   const [selectedChartProduct, setSelectedChartProduct] = useState<string>('all');
   const [analyticsMetric, setAnalyticsMetric] = useState<'total' | 'unique'>('total');
@@ -1072,7 +1099,7 @@ export default function App() {
     }
   };
 
-  const [isAffiliateLoading, setIsAffiliateLoading] = useState(true);
+  const [isAffiliateLoading, setIsAffiliateLoading] = useState(() => !localStorage.getItem('mp_affiliate_links'));
   const [affiliateLinks, setAffiliateLinks] = useState<AffiliateLink[]>(() => {
     const saved = localStorage.getItem('mp_affiliate_links');
     if (saved) {
@@ -2018,20 +2045,7 @@ export default function App() {
     }
   };
 
-  useEffect(() => {
-    if (activeTab === 'affiliate' && affiliateSyncStatus) {
-      const lastRefresh = affiliateSyncStatus.lastRefreshTimestamp;
-      if (lastRefresh) {
-        const lastTime = new Date(lastRefresh).getTime();
-        const now = Date.now();
-        const TWELVE_HOURS = 12 * 60 * 60 * 1000;
-        if (now - lastTime > TWELVE_HOURS && affiliateSyncStatus.status !== 'syncing' && !isSyncingDeals) {
-          console.info("[Automated Refresh] Stale affiliate data detected. Triggering background re-sync...");
-          handleAffiliateSync(false);
-        }
-      }
-    }
-  }, [activeTab, affiliateSyncStatus?.lastRefreshTimestamp, affiliateSyncStatus?.status]);
+  // Automated sync disabled on tab open to ensure 0ms instantaneous opening and zero network bottlenecks
 
   useEffect(() => {
     if (editingItem && editingItem.type === 'affiliate_link') {
@@ -2247,6 +2261,8 @@ export default function App() {
           const updatedDiscountPercentage = (shouldOverwrite || !data.discountPercentage?.trim()) ? (discountPercentage || data.discountPercentage || '') : (data.discountPercentage || discountPercentage || '');
           const updatedAvailability = (shouldOverwrite || !data.availability?.trim()) ? (availability || data.availability || '') : (data.availability || availability || '');
 
+          const detectedPartner = resData.product?.partnerSource || (/flipkart/i.test(urlToFetch) ? 'Flipkart' : /amazon/i.test(urlToFetch) ? 'Amazon' : 'Direct');
+
           return {
             ...prev,
             data: {
@@ -2259,6 +2275,8 @@ export default function App() {
               originalPrice: updatedOriginalPrice,
               discountPercentage: updatedDiscountPercentage,
               availability: updatedAvailability,
+              partnerSource: detectedPartner,
+              url: resData.product?.url || urlToFetch,
             }
           };
         });
@@ -2436,7 +2454,7 @@ export default function App() {
   const [isAuthorized, setIsAuthorized] = useState(() => {
     return localStorage.getItem('mp_admin_authorized') === 'true';
   });
-  const [adminSubTab, setAdminSubTab] = useState<'overview' | 'media' | 'gallery' | 'inquiries' | 'instagram' | 'branding'>('overview');
+  const [adminSubTab, setAdminSubTab] = useState<'overview' | 'media' | 'gallery' | 'inquiries' | 'instagram' | 'branding' | 'vault'>('overview');
   const [draftLogoUrl, setDraftLogoUrl] = useState<string>('');
   const [draftFaviconUrl, setDraftFaviconUrl] = useState<string>('');
 
@@ -2945,12 +2963,23 @@ export default function App() {
       // Check if accessing admin route directly via /admin or /admin/ or #admin
       if (pathname === '/admin' || pathname === '/admin/' || hash === 'admin' || hash === 'dashboard') {
         setActiveTab('dashboard');
+        setIsVaultOpen(false);
+        return;
+      }
+
+      // Check if accessing full-screen vault route directly via /vault or /vault/ or #vault
+      if (pathname === '/vault' || pathname === '/vault/' || hash === 'vault') {
+        setActiveTab('vault');
+        setIsVaultOpen(true);
         return;
       }
 
       const validTabs = ['home', 'about', 'pixelfix', 'pixelframe', 'gallery', 'contact', 'affiliate', 'bios', 'packages', 'beep', 'smps'];
       if (hash && validTabs.includes(hash)) {
         setActiveTab(hash as any);
+        setIsVaultOpen(false);
+      } else if (!hash && pathname === '/') {
+        setIsVaultOpen(false);
       }
     };
 
@@ -2969,12 +2998,16 @@ export default function App() {
     if (activeTab) {
       if (activeTab === 'dashboard') {
         if (window.location.pathname !== '/admin') {
-          window.history.replaceState(null, '', '/admin');
+          window.history.pushState(null, '', '/admin');
+        }
+      } else if (activeTab === 'vault') {
+        if (window.location.pathname !== '/vault') {
+          window.history.pushState(null, '', '/vault');
         }
       } else {
         const currentHash = window.location.hash.replace('#', '');
-        if (activeTab !== currentHash || window.location.pathname === '/admin') {
-          window.history.replaceState(null, '', `/#${activeTab}`);
+        if (activeTab !== currentHash || window.location.pathname === '/admin' || window.location.pathname === '/vault') {
+          window.history.pushState(null, '', `/#${activeTab}`);
         }
       }
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -4046,7 +4079,21 @@ export default function App() {
 
   const filteredAffiliateLinks = useMemo(() => {
     return affiliateLinksToRender.filter(item => {
-      const matchesFilter = activeAffiliateFilter === 'all' || (item.category || '').split(',').map(c => c.trim()).includes(activeAffiliateFilter);
+      // Don't show unpublished drafts to regular public visitors
+      if (item.isPublished === false && !isAuthorized) return false;
+
+      const itemCats = (item.category || '')
+        .toLowerCase()
+        .split(',')
+        .map(c => c.trim().replace(/\s+/g, '_'));
+      const activeFilterKey = activeAffiliateFilter.toLowerCase().trim().replace(/\s+/g, '_');
+
+      const matchesFilter = activeFilterKey === 'all' || 
+        itemCats.includes(activeFilterKey) ||
+        (activeFilterKey === 'my_gears' && (item.category || '').toLowerCase().includes('my_gears')) ||
+        (activeFilterKey === 'it_tech' && (itemCats.includes('it') || itemCats.includes('it_tech'))) ||
+        (activeFilterKey === 'photography' && (itemCats.includes('photography') || itemCats.includes('photo')));
+
       if (!matchesFilter) return false;
       if (!affiliateSearchQuery.trim()) return true;
       const q = affiliateSearchQuery.toLowerCase();
@@ -4054,10 +4101,12 @@ export default function App() {
         (item.title || '').toLowerCase().includes(q) ||
         (item.description || '').toLowerCase().includes(q) ||
         (item.category || '').toLowerCase().includes(q) ||
-        (item.discountCode || '').toLowerCase().includes(q)
+        (item.discountCode || '').toLowerCase().includes(q) ||
+        (item.partnerSource || '').toLowerCase().includes(q) ||
+        (item.price || '').toLowerCase().includes(q)
       );
     });
-  }, [affiliateLinksToRender, activeAffiliateFilter, affiliateSearchQuery]);
+  }, [affiliateLinksToRender, activeAffiliateFilter, affiliateSearchQuery, isAuthorized]);
 
   const filteredPackages = useMemo(() => {
     const mergedList = [
@@ -4697,6 +4746,29 @@ export default function App() {
                     </button>
                   </div>
                 </div>
+
+                {/* Privacy Policy Quick Link */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab('privacy');
+                    setIsMobileMenuOpen(false);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer border ${
+                    activeTab === 'privacy'
+                      ? 'bg-[#FF5500]/10 text-[#FF5500] border-[#FF5500]/30'
+                      : currentTheme === 'light'
+                        ? 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                        : 'bg-black/20 hover:bg-white/5 text-slate-400 border-white/5'
+                  }`}
+                >
+                  <span className="flex items-center gap-2">
+                    <ShieldCheck size={14} className="text-[#FF5500]" />
+                    <span>Privacy &amp; Data Policy</span>
+                  </span>
+                  <ArrowUpRight size={13} className="text-slate-400" />
+                </button>
               </div>
             </motion.div>
           </div>
@@ -4800,13 +4872,19 @@ export default function App() {
                 <div className="lg:col-span-7 col-span-1 text-left space-y-6">
                   
                   <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/25 rounded-full px-3 py-1 text-[11px] text-emerald-500 font-extrabold tracking-wider uppercase">
-                      <span className="relative flex h-2 w-2">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                      </span>
-                      <Activity size={12} className="animate-pulse shrink-0" />
-                      <span className="line-clamp-1">LIVE DISPATCH HUB: On-Site IT Engineer &amp; Photo Crew Active in Guwahati</span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="inline-flex items-center gap-1.5 bg-[#FF5500]/10 border border-[#FF5500]/25 rounded-full px-2.5 py-1 text-[10px] text-[#FF5500] font-extrabold tracking-widest uppercase font-mono">
+                        <Sparkles size={12} className="shrink-0 animate-pulse" />
+                        <span>PORTFOLIO &amp; CREATIVE STUDIO</span>
+                      </div>
+                      <div className="inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/25 rounded-full px-3 py-1 text-[11px] text-emerald-500 font-extrabold tracking-wider uppercase">
+                        <span className="relative flex h-2 w-2">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                        </span>
+                        <Activity size={12} className="animate-pulse shrink-0" />
+                        <span className="line-clamp-1">LIVE DISPATCH HUB: On-Site IT Engineer &amp; Photo Crew Active in Guwahati</span>
+                      </div>
                     </div>
                     {isAuthorized && (
                       <button
@@ -4932,20 +5010,28 @@ export default function App() {
                 </div>
 
                 {/* Quick Split View Feature Cards */}
-                <motion.div 
-                  initial="hidden"
-                  whileInView="show"
-                  viewport={{ once: true, margin: "-40px" }}
-                  variants={{
-                    hidden: {},
-                    show: {
-                      transition: {
-                        staggerChildren: 0.15
+                <div className="lg:col-span-5 space-y-3">
+                  <div className="flex items-center justify-between px-1">
+                    <div className="inline-flex items-center gap-1.5 bg-orange-500/10 border border-orange-500/20 rounded-full px-2.5 py-0.5 text-[9px] text-[#FF5500] font-extrabold tracking-widest uppercase font-mono">
+                      <Wrench size={10} className="shrink-0" />
+                      <span>DUAL SPECIALIZED SERVICES</span>
+                    </div>
+                    <span className="text-[10px] font-mono text-slate-400 font-bold">2 Active Sectors</span>
+                  </div>
+                  <motion.div 
+                    initial="hidden"
+                    whileInView="show"
+                    viewport={{ once: true, margin: "-40px" }}
+                    variants={{
+                      hidden: {},
+                      show: {
+                        transition: {
+                          staggerChildren: 0.15
+                        }
                       }
-                    }
-                  }}
-                  className="lg:col-span-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-4"
-                >
+                    }}
+                    className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-4"
+                  >
                   <motion.div 
                     variants={{
                       hidden: { opacity: 0, x: 25 },
@@ -5052,15 +5138,16 @@ export default function App() {
                     </button>
                   </motion.div>
                 </motion.div>
+                </div>
               </div>
             </section>
 
             {/* SOFTWARE LICENSES SECTION */}
             <section className="space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-                <ScrollReveal variant="fade-up" delay={0.15} className="text-left">
+              <div className="flex items-start justify-between gap-4">
+                <ScrollReveal variant="fade-up" delay={0.15} className="text-left flex-1 min-w-0 pr-2">
                   <div className="inline-flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-2.5 py-0.5 text-[9px] text-emerald-500 font-extrabold uppercase tracking-widest font-mono mb-2">
-                    <ShieldCheck size={11} className="animate-pulse" />
+                    <KeyRound size={11} className="shrink-0" />
                     <span>VERIFIED RETAIL ACTIVATION KEYS</span>
                   </div>
                   <h2 className={`text-2xl md:text-3xl font-black ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
@@ -5071,31 +5158,37 @@ export default function App() {
                   </p>
                 </ScrollReveal>
 
-                {isAuthorized && (
-                  <button
-                    type="button"
-                    onClick={() => setEditingItem({
-                      type: 'software_license',
-                      data: {
-                        id: 'lic_' + Date.now().toString(),
-                        name: '',
-                        price: '',
-                        badge: 'New Release',
-                        description: '',
-                        licenseType: 'Lifetime License Key',
-                        imageUrl: '',
-                        features: '',
-                        compatibility: '',
-                        details: '',
-                        category: 'productivity'
-                      }
-                    })}
-                    className="px-4 py-2.5 bg-[#FF5500] hover:bg-[#FF4400] text-white rounded-xl font-bold uppercase tracking-wider text-[10px] shadow-lg flex items-center gap-1.5 transition-colors self-start cursor-pointer border border-transparent"
-                  >
-                    <Plus size={12} />
-                    <span>Add Software License</span>
-                  </button>
-                )}
+                <div className="flex items-center gap-2.5 shrink-0 pt-0.5 sm:pt-1">
+                  <VaultTriggerButton
+                    onClick={openVaultPage}
+                    currentTheme={currentTheme}
+                  />
+                  {isAuthorized && (
+                    <button
+                      type="button"
+                      onClick={() => setEditingItem({
+                        type: 'software_license',
+                        data: {
+                          id: 'lic_' + Date.now().toString(),
+                          name: '',
+                          price: '',
+                          badge: 'New Release',
+                          description: '',
+                          licenseType: 'Lifetime License Key',
+                          imageUrl: '',
+                          features: '',
+                          compatibility: '',
+                          details: '',
+                          category: 'productivity'
+                        }
+                      })}
+                      className="px-4 py-2.5 bg-[#FF5500] hover:bg-[#FF4400] text-white rounded-xl font-bold uppercase tracking-wider text-[10px] shadow-lg flex items-center gap-1.5 transition-colors cursor-pointer border border-transparent whitespace-nowrap"
+                    >
+                      <Plus size={12} />
+                      <span>Add Software License</span>
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Security & Reliability Feature Highlights */}
@@ -5121,157 +5214,33 @@ export default function App() {
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
                 {(() => {
                   const activeSoftware = softwareLicensesToRender.filter(l => l.category !== 'gear');
-                  return activeSoftware.map((license, idx) => {
-                    const isSelected = selectedLicense === idx;
-                    return (
-                      <div
-                        key={license.id}
-                        onClick={() => {
-                          const textMessage = `Hi Murari, I am interested in purchasing a software license for "${license.name}" priced at ${license.price}. Please provide the payment details and guide me on how to get the activation key. Thanks!`;
-                          window.open(`https://wa.me/918638875231?text=${encodeURIComponent(textMessage)}`, '_blank');
-                        }}
-                        className={`relative p-3.5 sm:p-5 rounded-2xl border text-left cursor-pointer transition-all duration-300 flex flex-col justify-between h-full group select-none overflow-hidden hover:border-green-500/40 hover:scale-[1.015] hover:bg-green-500/5 ${s.card}`}
-                      >
-                        {isAuthorized && (
-                          <div className="absolute top-3 right-3 flex items-center gap-1 z-20">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setEditingItem({
-                                  type: 'software_license',
-                                  id: license.id,
-                                  data: { ...license }
-                                });
-                              }}
-                              className="p-1 rounded bg-amber-500 hover:bg-amber-600 text-white transition-colors cursor-pointer"
-                            >
-                              <Edit size={10} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={async (e) => {
-                                e.stopPropagation();
-                                if (window.confirm(`Are you sure you want to remove "${license.name}"?`)) {
-                                  setSoftwareLicenses(prev => prev.filter(l => l.id !== license.id));
-                                  try {
-                                    await deleteDoc(doc(db, 'software_licenses', license.id));
-                                    triggerToast('License deleted successfully!', 'success');
-                                  } catch (err) {
-                                    console.error('Error deleting:', err);
-                                  }
-                                }
-                              }}
-                              className="p-1 rounded bg-rose-500 hover:bg-rose-600 text-white transition-colors cursor-pointer"
-                            >
-                              <Trash2 size={10} />
-                            </button>
-                          </div>
-                        )}
-
-                        <div className="space-y-4 flex-1 flex flex-col justify-between">
-                          <div className="space-y-4">
-                            {/* MODERN LUXURY BRAND VISUAL CARD */}
-                            <div className="w-full aspect-[4/3] rounded-xl overflow-hidden bg-slate-100 dark:bg-zinc-800/60 relative">
-                              <LicenseProductCardVisual
-                                licenseId={license.id}
-                                licenseName={license.name}
-                                licenseType={license.licenseType}
-                                currentTheme={currentTheme}
-                                customImageUrl={license.imageUrl}
-                              />
-                            </div>
-
-                            <div className="flex items-start justify-between">
-                              <div className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors bg-slate-500/10 text-slate-400 group-hover:text-green-500 group-hover:bg-green-500/10">
-                                <Laptop size={14} />
-                              </div>
-                              {license.badge && (
-                                <span className="text-[8px] font-extrabold uppercase px-2 py-0.5 rounded-full border tracking-widest bg-slate-100 text-slate-500 border-slate-200 dark:bg-white/5 dark:text-zinc-400 dark:border-white/5 group-hover:border-green-500/20 group-hover:bg-green-500/10 group-hover:text-green-500 transition-colors">
-                                  {license.badge}
-                                </span>
-                              )}
-                            </div>
-
-                            <div>
-                              <h3 className={`text-xs sm:text-sm font-black leading-tight group-hover:text-green-500 transition-colors ${
-                                currentTheme === 'light' ? 'text-slate-900' : 'text-white'
-                              }`}>
-                                {license.name}
-                              </h3>
-                              
-                              <div className="mt-1 flex items-center gap-1 text-[8.5px] sm:text-[10px] text-emerald-500 font-bold uppercase tracking-wider">
-                                <KeyRound size={10} className="sm:size-[11px]" />
-                                <span>{license.licenseType || 'Lifetime Key'}</span>
-                              </div>
-
-                              <p className="text-[9.5px] sm:text-[11px] text-slate-400 mt-1.5 leading-relaxed line-clamp-2">
-                                {license.description}
-                              </p>
-                            </div>
-                          </div>
-
-                          {/* DYNAMIC SPECS & FEATURES */}
-                          <div className="space-y-1.5 mt-2 pt-2 border-t border-slate-500/5">
-                            {license.compatibility && (
-                              <div className="flex items-center gap-1.5 text-[8.5px] font-mono uppercase tracking-wider text-slate-500">
-                                <Laptop size={10} className="shrink-0" />
-                                <span className="line-clamp-1">{license.compatibility}</span>
-                              </div>
-                            )}
-                            
-                            {license.features && (
-                              <div className="space-y-1">
-                                {license.features.split(',').slice(0, 2).map((f: string, i: number) => (
-                                  <div key={i} className="flex items-center gap-1.5 text-[9px] sm:text-[10px] text-slate-400">
-                                    <CheckCircle size={9} className="text-emerald-500 shrink-0" />
-                                    <span className="line-clamp-1">{f.trim()}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="pt-2 mt-2 border-t border-slate-500/10 flex items-baseline justify-between">
-                          <div>
-                            <span className="text-[7.5px] sm:text-[8px] uppercase font-bold tracking-widest text-slate-400 block">Retail Cost</span>
-                            <span className={`text-xs sm:text-base font-extrabold ${
-                              currentTheme === 'light' ? 'text-slate-900' : 'text-white'
-                            }`}>
-                              {license.price}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            {license.url && (
-                              <a
-                                href={license.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={(e) => e.stopPropagation()}
-                                className="bg-[#FF5500] hover:bg-[#FF4400] text-white p-1 sm:p-1.5 rounded-lg flex items-center justify-center transition-all duration-200 cursor-pointer shadow-md shadow-[#FF5500]/10 hover:scale-105 active:scale-95"
-                                title="Buy Online"
-                              >
-                                <ExternalLink size={11} className="stroke-[2.5]" />
-                              </a>
-                            )}
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                const textMessage = `Hi Murari, I am interested in purchasing a software license for "${license.name}" priced at ${license.price}. Please provide the payment details and guide me on how to get the activation key. Thanks!`;
-                                window.open(`https://wa.me/918638875231?text=${encodeURIComponent(textMessage)}`, '_blank');
-                              }}
-                              className="bg-green-600 hover:bg-green-700 text-white p-1 sm:p-1.5 rounded-lg flex items-center justify-center transition-all duration-200 cursor-pointer shadow-md shadow-green-600/10 hover:scale-105 active:scale-95"
-                              title="Inquire on WhatsApp"
-                            >
-                              <WhatsAppIcon size={11} />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  });
+                  return activeSoftware.map((license) => (
+                    <SoftwareLicenseCard
+                      key={license.id}
+                      license={license}
+                      currentTheme={currentTheme}
+                      cardStyle={s.card}
+                      isAuthorized={isAuthorized}
+                      onEdit={(item) => {
+                        setEditingItem({
+                          type: 'software_license',
+                          id: item.id,
+                          data: { ...item }
+                        });
+                      }}
+                      onDelete={async (item) => {
+                        if (window.confirm(`Are you sure you want to remove "${item.name}"?`)) {
+                          setSoftwareLicenses(prev => prev.filter(l => l.id !== item.id));
+                          try {
+                            await deleteDoc(doc(db, 'software_licenses', item.id));
+                            triggerToast('License deleted successfully!', 'success');
+                          } catch (err) {
+                            console.error('Error deleting:', err);
+                          }
+                        }
+                      }}
+                    />
+                  ));
                 })()}
               </div>
             </section>
@@ -5303,8 +5272,8 @@ export default function App() {
                     </div>
                     <div>
                       <div className="inline-flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/20 rounded-full px-2.5 py-0.5 text-[9px] text-amber-500 font-extrabold tracking-widest uppercase font-mono">
-                        <Tag size={10} className="animate-pulse" />
-                        <span>VERIFIED RECOMMENDATIONS</span>
+                        <ShoppingBag size={10} className="shrink-0 animate-pulse" />
+                        <span>PARTNER DEALS &amp; GEAR RECOMMENDATIONS</span>
                       </div>
                       <h3 className={`text-xl font-black mt-1.5 ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
                         Verified Hardware, Gear &amp; Tool Collections
@@ -5491,8 +5460,9 @@ export default function App() {
               
               <div className="relative z-10 space-y-6">
                 <div>
-                  <div className="inline-block text-[9px] uppercase font-bold tracking-widest text-[#FF5500] mb-2 font-mono">
-                    💰 LIVE WHATSAPP PRICING CALCULATOR &amp; DEPOSIT ENGINE
+                  <div className="inline-flex items-center gap-1.5 bg-[#FF5500]/10 border border-[#FF5500]/20 rounded-full px-2.5 py-0.5 text-[9px] text-[#FF5500] font-extrabold tracking-widest uppercase font-mono mb-2">
+                    <Calculator size={11} className="shrink-0" />
+                    <span>LIVE WHATSAPP PRICING CALCULATOR &amp; DEPOSIT ENGINE</span>
                   </div>
                   <ScrollRevealText
                     tag="h2"
@@ -6004,9 +5974,10 @@ export default function App() {
             <section className="space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
                 <ScrollReveal variant="fade-up" delay={0.15} className="text-left">
-                  <span className={`text-[10px] uppercase tracking-[0.2em] font-bold block mb-1 ${s.tagline}`}>
-                    CONNECT WITH MURARI PANJIYAR
-                  </span>
+                  <div className="inline-flex items-center gap-1.5 bg-indigo-500/10 border border-indigo-500/20 rounded-full px-2.5 py-0.5 text-[9px] text-indigo-400 font-extrabold uppercase tracking-widest font-mono mb-2">
+                    <Globe size={11} className="shrink-0" />
+                    <span>CONNECT WITH MURARI PANJIYAR</span>
+                  </div>
                   <h2 className={`text-2xl md:text-3xl font-black ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
                     Social Media Channels &amp; Handles
                   </h2>
@@ -6247,7 +6218,10 @@ export default function App() {
             {/* HIGH CONVERSION SEO SERVICE AREAS SECTION */}
             <section className={`p-6 md:p-8 rounded-3xl border ${s.card} space-y-4 text-left`}>
               <div className="space-y-4">
-                <span className="text-[10px] uppercase font-mono tracking-widest text-[#FF5500] font-bold">REGIONAL SERVICE NETWORKS</span>
+                <div className="inline-flex items-center gap-1.5 bg-[#FF5500]/10 border border-[#FF5500]/20 rounded-full px-2.5 py-0.5 text-[9px] text-[#FF5500] font-extrabold uppercase font-mono tracking-widest">
+                  <MapPin size={11} className="shrink-0" />
+                  <span>REGIONAL SERVICE NETWORKS</span>
+                </div>
                 <h3 className={`text-xl md:text-2xl font-black ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
                   Local Area Service Area Maps &amp; Dispatch Nodes
                 </h3>
@@ -6256,16 +6230,26 @@ export default function App() {
                 </p>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 text-xs">
-                  <div className={`p-4 rounded-xl space-y-1.5 border ${
+                  <div className={`p-4 rounded-xl space-y-2 border ${
                     currentTheme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-black/30 border-white/5'
                   }`}>
-                    <strong className={`font-bold block text-sm ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>🏠 Doorstep Tech Support Area</strong>
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-lg bg-[#FF5500]/10 flex items-center justify-center text-[#FF5500] shrink-0">
+                        <Laptop size={14} />
+                      </div>
+                      <strong className={`font-bold block text-sm ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>Doorstep Tech Support Area</strong>
+                    </div>
                     <p className={`text-[11px] leading-relaxed ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>Guwahati, Dispur, Paltan Bazaar, Ganeshguri, Maligaon, Khanapara &amp; surrounding nodes.</p>
                   </div>
-                  <div className={`p-4 rounded-xl space-y-1.5 border ${
+                  <div className={`p-4 rounded-xl space-y-2 border ${
                     currentTheme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-black/30 border-white/5'
                   }`}>
-                    <strong className={`font-bold block text-sm ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>📸 Photography Dispatch Areas</strong>
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400 shrink-0">
+                        <Camera size={14} />
+                      </div>
+                      <strong className={`font-bold block text-sm ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>Photography Dispatch Areas</strong>
+                    </div>
                     <p className={`text-[11px] leading-relaxed ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>Northeast India (Shillong, Jorhat, Dibrugarh, Tezpur, Silchar, and beyond).</p>
                   </div>
                 </div>
@@ -6287,6 +6271,14 @@ export default function App() {
           >
             {/* Ambient Background with subtle IT hardware/networking animations */}
             <PixelFixBackground currentTheme={currentTheme} />
+
+            {/* Top-Right Corner Premium Vault Trigger Icon */}
+            <div className="absolute top-3.5 right-3.5 sm:top-5 sm:right-6 md:top-6 md:right-8 z-20">
+              <VaultTriggerButton
+                onClick={openVaultPage}
+                currentTheme={currentTheme}
+              />
+            </div>
 
             <div className="relative z-10 space-y-12">
             {/* Header branding taglines */}
@@ -7086,94 +7078,33 @@ export default function App() {
                 viewport={{ once: true, margin: "-40px" }}
                 className="grid grid-cols-2 md:grid-cols-3 gap-2.5 sm:gap-6"
               >
-                {filteredItems.map((item, index) => (
-                  <motion.div
+                {filteredItems.map((item) => (
+                  <GalleryItemCard
                     key={item.id}
-                    onClick={() => setPreviewImage(item)}
-                    variants={{
-                      hidden: { opacity: 0, y: 20 },
-                      visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.215, 0.61, 0.355, 1] } },
-                      show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.215, 0.61, 0.355, 1] } }
+                    item={item}
+                    tags={getGalleryItemTags(item, galleryItems)}
+                    categoryLabel={getCategoryLabel(item.category)}
+                    cardStyle={s.card}
+                    isAuthorized={isAuthorized}
+                    onPreview={(previewTarget) => setPreviewImage(previewTarget)}
+                    onEdit={(editTarget) => setEditingItem({
+                      type: 'gallery_item',
+                      id: editTarget.id,
+                      data: { ...editTarget }
+                    })}
+                    onDelete={async (deleteTarget) => {
+                      if (confirm('Delete this gallery item?')) {
+                        const updated = galleryItems.filter(g => g.id !== deleteTarget.id);
+                        setGalleryItems(updated);
+                        try {
+                          await updateSiteConfig({ galleryItems: updated });
+                          triggerToast('Portfolio image successfully deleted.', 'info');
+                        } catch (err) {
+                          console.error('Failed to delete gallery item:', err);
+                        }
+                      }
                     }}
-                    whileHover={{ y: -6, scale: 1.02, transition: { type: "spring", stiffness: 400, damping: 22 } }}
-                    className={`group rounded-2xl overflow-hidden border ${s.card} flex flex-col justify-between aspect-square relative cursor-pointer shadow-sm hover:shadow-lg hover:border-[#FF5500]/30 transition-all duration-300`}
-                  >
-                    {isAuthorized && (
-                      <div className="absolute top-3 right-3 z-20 flex gap-1 sm:gap-1.5" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          type="button"
-                          onClick={() => setEditingItem({
-                            type: 'gallery_item',
-                            id: item.id,
-                            data: { ...item }
-                          })}
-                          className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold uppercase text-[7px] sm:text-[10px] tracking-wider px-1.5 py-0.5 rounded shadow flex items-center gap-0.5 sm:gap-1 cursor-pointer"
-                        >
-                          <Sliders size={8} /> Edit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            if (confirm('Delete this gallery item?')) {
-                              const updated = galleryItems.filter(g => g.id !== item.id);
-                              setGalleryItems(updated);
-                              try {
-                                await updateSiteConfig({ galleryItems: updated });
-                                triggerToast('Portfolio image successfully deleted.', 'info');
-                              } catch (err) {
-                                console.error('Failed to delete gallery item:', err);
-                              }
-                            }
-                          }}
-                          className="bg-rose-600 hover:bg-rose-700 text-white font-extrabold uppercase text-[7px] sm:text-[10px] tracking-wider px-1.5 py-0.5 rounded shadow flex items-center gap-0.5 sm:gap-1 cursor-pointer"
-                        >
-                          <Trash2 size={8} /> Del
-                        </button>
-                      </div>
-                    )}
-                    
-                    {/* Automatic Collection Tags Badge */}
-                    <div className="absolute top-2 left-2 sm:top-3 sm:left-3 z-10 flex flex-wrap gap-1 pointer-events-none">
-                      {getGalleryItemTags(item, galleryItems).map((tag) => (
-                        <span
-                          key={tag}
-                          className={`text-[6.5px] sm:text-[9px] uppercase font-mono font-extrabold tracking-wider px-1.5 sm:px-2 py-0.5 rounded backdrop-blur-md shadow-md border flex items-center gap-0.5 sm:gap-1 ${
-                            tag === 'Recent'
-                              ? 'bg-emerald-950/80 text-emerald-300 border-emerald-500/30'
-                              : tag === 'Featured'
-                                ? 'bg-amber-950/80 text-amber-300 border-amber-500/30'
-                                : 'bg-pink-950/80 text-pink-300 border-pink-500/30'
-                          }`}
-                        >
-                          {tag === 'Recent' && <span className="text-[6.5px] sm:text-[9px]">🆕</span>}
-                          {tag === 'Featured' && <span className="text-[6.5px] sm:text-[9px]">⭐</span>}
-                          {tag === 'Client Favorites' && <span className="text-[6.5px] sm:text-[9px]">❤️</span>}
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                    
-                    <LazyImage
-                      src={item.imageUrl}
-                      alt={item.altText}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
-                      placeholderClassName="absolute inset-0 z-0"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent p-2.5 sm:p-4 flex flex-col justify-end">
-                      <span className="text-[8px] sm:text-[10px] uppercase font-mono font-bold text-[#FF5500]">
-                        {getCategoryLabel(item.category).toUpperCase()}
-                      </span>
-                      <h3 className="text-[10.5px] sm:text-sm font-black text-white mt-0.5 sm:mt-1 leading-tight line-clamp-1">
-                        {item.title}
-                      </h3>
-                      <div className="flex justify-between items-center text-[8.5px] sm:text-[10px] text-slate-500 pt-1.5 sm:pt-2 border-t border-white/5 mt-1.5 sm:mt-2">
-                        <span className="truncate">🗓️ {item.date}</span>
-                        <span className="font-mono text-[7px] sm:text-[9px] uppercase text-zinc-400 bg-white/5 px-1.5 sm:px-2 py-0.5 rounded truncate max-w-[50px] sm:max-w-none" title={item.cameraInfo}>
-                          {item.cameraInfo || 'Nikon'}
-                        </span>
-                      </div>
-                    </div>
-                  </motion.div>
+                  />
                 ))}
 
                 {isAuthorized && (
@@ -7950,140 +7881,79 @@ export default function App() {
             <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4 border-b border-slate-200/50 dark:border-white/5 pb-4">
               <div className="flex items-center gap-1.5 overflow-x-auto pb-2 lg:pb-0 scrollbar-none w-full lg:w-auto -mx-4 px-4 lg:mx-0 lg:px-0 flex-nowrap lg:flex-wrap [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                 {(() => {
-                  const rawCategories = Array.from(new Set(affiliateLinksToRender.flatMap(a => (a.category || '').split(',').map(c => c.trim()).filter(Boolean)))) as string[];
-                  const filteredRawCategories = rawCategories.filter(c => c !== 'my_gears');
+                  const standardCategories = [
+                    { key: 'all', label: 'All' },
+                    { key: 'photography', label: affiliateLabelMap['photography'] || 'Photography' },
+                    { key: 'it_tech', label: affiliateLabelMap['it_tech'] || 'IT & Tech' },
+                    { key: 'software', label: affiliateLabelMap['software'] || 'Software' },
+                    { key: 'accessories', label: affiliateLabelMap['accessories'] || 'Accessories' },
+                    { key: 'my_gears', label: affiliateLabelMap['my_gears'] || 'My Gears' },
+                  ];
 
-                  const getCategoryLabel = (cat: string) => {
-                    if (affiliateLabelMap[cat]) return affiliateLabelMap[cat];
-                    cat = cat.replace('my_gears', 'My Gears');
-                    return cat.split(/[_-]/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+                  // Detect any custom user-added categories not in standard list
+                  const standardKeys = new Set(standardCategories.map(c => c.key));
+                  const customCategories = (Array.from(
+                    new Set(
+                      affiliateLinksToRender
+                        .flatMap(a => (a.category || '').split(',').map(c => c.trim().toLowerCase().replace(/\s+/g, '_')))
+                        .filter(c => Boolean(c) && !standardKeys.has(c) && c !== 'all')
+                    )
+                  ) as string[]).map((key: string) => ({
+                    key,
+                    label: affiliateLabelMap[key] || key.split(/[_-]/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+                  }));
+
+                  const allCategories = [...standardCategories, ...customCategories];
+
+                  const getCount = (catKey: string) => {
+                    if (catKey === 'all') return affiliateLinksToRender.filter(a => isAuthorized || a.isPublished !== false).length;
+                    const target = catKey.toLowerCase().replace(/\s+/g, '_');
+                    return affiliateLinksToRender.filter(a => {
+                      if (!isAuthorized && a.isPublished === false) return false;
+                      const cats = (a.category || '').toLowerCase().split(',').map(c => c.trim().replace(/\s+/g, '_'));
+                      if (target === 'my_gears') return (a.category || '').toLowerCase().includes('my_gears');
+                      if (target === 'it_tech') return cats.includes('it_tech') || cats.includes('it');
+                      if (target === 'photography') return cats.includes('photography') || cats.includes('photo');
+                      return cats.includes(target);
+                    }).length;
                   };
 
-                  const getCount = (cat: string) => {
-                    if (cat === 'all') return affiliateLinksToRender.length;
-                    return affiliateLinksToRender.filter(a => (a.category || '').split(',').map(c => c.trim()).includes(cat)).length;
-                  };
+                  return allCategories.map(({ key, label }) => {
+                    const isActive = activeAffiliateFilter === key;
+                    const count = getCount(key);
+                    const isMyGears = key === 'my_gears';
 
-                  return (
-                    <>
-                      {/* All Category Filter */}
+                    return (
                       <button
-                        onClick={() => setActiveAffiliateFilter('all')}
-                        className={`px-4 py-2 rounded-xl font-mono text-[9px] uppercase tracking-widest font-extrabold transition-all duration-200 flex items-center gap-2 cursor-pointer border relative z-0 overflow-hidden shrink-0 ${
-                          activeAffiliateFilter === 'all'
-                            ? 'border-transparent text-white shadow-lg shadow-amber-500/15 scale-[1.02]'
+                        key={key}
+                        type="button"
+                        onClick={() => setActiveAffiliateFilter(key)}
+                        className={`px-3.5 sm:px-4 py-2 rounded-xl font-mono text-[9px] uppercase tracking-wider font-extrabold transition-all duration-150 flex items-center gap-1.5 cursor-pointer border relative select-none shrink-0 ${
+                          isActive
+                            ? 'bg-amber-500 border-amber-500 text-black shadow-lg shadow-amber-500/20 scale-[1.02]'
                             : currentTheme === 'light'
-                              ? 'bg-white border-slate-200 text-slate-600 hover:border-slate-400 hover:bg-slate-50'
-                              : 'bg-zinc-900/40 border-white/5 text-slate-300 hover:border-white/20 hover:bg-white/5'
+                              ? 'bg-white border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50'
+                              : 'bg-zinc-900/60 border-white/5 text-slate-300 hover:border-white/20 hover:bg-white/5'
                         }`}
                       >
-                        {activeAffiliateFilter === 'all' && (
-                          <motion.span
-                            layoutId="activeAffiliateFilterPill"
-                            className="absolute inset-0 bg-amber-500 -z-10"
-                            transition={{ type: "spring", stiffness: 380, damping: 28 }}
-                          />
-                        )}
-                        {activeAffiliateFilter === 'all' && <span className="relative z-10 w-1.5 h-1.5 rounded-full bg-white animate-pulse" />}
-                        <span className="relative z-10">All</span>
-                      </button>
-
-                      {/* My Gears Special Premium Filter Button with custom star visual hover effect */}
-                      <button
-                        onClick={() => setActiveAffiliateFilter('my_gears')}
-                        className={`px-4.5 py-2 rounded-xl font-mono text-[9px] uppercase tracking-widest font-black transition-all duration-300 flex items-center gap-2 cursor-pointer border relative overflow-hidden group/star z-0 shrink-0 ${
-                          activeAffiliateFilter === 'my_gears'
-                            ? 'border-transparent text-white shadow-lg shadow-amber-500/25 scale-[1.02]'
-                            : currentTheme === 'light'
-                              ? 'bg-amber-50/70 border-amber-250 text-amber-700 hover:border-amber-400 hover:bg-amber-50'
-                              : 'bg-amber-950/20 border-amber-500/20 text-amber-400 hover:border-amber-500/40 hover:bg-amber-500/10'
-                        }`}
-                      >
-                        {activeAffiliateFilter === 'my_gears' && (
-                          <motion.span
-                            layoutId="activeAffiliateFilterPill"
-                            className="absolute inset-0 bg-gradient-to-r from-amber-500 to-yellow-500 -z-10"
-                            transition={{ type: "spring", stiffness: 380, damping: 28 }}
-                          />
-                        )}
-                        <span className="relative z-10 flex items-center justify-center">
+                        {isMyGears && (
                           <Star 
                             size={10} 
-                            fill={activeAffiliateFilter === 'my_gears' ? 'currentColor' : 'none'} 
-                            className={`transition-transform duration-500 group-hover/star:rotate-[72deg] text-amber-500 ${
-                              activeAffiliateFilter === 'my_gears' ? 'text-white' : 'animate-pulse'
-                            }`} 
+                            fill={isActive ? 'currentColor' : 'none'} 
+                            className={isActive ? 'text-black' : 'text-amber-500'} 
                           />
+                        )}
+                        <span>{label}</span>
+                        <span className={`text-[8px] px-1 py-0.2 rounded font-mono ${
+                          isActive
+                            ? 'bg-black/20 text-black font-black'
+                            : 'bg-amber-500/10 text-amber-500'
+                        }`}>
+                          {count}
                         </span>
-                        <span className="relative z-10 flex items-center gap-1.5">
-                          My Gears
-                          <span className={`text-[8px] px-1 rounded transition-all ${
-                            activeAffiliateFilter === 'my_gears'
-                              ? 'bg-white/20 text-white'
-                              : 'bg-amber-500/10 text-amber-500'
-                          }`}>
-                            {getCount('my_gears')}
-                          </span>
-                        </span>
-                        
-                        {/* Tweaking Star Sparkle Particles floating up on Hover */}
-                        <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-0 group-hover/star:opacity-100 transition-opacity duration-350">
-                          <motion.span 
-                            animate={{ y: [-5, -25], x: [5, 0], scale: [0, 1, 0], opacity: [0, 1, 0] }}
-                            transition={{ repeat: Infinity, duration: 1.0, ease: "easeOut" }}
-                            className="absolute text-[6px] left-[10%] bottom-[5%]"
-                          >
-                            ⭐
-                          </motion.span>
-                          <motion.span 
-                            animate={{ y: [-5, -20], x: [-5, -10], scale: [0, 1.2, 0], opacity: [0, 1, 0] }}
-                            transition={{ repeat: Infinity, duration: 1.2, delay: 0.2, ease: "easeOut" }}
-                            className="absolute text-[8px] right-[15%] bottom-[5%]"
-                          >
-                            ✨
-                          </motion.span>
-                          <motion.span 
-                            animate={{ y: [-5, -22], x: [0, 5], scale: [0, 0.8, 0], opacity: [0, 1, 0] }}
-                            transition={{ repeat: Infinity, duration: 1.4, delay: 0.4, ease: "easeOut" }}
-                            className="absolute text-[6px] left-[45%] bottom-[3%]"
-                          >
-                            ⭐
-                          </motion.span>
-                        </div>
-                        
-                        {/* Glow sweep sheen */}
-                        <div className="absolute inset-x-0 top-0 h-full w-[250%] -translate-x-full bg-gradient-to-r from-transparent via-white/12 to-transparent skew-x-12 transition-transform duration-[1200ms] group-hover/star:translate-x-[150%] pointer-events-none" />
                       </button>
-
-                      {/* Other Categories dynamically render */}
-                      {filteredRawCategories.map((cat, idx) => {
-                        const isActive = activeAffiliateFilter === cat;
-                        return (
-                          <button
-                            key={cat}
-                            onClick={() => setActiveAffiliateFilter(cat)}
-                            className={`px-4 py-2 rounded-xl font-mono text-[9px] uppercase tracking-widest font-extrabold transition-all duration-200 flex items-center gap-2 cursor-pointer border relative z-0 overflow-hidden shrink-0 ${
-                              isActive
-                                ? 'border-transparent text-white shadow-lg shadow-amber-500/15 scale-[1.02]'
-                                : currentTheme === 'light'
-                                  ? 'bg-white border-slate-200 text-slate-600 hover:border-slate-400 hover:bg-slate-50'
-                                  : 'bg-zinc-900/40 border-white/5 text-slate-300 hover:border-white/20 hover:bg-white/5'
-                            }`}
-                          >
-                            {isActive && (
-                              <motion.span
-                                layoutId="activeAffiliateFilterPill"
-                                className="absolute inset-0 bg-amber-500 -z-10"
-                                transition={{ type: "spring", stiffness: 380, damping: 28 }}
-                              />
-                            )}
-                            {isActive && <span className="relative z-10 w-1.5 h-1.5 rounded-full bg-white animate-pulse" />}
-                            <span className="relative z-10">{getCategoryLabel(cat)}</span>
-                          </button>
-                        );
-                      })}
-                    </>
-                  );
+                    );
+                  });
                 })()}
               </div>
 
@@ -8254,6 +8124,8 @@ export default function App() {
               isAuthorized={isAuthorized}
               isLoading={isAffiliateLoading}
               searchQuery={affiliateSearchQuery}
+              categoryFilter={activeAffiliateFilter}
+              onResetFilter={() => setActiveAffiliateFilter('all')}
               onTrackClick={async (id: string) => {
                 const found = affiliateLinks.find(a => a.id === id);
                 if (found) {
@@ -10322,7 +10194,92 @@ export default function App() {
                     <Globe size={14} />
                     <span>Logo &amp; Favicon</span>
                   </button>
+
+                  <button
+                    onClick={() => setAdminSubTab('vault')}
+                    className={`px-3 py-1.5 rounded-lg text-[10.5px] md:text-xs font-bold uppercase transition-all flex items-center gap-2 cursor-pointer ${
+                      adminSubTab === 'vault'
+                        ? 'bg-[#FF5500] text-white'
+                        : currentTheme === 'light'
+                          ? 'bg-slate-50 hover:bg-slate-100 text-slate-700'
+                          : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-400'
+                    }`}
+                  >
+                    <Lock size={14} />
+                    <span>Vault Control</span>
+                  </button>
+
+                  <button
+                    onClick={() => setAdminSubTab('deals')}
+                    className={`px-3 py-1.5 rounded-lg text-[10.5px] md:text-xs font-bold uppercase transition-all flex items-center gap-2 cursor-pointer ${
+                      adminSubTab === 'deals'
+                        ? 'bg-[#FF5500] text-white'
+                        : currentTheme === 'light'
+                          ? 'bg-slate-50 hover:bg-slate-100 text-slate-700'
+                          : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-400'
+                    }`}
+                  >
+                    <ShoppingBag size={14} />
+                    <span>Partner Deals</span>
+                  </button>
                 </div>
+
+                {/* PARTNER DEALS MANAGEMENT DESK */}
+                {adminSubTab === 'deals' && (
+                  <AdminPartnerDealsManager
+                    deals={affiliateLinks}
+                    currentTheme={currentTheme}
+                    onSaveDeal={async (deal) => {
+                      setAffiliateLinks(prev => {
+                        const exists = prev.some(a => a.id === deal.id);
+                        if (exists) {
+                          return prev.map(a => a.id === deal.id ? deal : a);
+                        } else {
+                          return [deal, ...prev];
+                        }
+                      });
+                      try {
+                        await setDoc(doc(db, 'affiliate_links', deal.id), deal);
+                      } catch (err) {
+                        console.error('Error saving affiliate link to Firestore: ', err);
+                        handleFirestoreError(err, OperationType.WRITE, 'affiliate_links/' + deal.id);
+                      }
+                    }}
+                    onDeleteDeal={async (deal) => {
+                      setAffiliateLinks(prev => prev.filter(a => a.id !== deal.id));
+                      try {
+                        await deleteDoc(doc(db, 'affiliate_links', deal.id));
+                      } catch (err) {
+                        console.error('Error deleting affiliate link from Firestore: ', err);
+                        handleFirestoreError(err, OperationType.DELETE, 'affiliate_links/' + deal.id);
+                      }
+                    }}
+                    onTogglePublish={async (deal) => {
+                      const updated = {
+                        ...deal,
+                        isPublished: deal.isPublished === false ? true : false,
+                        updatedAt: new Date().toISOString()
+                      };
+                      setAffiliateLinks(prev => prev.map(a => a.id === deal.id ? updated : a));
+                      try {
+                        await setDoc(doc(db, 'affiliate_links', deal.id), updated);
+                      } catch (err) {
+                        console.error('Error toggling publish state on Firestore: ', err);
+                        handleFirestoreError(err, OperationType.WRITE, 'affiliate_links/' + deal.id);
+                      }
+                    }}
+                    triggerToast={triggerToast}
+                    triggerConfirm={triggerConfirm}
+                  />
+                )}
+
+                {/* PIXEL FIX SECURE VAULT CONTROL DESK */}
+                {adminSubTab === 'vault' && (
+                  <AdminVaultManager
+                    adminKey={adminKeyInput || "pixel2025"}
+                    currentTheme={currentTheme}
+                  />
+                )}
 
                 {/* GLOBAL MEDIA HUB / IMAGE MANAGER */}
                 {adminSubTab === 'media' && (
@@ -12710,6 +12667,31 @@ export default function App() {
           )}
           </motion.div>
         )}
+
+        {/* PRIVACY POLICY PAGE */}
+        {activeTab === 'privacy' && (
+          <motion.div
+            key="privacy"
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            transition={{ duration: 0.3 }}
+          >
+            <PrivacyPolicyPage
+              currentTheme={currentTheme}
+              onNavigateHome={() => {
+                setActiveTab('home');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              onNavigateContact={() => {
+                setActiveTab('contact');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              contactPhoneIt={contactPhoneIt}
+              contactPhonePhotos={contactPhonePhotos}
+            />
+          </motion.div>
+        )}
         </AnimatePresence>
 
       </main>
@@ -13302,7 +13284,23 @@ export default function App() {
           <div>
             © 2026 Murari Panjiyar Portfolio. All rights reserved.
           </div>
-          <div className="flex space-x-3">
+          <div className="flex flex-wrap items-center gap-4 sm:gap-6">
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('privacy');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className={`hover:text-[#FF5500] transition-colors cursor-pointer flex items-center gap-1.5 ${
+                activeTab === 'privacy'
+                  ? 'text-[#FF5500] font-bold underline underline-offset-4'
+                  : currentTheme === 'light' ? 'text-slate-600' : 'text-slate-400'
+              }`}
+            >
+              <ShieldCheck size={12} className={activeTab === 'privacy' ? 'text-[#FF5500]' : 'text-emerald-500'} />
+              <span>Privacy Policy</span>
+            </button>
+            <span className="opacity-30">•</span>
             <a href="https://instagram.com/mpanjiyar1" target="_blank" rel="noreferrer" className={`hover:text-[#FF5500] transition-colors ${
               currentTheme === 'light' ? 'text-slate-600' : 'text-slate-400'
             }`}>
@@ -13615,6 +13613,10 @@ export default function App() {
                           originalPrice: editingItem.data.originalPrice || '',
                           discountPercentage: editingItem.data.discountPercentage || '',
                           availability: editingItem.data.availability || '',
+                          partnerSource: editingItem.data.partnerSource || (/flipkart/i.test(editingItem.data.url || '') ? 'Flipkart' : /amazon/i.test(editingItem.data.url || '') ? 'Amazon' : 'Direct'),
+                          isPublished: editingItem.data.isPublished ?? true,
+                          createdAt: editingItem.data.createdAt || new Date().toISOString(),
+                          updatedAt: new Date().toISOString(),
                           clicks: typeof editingItem.data.clicks === 'number' ? editingItem.data.clicks : 0,
                           clickHistory: editingItem.data.clickHistory || {},
                           last_clicked: editingItem.data.last_clicked || '',
@@ -15193,6 +15195,29 @@ export default function App() {
                 <WhatsAppIcon size={22} className="text-white" />
               </button>
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Pixel Fix Secure Text & File Vault Full-Screen Page Route (/vault) */}
+      <AnimatePresence>
+        {(isVaultOpen || activeTab === 'vault') && (
+          <motion.div
+            key="pixelfix-vault-fullscreen"
+            initial={{ opacity: 0, scale: 0.99 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.99 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-[100] overflow-y-auto bg-[#0a0b12]"
+          >
+            <PixelFixVault
+              isOpen={true}
+              onClose={closeVaultPage}
+              onBackToWebsite={closeVaultPage}
+              currentTheme={currentTheme}
+              adminKey={isAuthorized ? adminKeyInput : undefined}
+              isFullScreenPage={true}
+            />
           </motion.div>
         )}
       </AnimatePresence>

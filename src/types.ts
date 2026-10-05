@@ -67,6 +67,10 @@ export interface AffiliateLink {
   originalPrice?: string;
   discountPercentage?: string;
   availability?: string;
+  partnerSource?: 'Amazon' | 'Flipkart' | 'Direct' | 'Other' | string;
+  isPublished?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
   clicks: number;
   clickHistory?: Record<string, number>;
   last_clicked?: string;
@@ -100,3 +104,50 @@ export interface SocialLink {
   disabled?: boolean;
   customIcon?: string;
 }
+
+export interface VaultLink {
+  title: string;
+  url: string;
+  status?: 'valid' | 'invalid' | 'warning';
+  valid?: boolean;
+  type?: string;
+  isDrive?: boolean;
+}
+
+export interface VaultItem {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  fileType: 'text' | 'pdf' | 'doc' | 'docx' | 'xls' | 'xlsx' | 'zip' | 'jpg' | 'jpeg' | 'png' | 'webp' | 'other';
+  itemType?: string;
+  originalFileName?: string;
+  storedFileName?: string;
+  mimeType?: string;
+  content?: string;
+  links?: VaultLink[];
+  sizeBytes: number;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: string;
+  folder?: string;
+  fileDataUrl?: string;
+  isProtected?: boolean;
+}
+
+export interface VaultAuthorizedUser {
+  id: string;
+  username: string;
+  role: string;
+  createdAt: string;
+  lastLogin?: string;
+}
+
+export interface VaultAuditLog {
+  id: string;
+  action: string;
+  timestamp: string;
+  details?: string;
+  ip?: string;
+}
+

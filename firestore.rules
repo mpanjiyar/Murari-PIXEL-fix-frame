@@ -28,6 +28,14 @@ service cloud.firestore {
         && data.url is string && data.url.size() <= 3000
         && data.imageUrl is string && data.imageUrl.size() <= 10000000
         && (!('discountCode' in data) || (data.discountCode is string && data.discountCode.size() <= 200))
+        && (!('price' in data) || (data.price is string && data.price.size() <= 100))
+        && (!('originalPrice' in data) || (data.originalPrice is string && data.originalPrice.size() <= 100))
+        && (!('discountPercentage' in data) || (data.discountPercentage is string && data.discountPercentage.size() <= 100))
+        && (!('availability' in data) || (data.availability is string && data.availability.size() <= 100))
+        && (!('partnerSource' in data) || (data.partnerSource is string && data.partnerSource.size() <= 100))
+        && (!('isPublished' in data) || data.isPublished is bool)
+        && (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 100))
+        && (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 100))
         && (!('clicks' in data) || (data.clicks is int || data.clicks is float))
         && (!('clickHistory' in data) || data.clickHistory is map)
         && (!('last_clicked' in data) || (data.last_clicked is string && data.last_clicked.size() <= 100))
@@ -105,6 +113,65 @@ service cloud.firestore {
         && (!('compatibility' in data) || (data.compatibility is string && data.compatibility.size() <= 1000))
         && (!('details' in data) || (data.details is string && data.details.size() <= 1000))
         && (!('category' in data) || (data.category is string && data.category.size() <= 200));
+    }
+
+    function isValidVaultItem(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.name is string && data.name.size() <= 300
+        && (!('description' in data) || (data.description is string && data.description.size() <= 5000))
+        && (!('category' in data) || (data.category is string && data.category.size() <= 200))
+        && (!('fileType' in data) || (data.fileType is string && data.fileType.size() <= 50))
+        && (!('content' in data) || (data.content is string && data.content.size() <= 1000000))
+        && (!('originalFileName' in data) || (data.originalFileName is string && data.originalFileName.size() <= 500))
+        && (!('storedFileName' in data) || (data.storedFileName is string && data.storedFileName.size() <= 500))
+        && (!('mimeType' in data) || (data.mimeType is string && data.mimeType.size() <= 200))
+        && (!('sizeBytes' in data) || (data.sizeBytes is int || data.sizeBytes is float))
+        && (!('links' in data) || data.links is list)
+        && (!('folder' in data) || (data.folder is string && data.folder.size() <= 200))
+        && (!('fileDataUrl' in data) || (data.fileDataUrl is string && data.fileDataUrl.size() <= 10000000))
+        && (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 100))
+        && (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 100))
+        && (!('createdBy' in data) || (data.createdBy is string && data.createdBy.size() <= 200));
+    }
+
+    function isValidVaultFolder(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.name is string && data.name.size() <= 200
+        && (!('color' in data) || (data.color is string && data.color.size() <= 100))
+        && (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 100))
+        && (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 100));
+    }
+
+    // Collection: Vault Items (Pixel Fix Real-Time Sync)
+    match /vault_items/{itemId} {
+      allow read: if true;
+      allow create: if isValidId(itemId) && isValidVaultItem(incoming());
+      allow update: if isValidId(itemId) && isValidVaultItem(incoming());
+      allow delete: if isValidId(itemId);
+    }
+
+    // Collection: Vault Folders (Directories)
+    match /vault_folders/{folderId} {
+      allow read: if true;
+      allow create: if isValidId(folderId) && isValidVaultFolder(incoming());
+      allow update: if isValidId(folderId) && isValidVaultFolder(incoming());
+      allow delete: if isValidId(folderId);
+    }
+
+    // Collection: Vault Auto-Save Drafts
+    match /vault_drafts/{draftId} {
+      allow read: if true;
+      allow create: if isValidId(draftId);
+      allow update: if isValidId(draftId);
+      allow delete: if isValidId(draftId);
+    }
+
+    // Collection: Vault Technical Links
+    match /vault_links/{linkId} {
+      allow read: if true;
+      allow create: if isValidId(linkId);
+      allow update: if isValidId(linkId);
+      allow delete: if isValidId(linkId);
     }
 
     // Collection: Contact Messages
