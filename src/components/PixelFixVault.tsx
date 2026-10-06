@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { LagFreeInput, LagFreeTextArea } from './LagFreeInputs';
 import {
   Lock,
   Unlock,
@@ -118,6 +119,7 @@ interface PixelFixVaultProps {
   currentTheme?: string;
   isFullScreenPage?: boolean;
   onBackToWebsite?: () => void;
+  isEmbeddedTab?: boolean;
 }
 
 export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
@@ -126,16 +128,28 @@ export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
   adminKey,
   currentTheme = 'dark',
   isFullScreenPage = true,
-  onBackToWebsite
+  onBackToWebsite,
+  isEmbeddedTab = false
 }) => {
   // Session Token State
+  const isAuthorizedAdmin = Boolean(adminKey && (adminKey === 'pixel2025' || adminKey === 'AdminSecret2025'));
   const [token, setToken] = useState<string | null>(() => {
+    if (adminKey && (adminKey === 'pixel2025' || adminKey === 'AdminSecret2025')) {
+      return 'admin_master_token';
+    }
     return sessionStorage.getItem('pixelfix_vault_token') || null;
   });
 
   // User Permissions: Admin has full write access; Guest/Client has view + download
-  const isAuthorizedAdmin = Boolean(adminKey && (adminKey === 'pixel2025' || adminKey === 'AdminSecret2025'));
   const canEditAndUpload = Boolean(token || isAuthorizedAdmin);
+  const [isGuestMode, setIsGuestMode] = useState<boolean>(true);
+
+  // Auto-sync token if adminKey becomes available
+  useEffect(() => {
+    if (isAuthorizedAdmin && !token) {
+      setToken('admin_master_token');
+    }
+  }, [isAuthorizedAdmin]);
 
   // Auth States
   const [passwordInput, setPasswordInput] = useState('');
@@ -322,6 +336,7 @@ export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
     }
     sessionStorage.removeItem('pixelfix_vault_token');
     setToken(null);
+    setIsGuestMode(true);
     setActiveModal('none');
     setSelectedItem(null);
     setUnlockedProtectedFiles({});
@@ -330,11 +345,6 @@ export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
 
   // REAL-TIME FIRESTORE SYNCHRONIZATION
   useEffect(() => {
-    if (!token && !adminKey) {
-      setSyncStatus('offline');
-      return;
-    }
-
     setSyncStatus('connecting');
 
     // 1. Listen to Vault Items in real-time
@@ -1111,9 +1121,11 @@ export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
   return (
     <div
       className={
-        isFullScreenPage
-          ? 'min-h-screen w-full bg-[#0a0b12] text-white flex flex-col font-sans select-none'
-          : 'fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/85 backdrop-blur-xl'
+        isEmbeddedTab
+          ? 'w-full bg-[#0a0b12] text-white flex flex-col font-sans rounded-2xl md:rounded-3xl border border-white/10 shadow-2xl overflow-hidden min-h-[780px] text-left relative'
+          : isFullScreenPage
+            ? 'min-h-screen w-full bg-[#0a0b12] text-white flex flex-col font-sans select-none'
+            : 'fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/85 backdrop-blur-xl'
       }
     >
       {/* Toast Notification */}
@@ -1131,10 +1143,10 @@ export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
         )}
       </AnimatePresence>
 
-      {/* Main Full-Screen Layout Wrapper */}
+      {/* Main Layout Wrapper */}
       <div
         className={
-          isFullScreenPage
+          isEmbeddedTab || isFullScreenPage
             ? 'flex-1 flex flex-col w-full'
             : 'relative w-full max-w-6xl h-[92vh] max-h-[920px] bg-[#0c0d15] border border-white/10 rounded-2xl md:rounded-3xl shadow-2xl flex flex-col overflow-hidden text-left'
         }
@@ -1142,16 +1154,23 @@ export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
         {/* TOP COMMAND HEADER */}
         <header className="px-4 py-3 sm:px-6 sm:py-3.5 border-b border-white/10 bg-[#11121d]/95 backdrop-blur-xl flex items-center justify-between gap-3 shrink-0 sticky top-0 z-40">
           <div className="flex items-center gap-3 sm:gap-4 min-w-0">
-            {/* Back to Website Button */}
-            <button
-              type="button"
-              onClick={onBackToWebsite || onClose}
-              className="px-2.5 py-1.5 sm:px-3 sm:py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 text-xs font-mono font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0"
-              title="Return to main portfolio website"
-            >
-              <ArrowLeft size={14} />
-              <span className="hidden sm:inline">Back to Website</span>
-            </button>
+            {/* Back to Website Button or Embedded Indicator */}
+            {!isEmbeddedTab ? (
+              <button
+                type="button"
+                onClick={onBackToWebsite || onClose}
+                className="px-2.5 py-1.5 sm:px-3 sm:py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 text-xs font-mono font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0"
+                title="Return to main portfolio website"
+              >
+                <ArrowLeft size={14} />
+                <span className="hidden sm:inline">Back to Website</span>
+              </button>
+            ) : (
+              <div className="flex items-center gap-2 px-2.5 py-1 rounded-xl bg-white/5 border border-white/10 text-[10px] font-mono shrink-0">
+                <span className="w-2 h-2 rounded-full bg-[#FF5500] animate-pulse" />
+                <span className="font-bold text-slate-300 uppercase tracking-widest hidden sm:inline">VAULT DESK</span>
+              </div>
+            )}
 
             {/* Vault Brand Title */}
             <div className="flex items-center gap-2.5 min-w-0">
@@ -1176,28 +1195,26 @@ export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
 
           {/* Sync & Action Header Controls */}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-            {token && (
-              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-[10px] font-mono">
-                {syncStatus === 'connected' ? (
-                  <>
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                    <span className="text-emerald-400 font-bold">LIVE SYNC ACTIVE</span>
-                  </>
-                ) : syncStatus === 'syncing' ? (
-                  <>
-                    <RefreshCw size={11} className="text-[#FF5500] animate-spin" />
-                    <span className="text-[#FF5500] font-bold">SYNCING CHANGES...</span>
-                  </>
-                ) : (
-                  <>
-                    <WifiOff size={11} className="text-amber-400" />
-                    <span className="text-amber-400 font-bold">OFFLINE CACHED</span>
-                  </>
-                )}
-              </div>
-            )}
+            <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-[10px] font-mono">
+              {syncStatus === 'connected' ? (
+                <>
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="text-emerald-400 font-bold">LIVE SYNC ACTIVE</span>
+                </>
+              ) : syncStatus === 'syncing' ? (
+                <>
+                  <RefreshCw size={11} className="text-[#FF5500] animate-spin" />
+                  <span className="text-[#FF5500] font-bold">SYNCING CHANGES...</span>
+                </>
+              ) : (
+                <>
+                  <span className="w-2 h-2 rounded-full bg-blue-400" />
+                  <span className="text-blue-400 font-bold">KNOWLEDGE BASE</span>
+                </>
+              )}
+            </div>
 
-            {token && (
+            {canEditAndUpload ? (
               <button
                 type="button"
                 onClick={handleLockVault}
@@ -1206,6 +1223,16 @@ export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
               >
                 <Lock size={13} className="text-[#FF5500]" />
                 <span className="hidden md:inline">Lock Workspace</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setIsGuestMode(false)}
+                title="Unlock Admin Privileges"
+                className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#FF5500] to-[#E04400] hover:from-[#FF4400] hover:to-[#CC3300] text-white text-xs font-mono font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-sm"
+              >
+                <Unlock size={13} />
+                <span>Admin Login</span>
               </button>
             )}
 
@@ -1223,7 +1250,7 @@ export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
         </header>
 
         {/* WORKSPACE BODY */}
-        {!token ? (
+        {!token && !isAuthorizedAdmin && !isGuestMode ? (
           /* ========================================================= */
           /* AUTHENTICATOR VIEW (CLEAN, NO RECOVERY, ZERO DEBUG TEXT)   */
           /* ========================================================= */
@@ -1270,7 +1297,7 @@ export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
                     Security Passcode
                   </label>
                   <div className="relative">
-                    <input
+                    <LagFreeInput
                       type={showPassword ? 'text' : 'password'}
                       value={passwordInput}
                       onChange={(e) => {
@@ -1308,6 +1335,18 @@ export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
                       <span>Unlock Vault Workspace</span>
                     </>
                   )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsGuestMode(true);
+                    setAuthError(null);
+                  }}
+                  className="w-full py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-xs font-mono font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer border border-white/10"
+                >
+                  <BookOpen size={14} className="text-[#FF5500]" />
+                  <span>Browse Technical Knowledge Base (Guest Mode)</span>
                 </button>
               </form>
 
@@ -1454,7 +1493,7 @@ export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
                 {/* Search Bar */}
                 <div className="relative flex-1 max-w-lg">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                  <input
+                  <LagFreeInput
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
@@ -1901,7 +1940,7 @@ export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
                   )}
 
                   <form onSubmit={handleUnlockPrivateFile} className="w-full space-y-3">
-                    <input
+                    <LagFreeInput
                       type="password"
                       value={filePasswordInput}
                       onChange={(e) => setFilePasswordInput(e.target.value)}
@@ -2129,7 +2168,7 @@ export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <label className="text-[11px] font-bold uppercase text-slate-300 font-mono">Document Title</label>
-                    <input
+                    <LagFreeInput
                       type="text"
                       value={docName}
                       onChange={(e) => setDocName(e.target.value)}
@@ -2156,7 +2195,7 @@ export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
 
                 <div className="space-y-1">
                   <label className="text-[11px] font-bold uppercase text-slate-300 font-mono">Description / Summary</label>
-                  <input
+                  <LagFreeInput
                     type="text"
                     value={docDescription}
                     onChange={(e) => setDocDescription(e.target.value)}
@@ -2239,7 +2278,7 @@ export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
 
                 {/* Editor Textarea */}
                 <div className="space-y-1">
-                  <textarea
+                  <LagFreeTextArea
                     rows={10}
                     value={docContent}
                     onChange={(e) => setDocContent(e.target.value)}
@@ -2273,14 +2312,14 @@ export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
                   {linkInputError && <p className="text-xs text-rose-400 font-mono">{linkInputError}</p>}
 
                   <div className="grid grid-cols-1 sm:grid-cols-5 gap-2">
-                    <input
+                    <LagFreeInput
                       type="text"
                       value={newLinkTitle}
                       onChange={(e) => setNewLinkTitle(e.target.value)}
                       placeholder="Link display title (e.g. Download Windows Driver)..."
                       className="sm:col-span-2 bg-[#12131e] border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white outline-none font-mono"
                     />
-                    <input
+                    <LagFreeInput
                       type="url"
                       value={newLinkUrl}
                       onChange={(e) => setNewLinkUrl(e.target.value)}
@@ -2543,7 +2582,7 @@ export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1">
                       <label className="text-[11px] font-bold uppercase text-slate-300 font-mono">Display Name</label>
-                      <input
+                      <LagFreeInput
                         type="text"
                         value={uploadName}
                         onChange={(e) => setUploadName(e.target.value)}
@@ -2638,7 +2677,7 @@ export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
             <div className="w-full max-w-md bg-[#141524] border border-white/10 rounded-2xl md:rounded-3xl p-5 sm:p-6 space-y-4 shadow-2xl relative text-left">
               <h3 className="text-sm font-bold text-white font-mono uppercase">Rename Document</h3>
               <form onSubmit={handleRenameSubmit} className="space-y-3">
-                <input
+                <LagFreeInput
                   type="text"
                   value={renameInputValue}
                   onChange={(e) => setRenameInputValue(e.target.value)}
@@ -2674,7 +2713,7 @@ export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
               <form onSubmit={handleCreateFolder} className="space-y-3">
                 <div className="space-y-1">
                   <label className="text-[11px] font-bold uppercase text-slate-300 font-mono">Folder Name</label>
-                  <input
+                  <LagFreeInput
                     type="text"
                     value={newFolderName}
                     onChange={(e) => setNewFolderName(e.target.value)}
@@ -2712,7 +2751,7 @@ export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
               <form onSubmit={handleRenameFolderSubmit} className="space-y-3">
                 <div className="space-y-1">
                   <label className="text-[11px] font-bold uppercase text-slate-300 font-mono">Folder Name</label>
-                  <input
+                  <LagFreeInput
                     type="text"
                     value={renameFolderName}
                     onChange={(e) => setRenameFolderName(e.target.value)}
@@ -2775,7 +2814,7 @@ export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
               <form onSubmit={handleChangePassword} className="space-y-3">
                 <div className="space-y-1">
                   <label className="text-[11px] font-bold uppercase text-slate-300 font-mono">Current Passcode</label>
-                  <input
+                  <LagFreeInput
                     type="password"
                     value={currentPwInput}
                     onChange={(e) => setCurrentPwInput(e.target.value)}
@@ -2785,7 +2824,7 @@ export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
                 </div>
                 <div className="space-y-1">
                   <label className="text-[11px] font-bold uppercase text-slate-300 font-mono">New Passcode</label>
-                  <input
+                  <LagFreeInput
                     type="password"
                     value={newPwInput}
                     onChange={(e) => setNewPwInput(e.target.value)}
@@ -2796,7 +2835,7 @@ export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
                 </div>
                 <div className="space-y-1">
                   <label className="text-[11px] font-bold uppercase text-slate-300 font-mono">Confirm New Passcode</label>
-                  <input
+                  <LagFreeInput
                     type="password"
                     value={confirmPwInput}
                     onChange={(e) => setConfirmPwInput(e.target.value)}

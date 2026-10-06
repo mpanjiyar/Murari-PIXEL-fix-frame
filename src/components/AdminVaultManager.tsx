@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { LagFreeInput, LagFreeTextArea } from './LagFreeInputs';
 import {
   Lock,
   Unlock,
@@ -30,6 +31,7 @@ import {
   Mail
 } from 'lucide-react';
 import { VaultItem, VaultLink } from './PixelFixVault';
+import { INITIAL_KNOWLEDGE_DOCS } from '../data/vaultKnowledgeBase';
 
 interface AdminVaultManagerProps {
   adminKey: string;
@@ -103,27 +105,36 @@ export const AdminVaultManager: React.FC<AdminVaultManagerProps> = ({
     setIsLoading(true);
     try {
       const [itemsRes, statsRes, recRes] = await Promise.all([
-        fetch('/api/vault/items', { headers: getHeaders() }),
-        fetch('/api/vault/stats', { headers: getHeaders() }),
-        fetch('/api/vault/recovery-info')
+        fetch('/api/vault/items', { headers: getHeaders() }).catch(() => null),
+        fetch('/api/vault/stats', { headers: getHeaders() }).catch(() => null),
+        fetch('/api/vault/recovery-info').catch(() => null)
       ]);
 
-      if (itemsRes.ok) {
+      if (itemsRes && itemsRes.ok) {
         const itemsData = await itemsRes.json();
-        if (itemsData.success) setItems(itemsData.items);
+        if (itemsData.success && Array.isArray(itemsData.items) && itemsData.items.length > 0) {
+          setItems(itemsData.items);
+        } else {
+          setItems(INITIAL_KNOWLEDGE_DOCS as any);
+        }
+      } else {
+        setItems(INITIAL_KNOWLEDGE_DOCS as any);
       }
-      if (statsRes.ok) {
+
+      if (statsRes && statsRes.ok) {
         const statsData = await statsRes.json();
         if (statsData.success) setStats(statsData.stats);
       }
-      if (recRes.ok) {
+
+      if (recRes && recRes.ok) {
         const recData = await recRes.json();
-        if (recData.success && recData.maskedEmail) {
-          // If masked, keep or fetch full
+        if (recData.success && recData.recoveryEmail) {
+          setRecoveryEmail(recData.recoveryEmail);
         }
       }
     } catch (e) {
-      console.error('[Admin Vault] Fetch error:', e);
+      console.warn('[Admin Vault] Fallback to local knowledge base:', e);
+      setItems(INITIAL_KNOWLEDGE_DOCS as any);
     } finally {
       setIsLoading(false);
     }
@@ -455,7 +466,7 @@ export const AdminVaultManager: React.FC<AdminVaultManagerProps> = ({
       <div className="p-4 rounded-xl bg-[#14141E] border border-white/10 flex flex-col sm:flex-row items-center justify-between gap-3">
         <div className="relative w-full sm:w-80">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
+          <LagFreeInput
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -588,7 +599,7 @@ export const AdminVaultManager: React.FC<AdminVaultManagerProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="sm:col-span-2 space-y-1">
                   <label className="text-[11px] font-bold uppercase text-slate-400 font-mono">File Name</label>
-                  <input
+                  <LagFreeInput
                     type="text"
                     value={docName}
                     onChange={(e) => setDocName(e.target.value)}
@@ -614,7 +625,7 @@ export const AdminVaultManager: React.FC<AdminVaultManagerProps> = ({
 
               <div className="space-y-1">
                 <label className="text-[11px] font-bold uppercase text-slate-400 font-mono">Description</label>
-                <input
+                <LagFreeInput
                   type="text"
                   value={docDescription}
                   onChange={(e) => setDocDescription(e.target.value)}
@@ -625,7 +636,7 @@ export const AdminVaultManager: React.FC<AdminVaultManagerProps> = ({
 
               <div className="space-y-1">
                 <label className="text-[11px] font-bold uppercase text-slate-400 font-mono">Content</label>
-                <textarea
+                <LagFreeTextArea
                   rows={8}
                   value={docContent}
                   onChange={(e) => setDocContent(e.target.value)}
@@ -638,14 +649,14 @@ export const AdminVaultManager: React.FC<AdminVaultManagerProps> = ({
               <div className="space-y-2 p-3 bg-black/40 rounded-xl border border-white/5">
                 <span className="text-[11px] font-bold text-white uppercase font-mono">Attached Links</span>
                 <div className="grid grid-cols-2 gap-2">
-                  <input
+                  <LagFreeInput
                     type="text"
                     value={newLinkTitle}
                     onChange={(e) => setNewLinkTitle(e.target.value)}
                     placeholder="Link Label (e.g. Google Drive Repo)"
                     className="bg-[#181824] border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white"
                   />
-                  <input
+                  <LagFreeInput
                     type="url"
                     value={newLinkUrl}
                     onChange={(e) => setNewLinkUrl(e.target.value)}
@@ -738,7 +749,7 @@ export const AdminVaultManager: React.FC<AdminVaultManagerProps> = ({
               <div className="space-y-3 pt-2">
                 <div className="space-y-1">
                   <label className="text-[11px] font-bold uppercase text-slate-400 font-mono">File Name</label>
-                  <input
+                  <LagFreeInput
                     type="text"
                     value={uploadName}
                     onChange={(e) => setUploadName(e.target.value)}
@@ -761,7 +772,7 @@ export const AdminVaultManager: React.FC<AdminVaultManagerProps> = ({
                 </div>
                 <div className="space-y-1">
                   <label className="text-[11px] font-bold uppercase text-slate-400 font-mono">Description</label>
-                  <input
+                  <LagFreeInput
                     type="text"
                     value={uploadDesc}
                     onChange={(e) => setUploadDesc(e.target.value)}
@@ -817,7 +828,7 @@ export const AdminVaultManager: React.FC<AdminVaultManagerProps> = ({
             <form onSubmit={handleChangePassword} className="space-y-3">
               <div className="space-y-1">
                 <label className="text-[11px] font-bold uppercase text-slate-400 font-mono">New Passcode</label>
-                <input
+                <LagFreeInput
                   type="password"
                   required
                   value={newVaultPassword}
@@ -829,7 +840,7 @@ export const AdminVaultManager: React.FC<AdminVaultManagerProps> = ({
 
               <div className="space-y-1">
                 <label className="text-[11px] font-bold uppercase text-slate-400 font-mono">Confirm Passcode</label>
-                <input
+                <LagFreeInput
                   type="password"
                   required
                   value={confirmVaultPassword}
@@ -892,7 +903,7 @@ export const AdminVaultManager: React.FC<AdminVaultManagerProps> = ({
                 <label className="text-[11px] font-bold uppercase text-slate-400 font-mono">
                   Registered Recovery Email Address
                 </label>
-                <input
+                <LagFreeInput
                   type="email"
                   required
                   value={newRecoveryEmailInput}

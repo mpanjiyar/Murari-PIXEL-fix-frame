@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { LagFreeInput } from './LagFreeInputs';
 import { MapContainer, TileLayer, Marker, Popup, Circle } from 'react-leaflet';
 import L from 'leaflet';
 import { MapPin, Search, CheckCircle2, AlertTriangle, HelpCircle, Navigation } from 'lucide-react';
@@ -143,7 +144,7 @@ export default function CoverageMap({ currentTheme }: CoverageMapProps) {
             </p>
 
             <form onSubmit={handleCheckCoverage} className="relative mt-2">
-              <input
+              <LagFreeInput
                 type="text"
                 placeholder="Type your locality (e.g., Ganeshguri, Paltan Bazaar, Borjhar...)"
                 value={searchQuery}

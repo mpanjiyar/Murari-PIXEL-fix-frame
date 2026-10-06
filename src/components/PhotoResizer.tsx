@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { LagFreeInput } from './LagFreeInputs';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   UploadCloud, 
@@ -550,7 +551,7 @@ export default function PhotoResizer({ currentTheme }: PhotoResizerProps) {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <span className={`block text-[10px] uppercase font-mono ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Width (px)</span>
-                      <input
+                      <LagFreeInput
                         type="number"
                         value={width || ''}
                         onChange={(e) => handleWidthChange(parseInt(e.target.value))}
@@ -563,7 +564,7 @@ export default function PhotoResizer({ currentTheme }: PhotoResizerProps) {
                     </div>
                     <div className="space-y-1.5">
                       <span className={`block text-[10px] uppercase font-mono ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Height (px)</span>
-                      <input
+                      <LagFreeInput
                         type="number"
                         value={height || ''}
                         onChange={(e) => handleHeightChange(parseInt(e.target.value))}

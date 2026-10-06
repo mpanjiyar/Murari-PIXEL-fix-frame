@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { LagFreeInput, LagFreeTextArea } from './LagFreeInputs';
 import {
   Lock,
   Unlock,
@@ -795,7 +796,7 @@ export const VaultModal: React.FC<VaultModalProps> = ({
                     Vault Access Passcode
                   </label>
                   <div className="relative">
-                    <input
+                    <LagFreeInput
                       type={showPassword ? 'text' : 'password'}
                       required
                       value={passwordInput}
@@ -851,7 +852,7 @@ export const VaultModal: React.FC<VaultModalProps> = ({
                 {/* Search Bar */}
                 <div className="relative flex-1 min-w-[200px] max-w-md">
                   <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
-                  <input
+                  <LagFreeInput
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
@@ -943,7 +944,7 @@ export const VaultModal: React.FC<VaultModalProps> = ({
                   {/* Quick Add Folder */}
                   {showAddFolderInput ? (
                     <div className="flex items-center gap-1">
-                      <input
+                      <LagFreeInput
                         type="text"
                         placeholder="Folder name"
                         value={newFolderNameInput}
@@ -1329,7 +1330,7 @@ export const VaultModal: React.FC<VaultModalProps> = ({
                         <label className="text-[10px] font-mono font-bold uppercase text-zinc-400">
                           Document File Name *
                         </label>
-                        <input
+                        <LagFreeInput
                           type="text"
                           required
                           value={editorName}
@@ -1364,7 +1365,7 @@ export const VaultModal: React.FC<VaultModalProps> = ({
                       <label className="text-[10px] font-mono font-bold uppercase text-zinc-400">
                         Short Description / Summary (optional)
                       </label>
-                      <input
+                      <LagFreeInput
                         type="text"
                         value={editorDescription}
                         onChange={(e) => setEditorDescription(e.target.value)}
@@ -1438,7 +1439,7 @@ export const VaultModal: React.FC<VaultModalProps> = ({
                   {/* Main Editor Textarea OR Preview Mode */}
                   <div className="flex-1 p-4 overflow-y-auto bg-black/40">
                     {!isEditorPreview ? (
-                      <textarea
+                      <LagFreeTextArea
                         value={editorContent}
                         onChange={(e) => setEditorContent(e.target.value)}
                         placeholder="Write or paste your text notes here...
@@ -1592,7 +1593,7 @@ Example:
                 <div className="space-y-3 text-xs font-mono">
                   <div className="space-y-1">
                     <label className="text-zinc-400 block font-bold">Link Title / Label</label>
-                    <input
+                    <LagFreeInput
                       type="text"
                       value={linkTitleInput}
                       onChange={(e) => setLinkTitleInput(e.target.value)}
@@ -1603,7 +1604,7 @@ Example:
 
                   <div className="space-y-1">
                     <label className="text-zinc-400 block font-bold">Target Resource URL (HTTPS or Google Drive) *</label>
-                    <input
+                    <LagFreeInput
                       type="url"
                       required
                       value={linkUrlInput}
@@ -1808,7 +1809,7 @@ Example:
                       <div className="space-y-3 text-xs font-mono">
                         <div className="space-y-1">
                           <label className="text-zinc-400 font-bold block">File Name in Vault *</label>
-                          <input
+                          <LagFreeInput
                             type="text"
                             required
                             value={uploadCustomName}
@@ -1849,7 +1850,7 @@ Example:
 
                         <div className="space-y-1">
                           <label className="text-zinc-400 font-bold block">Short Description</label>
-                          <input
+                          <LagFreeInput
                             type="text"
                             value={uploadDescription}
                             onChange={(e) => setUploadDescription(e.target.value)}

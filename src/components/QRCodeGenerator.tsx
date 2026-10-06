@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { LagFreeInput, LagFreeTextArea } from './LagFreeInputs';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   QrCode, 
@@ -875,7 +876,7 @@ export const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({
                         <div className="space-y-1">
                           <label className="text-[10px] uppercase font-mono text-slate-400 font-bold">Destination URL</label>
                           <div className="relative">
-                            <input
+                            <LagFreeInput
                               type="text"
                               value={urlInput}
                               onChange={(e) => setUrlInput(e.target.value)}
@@ -901,7 +902,7 @@ export const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({
                     {activeType === 'text' && (
                       <div className="space-y-1">
                         <label className="text-[10px] uppercase font-mono text-slate-400 font-bold">Plain Text Content</label>
-                        <textarea
+                        <LagFreeTextArea
                           value={textInput}
                           onChange={(e) => setTextInput(e.target.value)}
                           placeholder="Type any arbitrary text, notes, instructions, or payload data..."
@@ -919,7 +920,7 @@ export const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-1">
                           <label className="text-[10px] uppercase font-mono text-slate-400 font-bold">Network Name (SSID)</label>
-                          <input
+                          <LagFreeInput
                             type="text"
                             value={wifiSsid}
                             onChange={(e) => setWifiSsid(e.target.value)}
@@ -931,7 +932,7 @@ export const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({
                         </div>
                         <div className="space-y-1">
                           <label className="text-[10px] uppercase font-mono text-slate-400 font-bold">Network Password</label>
-                          <input
+                          <LagFreeInput
                             type="password"
                             value={wifiPassword}
                             onChange={(e) => setWifiPassword(e.target.value)}
@@ -974,7 +975,7 @@ export const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div className="space-y-1">
                           <label className="text-[10px] uppercase font-mono text-slate-400 font-bold">Full Name</label>
-                          <input
+                          <LagFreeInput
                             type="text"
                             value={contactName}
                             onChange={(e) => setContactName(e.target.value)}
@@ -986,7 +987,7 @@ export const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({
                         </div>
                         <div className="space-y-1">
                           <label className="text-[10px] uppercase font-mono text-slate-400 font-bold">Company / Org</label>
-                          <input
+                          <LagFreeInput
                             type="text"
                             value={contactOrg}
                             onChange={(e) => setContactOrg(e.target.value)}
@@ -998,7 +999,7 @@ export const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({
                         </div>
                         <div className="space-y-1">
                           <label className="text-[10px] uppercase font-mono text-slate-400 font-bold">Phone Number</label>
-                          <input
+                          <LagFreeInput
                             type="text"
                             value={contactPhone}
                             onChange={(e) => setContactPhone(e.target.value)}
@@ -1010,7 +1011,7 @@ export const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({
                         </div>
                         <div className="space-y-1">
                           <label className="text-[10px] uppercase font-mono text-slate-400 font-bold">Email Address</label>
-                          <input
+                          <LagFreeInput
                             type="text"
                             value={contactEmail}
                             onChange={(e) => setContactEmail(e.target.value)}
@@ -1028,7 +1029,7 @@ export const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div className="space-y-1">
                             <label className="text-[10px] uppercase font-mono text-slate-400 font-bold">Recipient Email</label>
-                            <input
+                            <LagFreeInput
                               type="text"
                               value={emailTo}
                               onChange={(e) => setEmailTo(e.target.value)}
@@ -1040,7 +1041,7 @@ export const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({
                           </div>
                           <div className="space-y-1">
                             <label className="text-[10px] uppercase font-mono text-slate-400 font-bold">Subject Line</label>
-                            <input
+                            <LagFreeInput
                               type="text"
                               value={emailSubject}
                               onChange={(e) => setEmailSubject(e.target.value)}
@@ -1053,7 +1054,7 @@ export const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({
                         </div>
                         <div className="space-y-1">
                           <label className="text-[10px] uppercase font-mono text-slate-400 font-bold">Message Body</label>
-                          <textarea
+                          <LagFreeTextArea
                             value={emailBody}
                             onChange={(e) => setEmailBody(e.target.value)}
                             placeholder="Type the pre-populated body text here..."
@@ -1070,7 +1071,7 @@ export const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div className="space-y-1 sm:col-span-1">
                           <label className="text-[10px] uppercase font-mono text-slate-400 font-bold">Mobile Number</label>
-                          <input
+                          <LagFreeInput
                             type="text"
                             value={smsPhone}
                             onChange={(e) => setSmsPhone(e.target.value)}
@@ -1082,7 +1083,7 @@ export const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({
                         </div>
                         <div className="space-y-1 sm:col-span-2">
                           <label className="text-[10px] uppercase font-mono text-slate-400 font-bold">SMS Text Payload</label>
-                          <input
+                          <LagFreeInput
                             type="text"
                             value={smsMessage}
                             onChange={(e) => setSmsMessage(e.target.value)}
@@ -1099,7 +1100,7 @@ export const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1">
                           <label className="text-[10px] uppercase font-mono text-slate-400 font-bold">Latitude Coordinates</label>
-                          <input
+                          <LagFreeInput
                             type="text"
                             value={geoLat}
                             onChange={(e) => setGeoLat(e.target.value)}
@@ -1111,7 +1112,7 @@ export const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({
                         </div>
                         <div className="space-y-1">
                           <label className="text-[10px] uppercase font-mono text-slate-400 font-bold">Longitude Coordinates</label>
-                          <input
+                          <LagFreeInput
                             type="text"
                             value={geoLng}
                             onChange={(e) => setGeoLng(e.target.value)}
@@ -1161,7 +1162,7 @@ export const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({
                                 onChange={(e) => setForegroundColor(e.target.value)}
                                 className="w-9 h-9 rounded-lg border border-white/10 cursor-pointer overflow-hidden p-0"
                               />
-                              <input
+                              <LagFreeInput
                                 type="text"
                                 value={foregroundColor}
                                 onChange={(e) => setForegroundColor(e.target.value)}
@@ -1181,7 +1182,7 @@ export const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({
                                 onChange={(e) => setBackgroundColor(e.target.value)}
                                 className="w-9 h-9 rounded-lg border border-white/10 cursor-pointer overflow-hidden p-0"
                               />
-                              <input
+                              <LagFreeInput
                                 type="text"
                                 value={backgroundColor}
                                 onChange={(e) => setBackgroundColor(e.target.value)}

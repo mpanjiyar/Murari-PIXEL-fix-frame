@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { LagFreeInput } from './LagFreeInputs';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   ShieldCheck,
@@ -441,7 +442,7 @@ export const PrivacyPolicyPage: React.FC<PrivacyPolicyPageProps> = ({
               {/* Quick Legal Clause Search */}
               <div className="relative">
                 <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
+                <LagFreeInput
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}

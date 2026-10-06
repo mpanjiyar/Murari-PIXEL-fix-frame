@@ -234,78 +234,8 @@ const getPackageItemIcon = (text: string, category: string = 'it', index: number
   }
 };
 
-// Structuring our Theme Styles
-interface LagFreeInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onChange'> {
-  value: string;
-  onChange: (val: string) => void;
-  debounceMs?: number;
-}
-
-const LagFreeInput: React.FC<LagFreeInputProps> = ({ value, onChange, debounceMs = 150, ...props }) => {
-  const [localValue, setLocalValue] = useState(value);
-  const onChangeRef = useRef(onChange);
-
-  useEffect(() => {
-    onChangeRef.current = onChange;
-  }, [onChange]);
-
-  useEffect(() => {
-    setLocalValue(value);
-  }, [value]);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (localValue !== value) {
-        onChangeRef.current(localValue);
-      }
-    }, debounceMs);
-    return () => clearTimeout(timer);
-  }, [localValue, debounceMs, value]);
-
-  return (
-    <input
-      {...props}
-      value={localValue}
-      onChange={(e) => setLocalValue(e.target.value)}
-    />
-  );
-};
-
-interface LagFreeTextAreaProps extends Omit<React.TextareaHTMLAttributes<HTMLTextAreaElement>, 'onChange'> {
-  value: string;
-  onChange: (val: string) => void;
-  debounceMs?: number;
-}
-
-const LagFreeTextArea: React.FC<LagFreeTextAreaProps> = ({ value, onChange, debounceMs = 150, ...props }) => {
-  const [localValue, setLocalValue] = useState(value);
-  const onChangeRef = useRef(onChange);
-
-  useEffect(() => {
-    onChangeRef.current = onChange;
-  }, [onChange]);
-
-  useEffect(() => {
-    setLocalValue(value);
-  }, [value]);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (localValue !== value) {
-        onChangeRef.current(localValue);
-      }
-    }, debounceMs);
-    return () => clearTimeout(timer);
-  }, [localValue, debounceMs, value]);
-
-  return (
-    <textarea
-      {...props}
-      value={localValue}
-      onChange={(e) => setLocalValue(e.target.value)}
-    />
-  );
-};
+import { LagFreeInput, LagFreeTextArea } from './components/LagFreeInputs';
+export { LagFreeInput, LagFreeTextArea };
 
 let lastSortedAllItems: GalleryItem[] | null = null;
 let recentItemIdsSet = new Set<string>();
@@ -620,18 +550,16 @@ export default function App() {
 
   // Full-Screen Vault Route Navigators
   const openVaultPage = useCallback(() => {
-    setIsVaultOpen(true);
     setActiveTab('vault');
-    if (window.location.pathname !== '/vault') {
-      window.history.pushState(null, '', '/vault');
+    if (window.location.hash !== '#vault') {
+      window.history.pushState(null, '', '/#vault');
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
 
   const closeVaultPage = useCallback(() => {
-    setIsVaultOpen(false);
     setActiveTab('home');
-    if (window.location.pathname !== '/') {
+    if (window.location.hash) {
       window.history.pushState(null, '', '/');
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -2970,11 +2898,10 @@ export default function App() {
       // Check if accessing full-screen vault route directly via /vault or /vault/ or #vault
       if (pathname === '/vault' || pathname === '/vault/' || hash === 'vault') {
         setActiveTab('vault');
-        setIsVaultOpen(true);
         return;
       }
 
-      const validTabs = ['home', 'about', 'pixelfix', 'pixelframe', 'gallery', 'contact', 'affiliate', 'bios', 'packages', 'beep', 'smps'];
+      const validTabs = ['home', 'about', 'pixelfix', 'pixelframe', 'gallery', 'contact', 'affiliate', 'bios', 'packages', 'beep', 'smps', 'privacy', 'vault'];
       if (hash && validTabs.includes(hash)) {
         setActiveTab(hash as any);
         setIsVaultOpen(false);
@@ -3001,6 +2928,7 @@ export default function App() {
           window.history.pushState(null, '', '/admin');
         }
       } else if (activeTab === 'vault') {
+        setIsVaultOpen(true);
         if (window.location.pathname !== '/vault') {
           window.history.pushState(null, '', '/vault');
         }
@@ -4431,6 +4359,7 @@ export default function App() {
                 { id: 'pixelframe', label: 'Pixel Frame' },
                 { id: 'gallery', label: 'Gallery' },
                 { id: 'affiliate', label: 'Partner Deals' },
+                { id: 'vault', label: 'Vault' },
                 { id: 'contact', label: 'Booking' }
               ].map(tab => (
                 <motion.button
@@ -4640,6 +4569,7 @@ export default function App() {
                   { id: 'pixelframe', label: 'Pixel Frame', icon: Camera },
                   { id: 'gallery', label: 'Gallery', icon: FolderOpen },
                   { id: 'affiliate', label: 'Partner Deals', icon: ShoppingBag },
+                  { id: 'vault', label: 'Pixel Fix Vault', icon: Lock },
                   { id: 'contact', label: 'Booking', icon: Phone }
                 ].map(tab => {
                   const TabIcon = tab.icon;
@@ -5829,7 +5759,7 @@ export default function App() {
                     <div className={`pt-4 border-t ${s.divider} grid grid-cols-1 sm:grid-cols-2 gap-4`}>
                       <div className="space-y-2">
                         <label className={`text-xs font-bold block ${currentTheme === 'light' ? 'text-slate-650' : 'text-slate-400'}`}>Your Full Name:</label>
-                        <input
+                        <LagFreeInput
                           type="text"
                           required
                           value={bookingName}
@@ -5840,7 +5770,7 @@ export default function App() {
                       </div>
                       <div className="space-y-2">
                         <label className={`text-xs font-bold block ${currentTheme === 'light' ? 'text-slate-650' : 'text-slate-400'}`}>Your Phone / WhatsApp Number:</label>
-                        <input
+                        <LagFreeInput
                           type="tel"
                           required
                           value={bookingPhone}
@@ -5851,7 +5781,7 @@ export default function App() {
                       </div>
                       <div className="sm:col-span-2 space-y-2">
                         <label className={`text-xs font-bold block ${currentTheme === 'light' ? 'text-slate-650' : 'text-slate-400'}`}>A Few Words (e.g., specific venue location or laptop crash issues):</label>
-                        <textarea
+                        <LagFreeTextArea
                           value={bookingNotes}
                           rows={2}
                           onChange={(e) => setBookingNotes(e.target.value)}
@@ -7966,7 +7896,7 @@ export default function App() {
                   }`}>
                     <Search size={12} className="stroke-[2.5]" />
                   </div>
-                  <input
+                  <LagFreeInput
                     type="text"
                     value={affiliateSearchQuery}
                     onChange={(e) => setAffiliateSearchQuery(e.target.value)}
@@ -8074,7 +8004,7 @@ export default function App() {
                           <span className="text-[8.5px] font-mono uppercase tracking-wider text-slate-500 block">
                             Key name: <span className="text-amber-500 font-extrabold">"{key}"</span>
                           </span>
-                          <input
+                          <LagFreeInput
                             type="text"
                             value={currentVal || ''}
                             placeholder={friendlyPlaceholder}
@@ -8301,7 +8231,7 @@ export default function App() {
                   <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-500 pointer-events-none">
                     <Search size={14} />
                   </span>
-                  <input
+                  <LagFreeInput
                     type="text"
                     value={packageSearchQuery}
                     onChange={(e) => setPackageSearchQuery(e.target.value)}
@@ -8676,7 +8606,7 @@ export default function App() {
                   {/* Search Input Box */}
                   <div className="flex-1 relative">
                     <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input
+                    <LagFreeInput
                       id="bios-search-input"
                       type="text"
                       value={biosSearchQuery}
@@ -8949,7 +8879,7 @@ export default function App() {
                   {/* Search Bar for Shortcuts */}
                   <div className="w-full md:w-72 shrink-0 relative">
                     <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input
+                    <LagFreeInput
                       id="shortcuts-search-input"
                       type="text"
                       value={shortcutsSearchQuery}
@@ -9754,7 +9684,7 @@ export default function App() {
                       <div className={`p-6 rounded-3xl border ${s.card} space-y-4 shadow-xs border-slate-200/60 dark:border-white/5`}>
                         <span className="block text-[10px] uppercase font-black tracking-widest text-[#FF5500] font-mono">Refined Fault Signature Search</span>
                         <div className="relative">
-                          <input
+                          <LagFreeInput
                             type="text"
                             value={beepSearchQuery}
                             onChange={(e) => setBeepSearchQuery(e.target.value)}
@@ -10074,7 +10004,7 @@ export default function App() {
                     <label className={`text-xs font-bold ${
                       currentTheme === 'light' ? 'text-slate-650' : 'text-slate-400'
                     }`}>Security Access Code:</label>
-                    <input
+                    <LagFreeInput
                       type="password"
                       required
                       value={adminKeyInput}
@@ -10304,7 +10234,7 @@ export default function App() {
                       <div className="flex flex-col sm:flex-row gap-3 pt-2">
                         <div className="relative flex-1">
                           <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                          <input
+                          <LagFreeInput
                             type="text"
                             value={mediaSearchQuery}
                             onChange={(e) => setMediaSearchQuery(e.target.value)}
@@ -10457,7 +10387,7 @@ export default function App() {
                                       Configure Image URL:
                                     </label>
                                     <div className="flex gap-1.5">
-                                      <input
+                                      <LagFreeInput
                                         type="text"
                                         defaultValue={img.url}
                                         id={`url_input_${img.id}`}
@@ -10628,7 +10558,7 @@ export default function App() {
                             <label className={`block text-xs font-bold ${currentTheme === 'light' ? 'text-slate-700' : 'text-slate-300'}`}>
                               Or enter direct Logo URL
                             </label>
-                            <input
+                            <LagFreeInput
                               type="url"
                               value={draftLogoUrl}
                               onChange={(e) => {
@@ -10746,7 +10676,7 @@ export default function App() {
                             <label className={`block text-xs font-bold ${currentTheme === 'light' ? 'text-slate-700' : 'text-slate-300'}`}>
                               Or enter direct Favicon URL
                             </label>
-                            <input
+                            <LagFreeInput
                               type="url"
                               value={draftFaviconUrl}
                               onChange={(e) => {
@@ -11161,7 +11091,7 @@ export default function App() {
                       <form onSubmit={handleCreateGalleryItem} className="space-y-4 text-left">
                         <div className="space-y-1">
                           <label className={`text-xs font-extrabold block ${currentTheme === 'light' ? 'text-slate-650' : 'text-slate-400'}`}>Photo Session Title:</label>
-                          <input
+                          <LagFreeInput
                             type="text"
                             required
                             value={newImageTitle}
@@ -11188,7 +11118,7 @@ export default function App() {
                           
                           <div className="space-y-1">
                             <label className={`text-xs font-extrabold block ${currentTheme === 'light' ? 'text-slate-650' : 'text-slate-400'}`}>Camera Lens Meta Info:</label>
-                            <input
+                            <LagFreeInput
                               type="text"
                               value={newImageCamera}
                               onChange={(e) => setNewImageCamera(e.target.value)}
@@ -11200,7 +11130,7 @@ export default function App() {
 
                         <div className="space-y-1">
                           <label className={`text-xs font-extrabold block ${currentTheme === 'light' ? 'text-slate-650' : 'text-slate-400'}`}>Raw / Before Image URL (Optional):</label>
-                          <input
+                          <LagFreeInput
                             type="text"
                             value={newImageBeforeUrl}
                             onChange={(e) => setNewImageBeforeUrl(e.target.value)}
@@ -11279,7 +11209,7 @@ export default function App() {
 
                       <form onSubmit={handleEmailSimulation} className="space-y-3">
                         <div className="grid grid-cols-2 gap-3">
-                          <input
+                          <LagFreeInput
                             type="text"
                             required
                             value={clientName}
@@ -11287,7 +11217,7 @@ export default function App() {
                             placeholder="Client Name (e.g., Roy)"
                             className={`px-3 py-2 rounded-lg text-xs outline-none ${s.input}`}
                           />
-                          <input
+                          <LagFreeInput
                             type="email"
                             required
                             value={clientEmail}
@@ -11486,7 +11416,7 @@ export default function App() {
                           <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
                             <div className="md:col-span-8 relative flex items-center">
                               <Search size={14} className="absolute left-3.5 text-slate-400 pointer-events-none" />
-                              <input
+                              <LagFreeInput
                                 type="text"
                                 value={inquirySearchText}
                                 onChange={(e) => setInquirySearchText(e.target.value)}
@@ -11721,7 +11651,7 @@ export default function App() {
                           <label className={`text-xs font-extrabold block ${currentTheme === 'light' ? 'text-slate-650' : 'text-slate-400'}`}>
                             Instagram Access Token:
                           </label>
-                          <input
+                          <LagFreeInput
                             type="password"
                             value={instagramAccessToken}
                             onChange={(e) => setInstagramAccessToken(e.target.value)}
@@ -12162,7 +12092,7 @@ export default function App() {
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div className="space-y-1">
                             <label className={`text-xs font-extrabold block ${currentTheme === 'light' ? 'text-slate-650' : 'text-slate-400'}`}>Brand Logo Title:</label>
-                            <input
+                            <LagFreeInput
                               type="text"
                               required
                               value={logoText}
@@ -12173,7 +12103,7 @@ export default function App() {
                           </div>
                           <div className="space-y-1">
                             <label className={`text-xs font-extrabold block ${currentTheme === 'light' ? 'text-slate-650' : 'text-slate-400'}`}>Brand Logo Subtitle:</label>
-                            <input
+                            <LagFreeInput
                               type="text"
                               required
                               value={logoSubtext}
@@ -12186,7 +12116,7 @@ export default function App() {
 
                         <div className="space-y-1">
                           <label className={`text-xs font-extrabold block ${currentTheme === 'light' ? 'text-slate-650' : 'text-slate-400'}`}>Top Dynamic Alert Banner:</label>
-                          <textarea
+                          <LagFreeTextArea
                             rows={2}
                             required
                             value={bannerText}
@@ -12199,7 +12129,7 @@ export default function App() {
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div className="space-y-1">
                             <label className={`text-xs font-extrabold block ${currentTheme === 'light' ? 'text-slate-650' : 'text-slate-400'}`}>Explore Button Text:</label>
-                            <input
+                            <LagFreeInput
                               type="text"
                               required
                               value={exploreButtonText}
@@ -12209,7 +12139,7 @@ export default function App() {
                           </div>
                           <div className="space-y-1">
                             <label className={`text-xs font-extrabold block ${currentTheme === 'light' ? 'text-slate-650' : 'text-slate-400'}`}>Explore Button Link/Tab:</label>
-                            <input
+                            <LagFreeInput
                               type="text"
                               required
                               value={exploreButtonLink}
@@ -12225,7 +12155,7 @@ export default function App() {
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div className="space-y-1">
                             <label className={`text-xs font-extrabold block ${currentTheme === 'light' ? 'text-slate-650' : 'text-slate-400'}`}>Pixel Fix WhatsApp/Tel:</label>
-                            <input
+                            <LagFreeInput
                               type="text"
                               required
                               value={contactPhoneIt}
@@ -12236,7 +12166,7 @@ export default function App() {
                           </div>
                           <div className="space-y-1">
                             <label className={`text-xs font-extrabold block ${currentTheme === 'light' ? 'text-slate-650' : 'text-slate-400'}`}>Pixel Frame WhatsApp/Tel:</label>
-                            <input
+                            <LagFreeInput
                               type="text"
                               required
                               value={contactPhonePhotos}
@@ -12249,7 +12179,7 @@ export default function App() {
 
                         <div className="space-y-1">
                           <label className={`text-xs font-extrabold block ${currentTheme === 'light' ? 'text-slate-650' : 'text-slate-400'}`}>Core Client Inquiry Email:</label>
-                          <input
+                          <LagFreeInput
                             type="email"
                             required
                             value={contactEmail}
@@ -12260,7 +12190,7 @@ export default function App() {
 
                         <div className="space-y-1">
                           <label className={`text-xs font-extrabold block ${currentTheme === 'light' ? 'text-slate-650' : 'text-slate-400'}`}>Office Business Location Address:</label>
-                          <input
+                          <LagFreeInput
                             type="text"
                             required
                             value={contactAddress}
@@ -12692,6 +12622,34 @@ export default function App() {
             />
           </motion.div>
         )}
+
+        {/* PIXEL FIX SECURE TECHNICAL VAULT TAB */}
+        {activeTab === 'vault' && (
+          <motion.div
+            key="vault"
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            transition={{ type: "spring", stiffness: 180, damping: 20 }}
+            className="w-full"
+          >
+            <PixelFixVault
+              isOpen={true}
+              onClose={() => {
+                setActiveTab('home');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              onBackToWebsite={() => {
+                setActiveTab('home');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              currentTheme={currentTheme}
+              adminKey={isAuthorized ? (adminKeyInput || "pixel2025") : undefined}
+              isFullScreenPage={false}
+              isEmbeddedTab={true}
+            />
+          </motion.div>
+        )}
         </AnimatePresence>
 
       </main>
@@ -13024,7 +12982,7 @@ export default function App() {
                       {/* Name */}
                       <div className="space-y-1.5 text-left">
                         <label className="text-[11px] font-extrabold uppercase text-slate-400 font-mono block">Your Full Name <span className="text-red-500">*</span></label>
-                        <input
+                        <LagFreeInput
                           type="text"
                           required
                           value={bookingName}
@@ -13037,7 +12995,7 @@ export default function App() {
                       {/* Phone */}
                       <div className="space-y-1.5 text-left">
                         <label className="text-[11px] font-extrabold uppercase text-slate-400 font-mono block">Contact / WhatsApp <span className="text-red-500">*</span></label>
-                        <input
+                        <LagFreeInput
                           type="tel"
                           required
                           value={bookingPhone}
@@ -13052,7 +13010,7 @@ export default function App() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1.5 text-left">
                         <label className="text-[11px] font-extrabold uppercase text-slate-400 font-mono block">Preferred Slot</label>
-                        <input
+                        <LagFreeInput
                           type="datetime-local"
                           value={beepBookingDateTime}
                           onChange={(e) => setBeepBookingDateTime(e.target.value)}
@@ -13063,7 +13021,7 @@ export default function App() {
                       {/* Guwahati Location/Landmark */}
                       <div className="space-y-1.5 text-left">
                         <label className="text-[11px] font-extrabold uppercase text-slate-400 font-mono block">Guwahati Doorstep Area / Landmark</label>
-                        <input
+                        <LagFreeInput
                           type="text"
                           value={beepBookingAddress}
                           onChange={(e) => setBeepBookingAddress(e.target.value)}
@@ -13076,7 +13034,7 @@ export default function App() {
                     {/* Additional Notes */}
                     <div className="space-y-1.5 text-left">
                       <label className="text-[11px] font-extrabold uppercase text-slate-400 font-mono block">Custom Issue Details / Symptoms</label>
-                      <textarea
+                      <LagFreeTextArea
                         value={bookingNotes}
                         rows={2}
                         onChange={(e) => setBookingNotes(e.target.value)}
@@ -13727,7 +13685,7 @@ export default function App() {
                     <div className="space-y-3">
                       <div className="space-y-1">
                         <span className="text-slate-400 text-[10px] block uppercase font-bold">Service/Package Title:</span>
-                        <input
+                        <LagFreeInput
                           type="text"
                           required
                           value={editingItem.data.title || ''}
@@ -13743,7 +13701,7 @@ export default function App() {
 
                       <div className="space-y-1">
                         <span className="text-slate-400 text-[10px] block uppercase font-bold">Pricing Label (e.g., ₹500 onwards):</span>
-                        <input
+                        <LagFreeInput
                           type="text"
                           required
                           value={editingItem.data.price || ''}
@@ -13759,7 +13717,7 @@ export default function App() {
 
                       <div className="space-y-1">
                         <span className="text-slate-400 text-[10px] block uppercase font-bold">Detailed Description:</span>
-                        <textarea
+                        <LagFreeTextArea
                           required
                           rows={3}
                           value={editingItem.data.description || ''}
@@ -13775,7 +13733,7 @@ export default function App() {
 
                       <div className="space-y-1">
                         <span className="text-slate-400 text-[10px] block uppercase font-bold">Key Features (comma separated):</span>
-                        <textarea
+                        <LagFreeTextArea
                           required
                           rows={3}
                           value={(editingItem.data.features || []).join(', ')}
@@ -13811,7 +13769,7 @@ export default function App() {
 
                       <div className="space-y-1">
                         <span className="text-slate-400 text-[10px] block uppercase font-bold">Or enter Image URL link directly:</span>
-                        <input
+                        <LagFreeInput
                           type="text"
                           required
                           value={editingItem.data.imageUrl || ''}
@@ -13828,7 +13786,7 @@ export default function App() {
 
                       <div className="space-y-1">
                         <span className="text-slate-400 text-[10px] block uppercase font-bold">Feed Post Caption narration:</span>
-                        <textarea
+                        <LagFreeTextArea
                           required
                           rows={3}
                           value={editingItem.data.caption || ''}
@@ -13845,7 +13803,7 @@ export default function App() {
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1">
                           <span className="text-slate-400 text-[10px] block uppercase font-bold">❤️ Likes count:</span>
-                          <input
+                          <LagFreeInput
                             type="number"
                             required
                             value={editingItem.data.likes || 100}
@@ -13860,7 +13818,7 @@ export default function App() {
                         </div>
                         <div className="space-y-1">
                           <span className="text-slate-400 text-[10px] block uppercase font-bold">💬 Comments count:</span>
-                          <input
+                          <LagFreeInput
                             type="number"
                             required
                             value={editingItem.data.comments || 10}
@@ -13895,7 +13853,7 @@ export default function App() {
                       {editingItem.data.mediaType === 'VIDEO' && (
                         <div className="space-y-1">
                           <span className="text-slate-400 text-[10px] block uppercase font-bold">Video URL (Direct MP4 link):</span>
-                          <input
+                          <LagFreeInput
                             type="text"
                             value={editingItem.data.videoUrl || ''}
                             onChange={(ev) => setEditingItem({
@@ -13917,7 +13875,7 @@ export default function App() {
                     <div className="space-y-3">
                       <div className="space-y-1">
                         <span className="text-slate-400 text-[10px] block uppercase font-bold">Hero Headline display:</span>
-                        <textarea
+                        <LagFreeTextArea
                           required
                           rows={2}
                           value={editingItem.data.headline || ''}
@@ -13933,7 +13891,7 @@ export default function App() {
 
                       <div className="space-y-1">
                         <span className="text-slate-400 text-[10px] block uppercase font-bold">Hero Subheadline explanation:</span>
-                        <textarea
+                        <LagFreeTextArea
                           required
                           rows={4}
                           value={editingItem.data.subheadline || ''}
@@ -13959,7 +13917,7 @@ export default function App() {
 
                       <div className="space-y-1">
                         <span className="text-slate-400 text-[10px] block uppercase font-bold">Or enter Cover Photo URL directly:</span>
-                        <input
+                        <LagFreeInput
                           type="text"
                           required
                           value={editingItem.data.photoUrl || ''}
@@ -13980,7 +13938,7 @@ export default function App() {
                     <div className="space-y-3">
                       <div className="space-y-1">
                         <span className="text-slate-400 text-[10px] block uppercase font-bold">Biography Headline:</span>
-                        <input
+                        <LagFreeInput
                           type="text"
                           required
                           value={editingItem.data.bioHeadline || ''}
@@ -13996,7 +13954,7 @@ export default function App() {
 
                       <div className="space-y-1">
                         <span className="text-slate-400 text-[10px] block uppercase font-bold">Biography Core Quote Text:</span>
-                        <textarea
+                        <LagFreeTextArea
                           required
                           rows={4}
                           value={editingItem.data.bioText || ''}
@@ -14017,7 +13975,7 @@ export default function App() {
                     <div className="space-y-3">
                       <div className="space-y-1">
                         <span className="text-slate-400 text-[10px] block uppercase font-bold">Showcase Title:</span>
-                        <input
+                        <LagFreeInput
                           type="text"
                           required
                           value={editingItem.data.title || ''}
@@ -14063,7 +14021,7 @@ export default function App() {
                         </div>
                         <div className="space-y-1">
                           <span className="text-slate-400 text-[10px] block uppercase font-bold">Shoot Date:</span>
-                          <input
+                          <LagFreeInput
                             type="text"
                             required
                             value={editingItem.data.date || ''}
@@ -14091,7 +14049,7 @@ export default function App() {
 
                       <div className="space-y-1">
                         <span className="text-slate-400 text-[10px] block uppercase font-bold">Or enter Showcase image URL link:</span>
-                        <input
+                        <LagFreeInput
                           type="text"
                           required
                           value={editingItem.data.imageUrl || ''}
@@ -14108,7 +14066,7 @@ export default function App() {
 
                       <div className="space-y-1">
                         <span className="text-slate-400 text-[10px] block uppercase font-bold">Accessibility Alt Text:</span>
-                        <input
+                        <LagFreeInput
                           type="text"
                           required
                           value={editingItem.data.altText || ''}
@@ -14125,7 +14083,7 @@ export default function App() {
 
                       <div className="space-y-1">
                         <span className="text-slate-400 text-[10px] block uppercase font-bold">Camera Gear Details:</span>
-                        <input
+                        <LagFreeInput
                           type="text"
                           value={editingItem.data.cameraInfo || ''}
                           onChange={(ev) => setEditingItem({
@@ -14141,7 +14099,7 @@ export default function App() {
 
                       <div className="space-y-1">
                         <span className="text-slate-400 text-[10px] block uppercase font-bold">Unedited Raw / Before Image URL (Optional):</span>
-                        <input
+                        <LagFreeInput
                           type="text"
                           value={editingItem.data.beforeImageUrl || ''}
                           onChange={(ev) => setEditingItem({
@@ -14162,7 +14120,7 @@ export default function App() {
                     <div className="space-y-3">
                       <div className="space-y-1">
                         <span className="text-slate-400 text-[10px] block uppercase font-bold">Client Full Name:</span>
-                        <input
+                        <LagFreeInput
                           type="text"
                           required
                           value={editingItem.data.name || ''}
@@ -14180,7 +14138,7 @@ export default function App() {
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1">
                           <span className="text-slate-400 text-[10px] block uppercase font-bold">Client Role/Event type:</span>
-                          <input
+                          <LagFreeInput
                             type="text"
                             required
                             value={editingItem.data.role || ''}
@@ -14227,7 +14185,7 @@ export default function App() {
 
                       <div className="space-y-1">
                         <span className="text-slate-400 text-[10px] block uppercase font-bold">Or enter Client Avatar Image URL:</span>
-                        <input
+                        <LagFreeInput
                           type="text"
                           required
                           value={editingItem.data.avatar || ''}
@@ -14244,7 +14202,7 @@ export default function App() {
 
                       <div className="space-y-1">
                         <span className="text-slate-400 text-[10px] block uppercase font-bold">Review Comment narration:</span>
-                        <textarea
+                        <LagFreeTextArea
                           required
                           rows={3}
                           value={editingItem.data.comment || ''}
@@ -14271,7 +14229,7 @@ export default function App() {
                           </label>
                           <div className="flex flex-col sm:flex-row gap-2">
                             <div className="relative flex-1">
-                              <input
+                              <LagFreeInput
                                 type="url"
                                 required
                                 value={editingItem.data.url || ''}
@@ -14350,7 +14308,7 @@ export default function App() {
                               <div className="h-3.5 bg-slate-300 dark:bg-zinc-700 rounded-full w-2/3" />
                             </div>
                           ) : (
-                            <input
+                            <LagFreeInput
                               type="text"
                               required
                               value={editingItem.data.title || ''}
@@ -14391,7 +14349,7 @@ export default function App() {
                             </div>
                           ) : (
                             <>
-                              <input
+                              <LagFreeInput
                                 type="text"
                                 required
                                 value={editingItem.data.category || ''}
@@ -14481,7 +14439,7 @@ export default function App() {
                                   data: { ...editingItem.data, imageUrl: val }
                                 })}
                               />
-                              <input
+                              <LagFreeInput
                                 type="text"
                                 required
                                 value={editingItem.data.imageUrl || ''}
@@ -14505,7 +14463,7 @@ export default function App() {
                           <label className={`text-[10px] uppercase font-mono font-bold tracking-wider ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
                             Promo / Discount Code (Optional)
                           </label>
-                           <input
+                           <LagFreeInput
                              type="text"
                              value={editingItem.data.discountCode || ''}
                              onChange={(ev) => setEditingItem({
@@ -14535,7 +14493,7 @@ export default function App() {
                               <div className="h-3.5 bg-slate-300 dark:bg-zinc-700 rounded-full w-2/3" />
                             </div>
                           ) : (
-                            <textarea
+                            <LagFreeTextArea
                               required
                               rows={3}
                               value={editingItem.data.description || ''}
@@ -14646,7 +14604,7 @@ export default function App() {
                         <label className={`text-[10px] uppercase font-mono font-bold tracking-wider ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
                           Channel Name
                         </label>
-                        <input
+                        <LagFreeInput
                           type="text"
                           required
                           value={editingItem.data.name || ''}
@@ -14667,7 +14625,7 @@ export default function App() {
                         <label className={`text-[10px] uppercase font-mono font-bold tracking-wider ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
                           Handle / Label / Detail
                         </label>
-                        <input
+                        <LagFreeInput
                           type="text"
                           required
                           value={editingItem.data.handle || ''}
@@ -14688,7 +14646,7 @@ export default function App() {
                         <label className={`text-[10px] uppercase font-mono font-bold tracking-wider ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
                           Destination URL Link
                         </label>
-                        <input
+                        <LagFreeInput
                           type="text"
                           required
                           value={editingItem.data.url || ''}
@@ -14738,7 +14696,7 @@ export default function App() {
                           <label className={`text-[10px] uppercase font-mono font-bold tracking-wider ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
                             Status Badge (Optional)
                           </label>
-                          <input
+                          <LagFreeInput
                             type="text"
                             value={editingItem.data.badge || ''}
                             onChange={(ev) => setEditingItem({
@@ -14794,7 +14752,7 @@ export default function App() {
                         <label className={`text-[10px] uppercase font-mono font-bold tracking-wider ${currentTheme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
                           Sort Order (Integer)
                         </label>
-                        <input
+                        <LagFreeInput
                           type="number"
                           required
                           value={typeof editingItem.data.order === 'number' ? editingItem.data.order : 0}
@@ -14817,7 +14775,7 @@ export default function App() {
                     <div className="space-y-3">
                       <div className="space-y-1">
                         <span className="text-slate-400 text-[10px] block uppercase font-bold">License Name / Title:</span>
-                        <input
+                        <LagFreeInput
                           type="text"
                           required
                           value={editingItem.data.name || ''}
@@ -14834,7 +14792,7 @@ export default function App() {
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1">
                           <span className="text-slate-400 text-[10px] block uppercase font-bold">Price Label (e.g., ₹1,500):</span>
-                          <input
+                          <LagFreeInput
                             type="text"
                             required
                             value={editingItem.data.price || ''}
@@ -14849,7 +14807,7 @@ export default function App() {
                         </div>
                         <div className="space-y-1">
                           <span className="text-slate-400 text-[10px] block uppercase font-bold">Badge (e.g., Best Seller):</span>
-                          <input
+                          <LagFreeInput
                             type="text"
                             required
                             value={editingItem.data.badge || ''}
@@ -14866,7 +14824,7 @@ export default function App() {
 
                       <div className="space-y-1">
                         <span className="text-slate-400 text-[10px] block uppercase font-bold">Description:</span>
-                        <textarea
+                        <LagFreeTextArea
                           required
                           rows={3}
                           value={editingItem.data.description || ''}
@@ -14883,7 +14841,7 @@ export default function App() {
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1">
                           <span className="text-slate-400 text-[10px] block uppercase font-bold">License Type:</span>
-                          <input
+                          <LagFreeInput
                             type="text"
                             required
                             value={editingItem.data.licenseType || 'Lifetime License Key'}
@@ -14898,7 +14856,7 @@ export default function App() {
                         </div>
                         <div className="space-y-1">
                           <span className="text-slate-400 text-[10px] block uppercase font-bold">Category:</span>
-                          <input
+                          <LagFreeInput
                             type="text"
                             required
                             value={editingItem.data.category || 'productivity'}
@@ -14925,7 +14883,7 @@ export default function App() {
 
                       <div className="space-y-1">
                         <span className="text-slate-400 text-[10px] block uppercase font-bold">Or enter Image URL:</span>
-                        <input
+                        <LagFreeInput
                           type="text"
                           required
                           value={editingItem.data.imageUrl || ''}
@@ -14941,7 +14899,7 @@ export default function App() {
 
                       <div className="space-y-1">
                         <span className="text-slate-400 text-[10px] block uppercase font-bold">Key Features:</span>
-                        <input
+                        <LagFreeInput
                           type="text"
                           required
                           value={editingItem.data.features || ''}
@@ -14958,7 +14916,7 @@ export default function App() {
 
                       <div className="space-y-1">
                         <span className="text-slate-400 text-[10px] block uppercase font-bold">Compatibility:</span>
-                        <input
+                        <LagFreeInput
                           type="text"
                           required
                           value={editingItem.data.compatibility || ''}
@@ -14975,7 +14933,7 @@ export default function App() {
 
                       <div className="space-y-1">
                         <span className="text-slate-400 text-[10px] block uppercase font-bold">Technical Details / Specifications:</span>
-                        <input
+                        <LagFreeInput
                           type="text"
                           required
                           value={editingItem.data.details || ''}
@@ -14992,7 +14950,7 @@ export default function App() {
 
                       <div className="space-y-1">
                         <span className="text-slate-400 text-[10px] block uppercase font-bold">External / Buy URL (Optional):</span>
-                        <input
+                        <LagFreeInput
                           type="text"
                           value={editingItem.data.url || ''}
                           onChange={(ev) => setEditingItem({
@@ -15199,9 +15157,9 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Pixel Fix Secure Text & File Vault Full-Screen Page Route (/vault) */}
+      {/* Pixel Fix Secure Text & File Vault Full-Screen Modal Popout */}
       <AnimatePresence>
-        {(isVaultOpen || activeTab === 'vault') && (
+        {isVaultOpen && (
           <motion.div
             key="pixelfix-vault-fullscreen"
             initial={{ opacity: 0, scale: 0.99 }}
@@ -15212,11 +15170,12 @@ export default function App() {
           >
             <PixelFixVault
               isOpen={true}
-              onClose={closeVaultPage}
-              onBackToWebsite={closeVaultPage}
+              onClose={() => setIsVaultOpen(false)}
+              onBackToWebsite={() => setIsVaultOpen(false)}
               currentTheme={currentTheme}
-              adminKey={isAuthorized ? adminKeyInput : undefined}
+              adminKey={isAuthorized ? (adminKeyInput || "pixel2025") : undefined}
               isFullScreenPage={true}
+              isEmbeddedTab={false}
             />
           </motion.div>
         )}

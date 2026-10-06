@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { LagFreeInput } from './LagFreeInputs';
 import {
   Lock,
   Unlock,
@@ -384,7 +385,7 @@ export const VaultAdminTab: React.FC<VaultAdminTabProps> = ({
           )}
 
           <form onSubmit={handleAdminVaultLogin} className="space-y-3 text-left">
-            <input
+            <LagFreeInput
               type="password"
               required
               value={adminPassInput}
@@ -439,7 +440,7 @@ export const VaultAdminTab: React.FC<VaultAdminTabProps> = ({
               <form onSubmit={handleChangePassword} className="space-y-3 text-xs font-mono">
                 <div className="space-y-1">
                   <label className="text-zinc-400 block">Current Vault Password</label>
-                  <input
+                  <LagFreeInput
                     type="password"
                     required
                     value={currentPassword}
@@ -452,7 +453,7 @@ export const VaultAdminTab: React.FC<VaultAdminTabProps> = ({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <label className="text-zinc-400 block">New Password (min 6)</label>
-                    <input
+                    <LagFreeInput
                       type="password"
                       required
                       value={newPassword}
@@ -463,7 +464,7 @@ export const VaultAdminTab: React.FC<VaultAdminTabProps> = ({
                   </div>
                   <div className="space-y-1">
                     <label className="text-zinc-400 block">Confirm New Password</label>
-                    <input
+                    <LagFreeInput
                       type="password"
                       required
                       value={confirmPassword}
@@ -498,7 +499,7 @@ export const VaultAdminTab: React.FC<VaultAdminTabProps> = ({
               {/* Add User Form */}
               <form onSubmit={handleAddUser} className="space-y-3 text-xs font-mono">
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  <input
+                  <LagFreeInput
                     type="text"
                     required
                     value={newUserName}
@@ -506,7 +507,7 @@ export const VaultAdminTab: React.FC<VaultAdminTabProps> = ({
                     placeholder="Name (e.g. Ramesh IT)"
                     className="px-3 py-2 rounded-xl bg-black/50 border border-white/10 text-white focus:outline-none focus:border-emerald-500"
                   />
-                  <input
+                  <LagFreeInput
                     type="email"
                     required
                     value={newUserEmail}
@@ -643,7 +644,7 @@ export const VaultAdminTab: React.FC<VaultAdminTabProps> = ({
                 <form onSubmit={handleRenameOrMove} className="space-y-3 text-xs font-mono">
                   <div className="space-y-1">
                     <label className="text-zinc-400 block">File Name</label>
-                    <input
+                    <LagFreeInput
                       type="text"
                       required
                       value={renameInput}
@@ -653,7 +654,7 @@ export const VaultAdminTab: React.FC<VaultAdminTabProps> = ({
                   </div>
                   <div className="space-y-1">
                     <label className="text-zinc-400 block">Folder / Category</label>
-                    <input
+                    <LagFreeInput
                       type="text"
                       required
                       value={moveFolderInput}

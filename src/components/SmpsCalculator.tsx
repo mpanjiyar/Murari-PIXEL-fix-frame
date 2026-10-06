@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { LagFreeInput } from './LagFreeInputs';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Cpu, 
@@ -663,7 +664,7 @@ Please advise on matching cabinetry cable routing, custom cooling loop, and door
                 </label>
 
                 <div className="relative">
-                  <input
+                  <LagFreeInput
                     type="text"
                     value={isCpuOpen ? cpuSearch : (selectedCpu ? selectedCpu.name : '')}
                     onFocus={() => {
@@ -884,7 +885,7 @@ Please advise on matching cabinetry cable routing, custom cooling loop, and door
                 </label>
 
                 <div className="relative">
-                  <input
+                  <LagFreeInput
                     type="text"
                     value={isGpuOpen ? gpuSearch : (selectedGpu ? selectedGpu.name : '')}
                     onFocus={() => {

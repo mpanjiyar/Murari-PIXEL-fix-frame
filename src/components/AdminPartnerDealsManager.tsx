@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { LagFreeInput, LagFreeTextArea } from './LagFreeInputs';
 import { 
   ShoppingBag, Sparkles, RefreshCw, Plus, Edit, Trash2, Eye, EyeOff, 
   ExternalLink, Search, X, Check, AlertCircle, ArrowUpRight, Upload, 
@@ -389,7 +390,7 @@ export const AdminPartnerDealsManager: React.FC<AdminPartnerDealsManagerProps> =
         <div className="flex items-center gap-2 shrink-0">
           <div className="relative flex-1 sm:w-56">
             <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-            <input
+            <LagFreeInput
               type="text"
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
@@ -638,7 +639,7 @@ export const AdminPartnerDealsManager: React.FC<AdminPartnerDealsManagerProps> =
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-2">
-                  <input
+                  <LagFreeInput
                     type="url"
                     required
                     value={formData.url || ''}
@@ -694,7 +695,7 @@ export const AdminPartnerDealsManager: React.FC<AdminPartnerDealsManagerProps> =
                     <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400">
                       Product Title *
                     </label>
-                    <input
+                    <LagFreeInput
                       type="text"
                       required
                       value={formData.title || ''}
@@ -713,7 +714,7 @@ export const AdminPartnerDealsManager: React.FC<AdminPartnerDealsManagerProps> =
                     <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400">
                       Short Description / Recommendation Text
                     </label>
-                    <textarea
+                    <LagFreeTextArea
                       rows={3}
                       value={formData.description || ''}
                       onChange={e => setFormData({ ...formData, description: e.target.value })}
@@ -732,7 +733,7 @@ export const AdminPartnerDealsManager: React.FC<AdminPartnerDealsManagerProps> =
                       <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400">
                         Category Key *
                       </label>
-                      <input
+                      <LagFreeInput
                         type="text"
                         required
                         value={formData.category || ''}
@@ -789,7 +790,7 @@ export const AdminPartnerDealsManager: React.FC<AdminPartnerDealsManagerProps> =
                       <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400">
                         Sale Price
                       </label>
-                      <input
+                      <LagFreeInput
                         type="text"
                         value={formData.price || ''}
                         onChange={e => setFormData({ ...formData, price: e.target.value })}
@@ -804,7 +805,7 @@ export const AdminPartnerDealsManager: React.FC<AdminPartnerDealsManagerProps> =
                       <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400">
                         Original Price
                       </label>
-                      <input
+                      <LagFreeInput
                         type="text"
                         value={formData.originalPrice || ''}
                         onChange={e => setFormData({ ...formData, originalPrice: e.target.value })}
@@ -819,7 +820,7 @@ export const AdminPartnerDealsManager: React.FC<AdminPartnerDealsManagerProps> =
                       <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400">
                         Discount / Promo
                       </label>
-                      <input
+                      <LagFreeInput
                         type="text"
                         value={formData.discountPercentage || formData.discountCode || ''}
                         onChange={e => setFormData({ ...formData, discountPercentage: e.target.value })}
@@ -844,7 +845,7 @@ export const AdminPartnerDealsManager: React.FC<AdminPartnerDealsManagerProps> =
                       onChange={(url) => setFormData({ ...formData, imageUrl: url })}
                     />
 
-                    <input
+                    <LagFreeInput
                       type="url"
                       value={formData.imageUrl || ''}
                       onChange={e => setFormData({ ...formData, imageUrl: e.target.value })}
