@@ -10,6 +10,7 @@ interface LazyImageProps {
   id?: string;
   onError?: () => void;
   style?: React.CSSProperties;
+  isThumbnail?: boolean;
 }
 
 // Global image cache policy to prevent flickering and improve load performance across the gallery and feed
@@ -32,31 +33,57 @@ const getDriveFileId = (url: string): string | null => {
   return null;
 };
 
-const getLowResUrl = (url: string): string | null => {
-  if (!url) return null;
-  
-  // Unsplash image URL optimization
+// Generates WebP optimized Google CDN & Unsplash URLs
+const getOptimizedUrl = (url: string, width = 600): string => {
+  if (!url) return url;
+  const fileId = getDriveFileId(url);
+  if (fileId) {
+    // -rw requests Google CDN automatic WebP format
+    return `https://lh3.googleusercontent.com/d/${fileId}=w${width}-rw`;
+  }
   if (url.includes('images.unsplash.com')) {
     try {
       const urlObj = new URL(url);
-      urlObj.searchParams.set('w', '50');
+      urlObj.searchParams.set('w', String(width));
+      urlObj.searchParams.set('auto', 'format');
+      urlObj.searchParams.set('q', '80');
+      return urlObj.toString();
+    } catch {
+      return `${url}&w=${width}&auto=format&q=80`;
+    }
+  }
+  return url;
+};
+
+const getLowResUrl = (url: string): string | null => {
+  if (!url) return null;
+  const fileId = getDriveFileId(url);
+  if (fileId) {
+    return `https://lh3.googleusercontent.com/d/${fileId}=s60-rw`;
+  }
+  if (url.includes('images.unsplash.com')) {
+    try {
+      const urlObj = new URL(url);
+      urlObj.searchParams.set('w', '40');
       urlObj.searchParams.set('q', '20');
       urlObj.searchParams.set('auto', 'format');
       return urlObj.toString();
-    } catch (e) {
-      return url.replace(/w=\d+/, 'w=50').replace(/q=\d+/, 'q=20');
+    } catch {
+      return `${url}&w=40&q=20`;
     }
   }
-
-  // Google Drive image URL optimization (fetch smaller thumbnail size if possible to prevent main thread blocking)
-  if (url.includes('drive.google.com') || url.includes('docs.google.com') || url.includes('lh3.googleusercontent.com')) {
-    const fileId = getDriveFileId(url);
-    if (fileId) {
-      return `https://lh3.googleusercontent.com/d/${fileId}=s100`;
-    }
-  }
-
   return null;
+};
+
+const getSrcSet = (url: string): string | undefined => {
+  const fileId = getDriveFileId(url);
+  if (fileId) {
+    return `https://lh3.googleusercontent.com/d/${fileId}=w400-rw 400w, https://lh3.googleusercontent.com/d/${fileId}=w600-rw 600w, https://lh3.googleusercontent.com/d/${fileId}=w900-rw 900w`;
+  }
+  if (url.includes('images.unsplash.com')) {
+    return `${getOptimizedUrl(url, 400)} 400w, ${getOptimizedUrl(url, 600)} 600w, ${getOptimizedUrl(url, 900)} 900w`;
+  }
+  return undefined;
 };
 
 // Generates an elegant seed-based background gradient for abstract placeholder colors (blur-up effect)
@@ -101,17 +128,22 @@ export const LazyImage: React.FC<LazyImageProps> = ({
   id,
   onError,
   style,
+  isThumbnail = true,
 }) => {
-  const [isInView, setIsInView] = useState(() => !src || globalImageCache.has(src));
-  const [isLoaded, setIsLoaded] = useState(() => globalImageCache.has(src));
+  const isThumb = isThumbnail;
+  const initialOptimized = isThumb ? getOptimizedUrl(src, 600) : src;
+  const srcSetString = isThumb ? getSrcSet(src) : undefined;
+
+  const [isInView, setIsInView] = useState(() => !src || globalImageCache.has(src) || globalImageCache.has(initialOptimized));
+  const [isLoaded, setIsLoaded] = useState(() => globalImageCache.has(src) || globalImageCache.has(initialOptimized));
   const [hasError, setHasError] = useState(false);
-  const [currentSrc, setCurrentSrc] = useState(src);
+  const [currentSrc, setCurrentSrc] = useState(initialOptimized);
   const [attempt, setAttempt] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const [currentTheme, setCurrentTheme] = useState<'normal' | 'mono' | 'light'>('normal');
   const resolvedLowRes = lowResSrc || getLowResUrl(src);
 
-  // Synchronize and track the theme for loading skeleton aesthetic consistency
+  // Synchronize and track the theme for loading skeleton aesthetic consistency without polling
   useEffect(() => {
     const syncTheme = () => {
       const saved = localStorage.getItem('mp_portfolio_theme_v2') as any;
@@ -121,17 +153,16 @@ export const LazyImage: React.FC<LazyImageProps> = ({
     };
     syncTheme();
     window.addEventListener('storage', syncTheme);
-    const interval = setInterval(syncTheme, 1000);
     return () => {
       window.removeEventListener('storage', syncTheme);
-      clearInterval(interval);
     };
   }, []);
 
   // Sync state with src changes and resolve caching instantaneously
   useEffect(() => {
-    const cached = globalImageCache.has(src);
-    setCurrentSrc(src);
+    const target = isThumb ? getOptimizedUrl(src, 600) : src;
+    const cached = globalImageCache.has(src) || globalImageCache.has(target);
+    setCurrentSrc(target);
     setAttempt(0);
     setIsLoaded(cached);
     setHasError(false);
@@ -140,7 +171,7 @@ export const LazyImage: React.FC<LazyImageProps> = ({
     } else {
       setIsInView(false);
     }
-  }, [src]);
+  }, [src, isThumb]);
 
   // Handle proper Intersection Observer for lazy loading
   useEffect(() => {
@@ -332,6 +363,8 @@ export const LazyImage: React.FC<LazyImageProps> = ({
             <img
               key={currentSrc}
               src={currentSrc}
+              srcSet={srcSetString}
+              sizes={srcSetString ? "(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 400px" : undefined}
               alt={alt}
               decoding="async"
               loading="lazy"

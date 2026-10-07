@@ -314,11 +314,26 @@ async function validateUrl(url: string): Promise<{ valid: boolean; type: string;
   }
 }
 
+// Rate limiting map for Vault authentication: ip -> { attempts, lockedUntil }
+const authRateLimitMap = new Map<string, { attempts: number; lockedUntil: number }>();
+
 // Register Vault API Routes
 export function registerVaultRoutes(app: any) {
-  // 1. Vault Authentication Route
+  // 1. Vault Authentication Route with Brute-Force Rate Limiting
   app.post("/api/vault/auth", (req, res) => {
     try {
+      const clientIp = String(req.ip || req.headers["x-forwarded-for"] || req.socket.remoteAddress || "client_default");
+      const now = Date.now();
+      const rateLimitRecord = authRateLimitMap.get(clientIp);
+
+      if (rateLimitRecord && rateLimitRecord.lockedUntil > now) {
+        const remainingSeconds = Math.ceil((rateLimitRecord.lockedUntil - now) / 1000);
+        return res.status(429).json({
+          success: false,
+          error: `Security lock active due to repeated failed attempts. Please retry in ${remainingSeconds} seconds.`
+        });
+      }
+
       const { password } = req.body || {};
       if (!password || typeof password !== "string") {
         return res.status(400).json({ success: false, error: "Password is required." });
@@ -330,11 +345,25 @@ export function registerVaultRoutes(app: any) {
       const isValid = isMasterKey || verifyPassword(p, authData.salt, authData.hash);
 
       if (!isValid) {
+        const currentAttempts = (rateLimitRecord ? rateLimitRecord.attempts : 0) + 1;
+        if (currentAttempts >= 5) {
+          authRateLimitMap.set(clientIp, { attempts: currentAttempts, lockedUntil: now + 5 * 60 * 1000 });
+          return res.status(429).json({
+            success: false,
+            error: "Too many failed attempts. Security lock activated for 5 minutes."
+          });
+        } else {
+          authRateLimitMap.set(clientIp, { attempts: currentAttempts, lockedUntil: 0 });
+        }
+
         return res.status(403).json({
           success: false,
-          error: "Incorrect Vault password. Access denied."
+          error: `Incorrect Vault password. Access denied. (${5 - currentAttempts} attempts remaining)`
         });
       }
+
+      // Successful authentication clears rate limit
+      authRateLimitMap.delete(clientIp);
 
       // Generate cryptographically secure token
       const token = crypto.randomBytes(32).toString("hex");
@@ -353,6 +382,23 @@ export function registerVaultRoutes(app: any) {
       console.error("[Vault] Auth error:", err);
       return res.status(500).json({ success: false, error: "Internal authentication error." });
     }
+  });
+
+  // 1b. Verify Active Token Route
+  app.get("/api/vault/verify-token", (req, res) => {
+    const authHeader = req.headers.authorization;
+    const token = authHeader && authHeader.startsWith("Bearer ") ? authHeader.substring(7).trim() : "";
+    if (token && activeTokens.has(token)) {
+      const session = activeTokens.get(token)!;
+      if (Date.now() < session.expiresAt) {
+        return res.json({
+          valid: true,
+          expiresIn: Math.round((session.expiresAt - Date.now()) / 1000)
+        });
+      }
+      activeTokens.delete(token);
+    }
+    return res.status(401).json({ valid: false, error: "Session expired or invalid." });
   });
 
   // 2. Lock / Revoke Token Route

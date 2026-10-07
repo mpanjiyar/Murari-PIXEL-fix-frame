@@ -119,20 +119,24 @@ import WhatsAppIcon from './components/WhatsAppIcon';
 import { ImageUploader } from './components/ImageUploader';
 import { ScrollReveal, ScrollRevealText } from './components/ScrollReveal';
 import { LazyImage } from './components/LazyImage';
-import { BeforeAfterSlider } from './components/BeforeAfterSlider';
+import { ComponentLoader } from './components/ComponentLoader';
 import { PixelFrameBackground } from './components/PixelFrameBackground';
 import { PixelFixBackground } from './components/PixelFixBackground';
 import { BiosKeysBackground } from './components/BiosKeysBackground';
-import SmpsCalculator from './components/SmpsCalculator';
-import CoverageMap from './components/CoverageMap';
-import PhotoResizer from './components/PhotoResizer';
 import { ReviewQRCode } from './components/ReviewQRCode';
-import { QRCodeGenerator } from './components/QRCodeGenerator';
-import { PrivacyPolicyPage } from './components/PrivacyPolicyPage';
-import { PixelFixVault } from './components/PixelFixVault';
-import { AdminVaultManager } from './components/AdminVaultManager';
-import { AdminPartnerDealsManager } from './components/AdminPartnerDealsManager';
 import { VaultTriggerButton } from './components/VaultTriggerButton';
+
+// Dynamic code-split lazy loaded components to keep initial bundle ultra-fast & lightweight
+const CoverageMap = React.lazy(() => import('./components/CoverageMap'));
+const SmpsCalculator = React.lazy(() => import('./components/SmpsCalculator'));
+const PhotoResizer = React.lazy(() => import('./components/PhotoResizer'));
+const QRCodeGenerator = React.lazy(() => import('./components/QRCodeGenerator').then(m => ({ default: m.QRCodeGenerator })));
+const PrivacyPolicyPage = React.lazy(() => import('./components/PrivacyPolicyPage').then(m => ({ default: m.PrivacyPolicyPage })));
+const PixelFixVault = React.lazy(() => import('./components/PixelFixVault').then(m => ({ default: m.PixelFixVault })));
+const AdminVaultManager = React.lazy(() => import('./components/AdminVaultManager').then(m => ({ default: m.AdminVaultManager })));
+const AdminPartnerDealsManager = React.lazy(() => import('./components/AdminPartnerDealsManager').then(m => ({ default: m.AdminPartnerDealsManager })));
+const AdminAnalyticsChart = React.lazy(() => import('./components/AdminAnalyticsChart'));
+
 import { initAuth, googleSignIn, googleSignOut } from './lib/driveAuth';
 import { uploadBackupToDrive, listBackupsOnDrive, downloadBackupFromDrive, deleteBackupFromDrive, upsertLiveSyncBackup, getOrCreateFolder, uploadPhotoFileToDrive } from './lib/driveService';
 import type { DriveBackupFile } from './lib/driveService';
@@ -140,18 +144,6 @@ import type { User as FirebaseUser } from 'firebase/auth';
 import { db, OperationType, handleFirestoreError } from './firebase';
 import { collection, doc, setDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
 import { HardDrive, Cloud, LogOut, AlertCircle, FolderOpen, Download, UploadCloud, GripVertical, MousePointerClick, CornerDownRight, Home, Lock, Unlock } from 'lucide-react';
-import {
-  AreaChart,
-  Area,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend
-} from 'recharts';
 
 const hashString = (str: string): number => {
   let hash = 0;
@@ -620,31 +612,38 @@ export default function App() {
     const progressContainer = document.getElementById('affiliate-scroll-progress-container');
     if (progressContainer) progressContainer.classList.remove('hidden');
 
+    let ticking = false;
     const handleScroll = () => {
-      const scrollY = window.scrollY;
-      const docHeight = document.documentElement.scrollHeight - window.innerHeight;
-      
-      const progressBar = document.getElementById('affiliate-scroll-progress-bar');
-      if (progressBar) {
-        if (docHeight > 0) {
-          const progress = (scrollY / docHeight) * 100;
-          progressBar.style.width = `${Math.min(100, Math.max(0, progress))}%`;
-        } else {
-          progressBar.style.width = '0%';
-        }
-      }
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          const scrollY = window.scrollY;
+          const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+          
+          const progressBar = document.getElementById('affiliate-scroll-progress-bar');
+          if (progressBar) {
+            if (docHeight > 0) {
+              const progress = (scrollY / docHeight) * 100;
+              progressBar.style.width = `${Math.min(100, Math.max(0, progress))}%`;
+            } else {
+              progressBar.style.width = '0%';
+            }
+          }
 
-      const bttButton = document.getElementById('affiliate-back-to-top');
-      if (bttButton) {
-        if (scrollY > 300) {
-          bttButton.style.opacity = '1';
-          bttButton.style.pointerEvents = 'auto';
-          bttButton.style.transform = 'translateY(0) scale(1)';
-        } else {
-          bttButton.style.opacity = '0';
-          bttButton.style.pointerEvents = 'none';
-          bttButton.style.transform = 'translateY(20px) scale(0.8)';
-        }
+          const bttButton = document.getElementById('affiliate-back-to-top');
+          if (bttButton) {
+            if (scrollY > 300) {
+              bttButton.style.opacity = '1';
+              bttButton.style.pointerEvents = 'auto';
+              bttButton.style.transform = 'translateY(0) scale(1)';
+            } else {
+              bttButton.style.opacity = '0';
+              bttButton.style.pointerEvents = 'none';
+              bttButton.style.transform = 'translateY(20px) scale(0.8)';
+            }
+          }
+          ticking = false;
+        });
+        ticking = true;
       }
     };
 
@@ -2351,6 +2350,7 @@ export default function App() {
       setAmazonFetchError(errorMessage);
       triggerToast(`Auto-fetch failed: ${errorMessage}`, "error");
     } finally {
+      clearTimeout(timeoutId);
       clearInterval(stepInterval);
       setIsFetchingAmazon(false);
     }
@@ -4413,8 +4413,8 @@ export default function App() {
             </div>
           </div>
 
-          {/* Desktop Theme & Dashboard Controls */}
-          <div className="hidden md:flex items-center gap-4">
+          {/* Desktop Theme Controls */}
+          <div className="hidden md:flex items-center gap-3">
             <div className="flex items-center gap-1.5">
               <span className="text-[10px] uppercase font-bold tracking-widest text-slate-500 hidden xl:inline">Theme:</span>
               <div className={`flex items-center rounded-lg p-0.5 border ${
@@ -4457,7 +4457,7 @@ export default function App() {
             </div>
           </div>
 
-          {/* Mobile hamburger & menu triggers (visible below md) */}
+          {/* Mobile hamburger menu trigger (visible below md) */}
           <div className="flex items-center gap-2 md:hidden">
             {/* Hamburger menu button */}
             <motion.button
@@ -4875,20 +4875,6 @@ export default function App() {
                       <span>Estimate Event Photography</span>
                       <ChevronRight size={14} className="stroke-[3]" />
                     </button>
-                    <button
-                      type="button"
-                      onClick={openVaultPage}
-                      className={`border px-5 sm:px-6 py-3.5 rounded-xl font-extrabold text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2 transition-all duration-200 hover:-translate-y-0.5 cursor-pointer active:scale-95 ${
-                        currentTheme === 'light'
-                          ? 'border-amber-500/40 hover:border-amber-600 text-amber-900 bg-amber-500/10 hover:bg-amber-500/20 shadow-sm'
-                          : 'border-[#FF5500]/40 hover:border-[#FF5500] bg-[#FF5500]/10 hover:bg-[#FF5500]/20 text-white shadow-sm'
-                      }`}
-                      title="Access Pixel Fix Secure Technical Vault"
-                    >
-                      <Lock size={15} className="text-[#FF5500]" />
-                      <span>Pixel Fix Vault</span>
-                      <ChevronRight size={14} className="stroke-[3]" />
-                    </button>
                   </div>
 
                   {/* Trust & Dispatch Speed Micro Badges */}
@@ -4961,9 +4947,9 @@ export default function App() {
                   <div className="flex items-center justify-between px-1">
                     <div className="inline-flex items-center gap-1.5 bg-orange-500/10 border border-orange-500/20 rounded-full px-2.5 py-0.5 text-[9px] text-[#FF5500] font-extrabold tracking-widest uppercase font-mono">
                       <Wrench size={10} className="shrink-0" />
-                      <span>TECH, VISUALS &amp; SECURE VAULT</span>
+                      <span>TECH &amp; VISUAL SERVICES</span>
                     </div>
-                    <span className="text-[10px] font-mono text-slate-400 font-bold">3 Core Capabilities</span>
+                    <span className="text-[10px] font-mono text-slate-400 font-bold">2 Core Divisions</span>
                   </div>
                   <motion.div 
                     initial="hidden"
@@ -5084,60 +5070,6 @@ export default function App() {
                       <ChevronRight size={15} className="group-hover:translate-x-1 transition-transform" />
                     </button>
                   </motion.div>
-
-                  {/* Vault Technical Repository Card */}
-                  <motion.div 
-                    variants={{
-                      hidden: { opacity: 0, x: 25 },
-                      show: { opacity: 1, x: 0, transition: { type: "spring", stiffness: 100, damping: 15 } }
-                    }}
-                    whileHover={{ scale: 1.02, y: -4 }}
-                    className={`p-5 sm:p-6 rounded-2xl border ${s.card} ${s.cardHover} text-left flex flex-col justify-between relative overflow-hidden group shadow-md transition-all duration-300 sm:col-span-2 lg:col-span-1`}
-                  >
-                    {/* Subtle animated background gradient glow */}
-                    <div className="absolute -top-12 -right-12 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl pointer-events-none group-hover:scale-150 transition-transform duration-500" />
-
-                    <div className="space-y-3 relative z-10">
-                      <div className="flex items-center justify-between">
-                        <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500">
-                          <Lock size={20} className="group-hover:rotate-12 transition-transform duration-300" />
-                        </div>
-                        <span className="text-[9px] font-extrabold uppercase px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 tracking-wider">
-                          Zero-Knowledge
-                        </span>
-                      </div>
-
-                      <div>
-                        <h4 className={`font-extrabold uppercase text-[11px] tracking-widest ${currentTheme === 'light' ? 'text-amber-800' : 'text-amber-400'}`}>Pixel Fix Secure Vault</h4>
-                        <h3 className={`text-lg font-black mt-0.5 ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>Encrypted Technical Repository</h3>
-                      </div>
-
-                      <p className={`text-xs leading-relaxed ${s.textMuted}`}>
-                        Store &amp; retrieve encrypted technician field notes, genuine license activation keys, and motherboard diagnostics guides.
-                      </p>
-
-                      <ul className="space-y-1.5 pt-1 text-[11px]">
-                        <li className="flex items-center gap-1.5 text-slate-400">
-                          <CheckCircle2 size={12} className="text-amber-500 shrink-0" />
-                          <span>AES Encrypted PIN/Password Protection</span>
-                        </li>
-                        <li className="flex items-center gap-1.5 text-slate-400">
-                          <CheckCircle2 size={12} className="text-amber-500 shrink-0" />
-                          <span>Instant Search &amp; Offline Document Exports</span>
-                        </li>
-                      </ul>
-                    </div>
-
-                    <button
-                      onClick={openVaultPage}
-                      className={`mt-5 text-xs font-black uppercase flex items-center gap-1.5 hover:text-[#FF5500] justify-start cursor-pointer transition-colors relative z-10 ${
-                        currentTheme === 'light' ? 'text-slate-900' : 'text-white'
-                      }`}
-                    >
-                      <span>Enter Secure Vault</span>
-                      <ChevronRight size={15} className="group-hover:translate-x-1 transition-transform" />
-                    </button>
-                  </motion.div>
                 </motion.div>
                 </div>
               </div>
@@ -5160,19 +5092,12 @@ export default function App() {
                 </ScrollReveal>
 
                 <div className="flex items-center gap-2.5 shrink-0 pt-0.5 sm:pt-1">
-                  <button
-                    type="button"
+                  <VaultTriggerButton
                     onClick={openVaultPage}
-                    className={`px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider flex items-center gap-2 border transition-all cursor-pointer shadow-sm hover:scale-105 active:scale-95 ${
-                      currentTheme === 'light'
-                        ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-900 border-amber-500/30'
-                        : 'bg-[#FF5500]/10 hover:bg-[#FF5500]/20 text-[#FF5500] border-[#FF5500]/30 hover:border-[#FF5500]/60'
-                    }`}
-                    title="Access Pixel Fix Secure Technical Vault"
-                  >
-                    <Lock size={13} className="text-[#FF5500]" />
-                    <span>Pixel Fix Vault</span>
-                  </button>
+                    currentTheme={currentTheme}
+                    tooltipText="Private Vault"
+                    tooltipPosition="bottom"
+                  />
                   {isAuthorized && (
                     <button
                       type="button"
@@ -6282,24 +6207,14 @@ export default function App() {
             {/* Ambient Background with subtle IT hardware/networking animations */}
             <PixelFixBackground currentTheme={currentTheme} />
 
-            {/* Top-Right Corner Premium Vault Trigger Pill */}
+            {/* Top-Right Corner Premium Vault Trigger Icon */}
             <div className="absolute top-3.5 right-3.5 sm:top-5 sm:right-6 md:top-6 md:right-8 z-20">
-              <button
-                type="button"
+              <VaultTriggerButton
                 onClick={openVaultPage}
-                className={`group flex items-center gap-2 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl border text-xs font-black uppercase tracking-wider transition-all duration-300 shadow-lg cursor-pointer hover:scale-105 active:scale-95 ${
-                  currentTheme === 'light'
-                    ? 'bg-white/95 text-slate-800 border-slate-200 hover:border-[#FF5500]/60 hover:text-[#FF5500]'
-                    : 'bg-[#12131d]/90 text-slate-200 border-white/10 hover:border-[#FF5500]/60 hover:text-[#FF5500]'
-                }`}
-                title="Open Pixel Fix Secure Vault"
-              >
-                <div className="w-5 h-5 rounded-md bg-[#FF5500]/15 flex items-center justify-center text-[#FF5500] group-hover:scale-110 transition-transform">
-                  <Lock size={12} />
-                </div>
-                <span className="hidden sm:inline font-mono">Pixel Fix Vault</span>
-                <span className="sm:hidden font-mono">Vault</span>
-              </button>
+                currentTheme={currentTheme}
+                tooltipText="Private Vault"
+                tooltipPosition="bottom"
+              />
             </div>
 
             <div className="relative z-10 space-y-12">
@@ -6336,14 +6251,6 @@ export default function App() {
                 >
                   <Phone size={14} /> <span>Call Support Now</span>
                 </a>
-                <button
-                  type="button"
-                  onClick={openVaultPage}
-                  className="w-full sm:w-auto bg-[#FF5500]/15 hover:bg-[#FF5500]/25 text-[#FF5500] border border-[#FF5500]/40 text-xs uppercase font-extrabold px-5 py-2.5 rounded-lg flex items-center justify-center gap-2 text-center cursor-pointer transition-all duration-200 shadow-sm"
-                  title="Open Pixel Fix Secure Vault"
-                >
-                  <Lock size={14} /> <span>Open Secure Vault</span>
-                </button>
               </div>
             </div>
 
@@ -6453,8 +6360,7 @@ export default function App() {
               {[
                 { id: 'bios', title: 'BIOS Keys Finder', icon: KeyRound },
                 { id: 'beep', title: 'Beep Diagnostician', icon: Volume2 },
-                { id: 'smps', title: 'PSU Wattage Calculator', icon: Zap },
-                { id: 'vault', title: 'Pixel Fix Secure Vault', icon: Lock }
+                { id: 'smps', title: 'PSU Wattage Calculator', icon: Zap }
               ].map(tool => {
                 const ToolIcon = tool.icon;
                 const isActive = activeTab === tool.id;
@@ -6462,12 +6368,8 @@ export default function App() {
                   <button
                     key={tool.id}
                     onClick={() => {
-                      if (tool.id === 'vault') {
-                        openVaultPage();
-                      } else {
-                        setActiveTab(tool.id as any);
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                      }
+                      setActiveTab(tool.id as any);
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
                     }}
                     title={tool.title}
                     className={`group px-4 py-2.5 rounded-xl border transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer flex items-center gap-2 text-xs font-black uppercase tracking-wider ${
@@ -6622,7 +6524,9 @@ export default function App() {
             <PixelFrameBackground currentTheme={currentTheme} />
 
             {/* Compact QR Code Generator */}
-            <QRCodeGenerator currentTheme={currentTheme} triggerToast={triggerToast} />
+            <React.Suspense fallback={null}>
+              <QRCodeGenerator currentTheme={currentTheme} triggerToast={triggerToast} />
+            </React.Suspense>
 
             <div className="relative z-10 space-y-12">
             {/* Header branding */}
@@ -6796,7 +6700,9 @@ export default function App() {
                   className="overflow-hidden mb-6"
                 >
                   <div className="py-2">
-                    <PhotoResizer currentTheme={currentTheme} />
+                    <React.Suspense fallback={<ComponentLoader minHeight="min-h-[300px]" />}>
+                      <PhotoResizer currentTheme={currentTheme} />
+                    </React.Suspense>
                   </div>
                 </motion.div>
               )}
@@ -7524,6 +7430,7 @@ export default function App() {
                                   <video
                                     src={post.videoUrl}
                                     poster={post.imageUrl}
+                                    preload="none"
                                     loop
                                     muted
                                     playsInline
@@ -8648,7 +8555,9 @@ export default function App() {
                   </p>
                 </div>
 
-                <CoverageMap currentTheme={currentTheme} />
+                <React.Suspense fallback={<ComponentLoader minHeight="min-h-[420px]" />}>
+                  <CoverageMap currentTheme={currentTheme} />
+                </React.Suspense>
               </div>
             </ScrollReveal>
 
@@ -10074,7 +9983,9 @@ export default function App() {
 
             {/* SmpsCalculator component wrapper */}
             <div className={`p-1 sm:p-2 md:p-4 rounded-3xl border ${s.card} shadow-lg relative overflow-visible`}>
-              <SmpsCalculator currentTheme={currentTheme} />
+              <React.Suspense fallback={<ComponentLoader minHeight="min-h-[480px]" />}>
+                <SmpsCalculator currentTheme={currentTheme} />
+              </React.Suspense>
             </div>
           </motion.div>
         )}
@@ -10261,59 +10172,63 @@ export default function App() {
 
                 {/* PARTNER DEALS MANAGEMENT DESK */}
                 {adminSubTab === 'deals' && (
-                  <AdminPartnerDealsManager
-                    deals={affiliateLinks}
-                    currentTheme={currentTheme}
-                    onSaveDeal={async (deal) => {
-                      setAffiliateLinks(prev => {
-                        const exists = prev.some(a => a.id === deal.id);
-                        if (exists) {
-                          return prev.map(a => a.id === deal.id ? deal : a);
-                        } else {
-                          return [deal, ...prev];
+                  <React.Suspense fallback={<ComponentLoader />}>
+                    <AdminPartnerDealsManager
+                      deals={affiliateLinks}
+                      currentTheme={currentTheme}
+                      onSaveDeal={async (deal) => {
+                        setAffiliateLinks(prev => {
+                          const exists = prev.some(a => a.id === deal.id);
+                          if (exists) {
+                            return prev.map(a => a.id === deal.id ? deal : a);
+                          } else {
+                            return [deal, ...prev];
+                          }
+                        });
+                        try {
+                          await setDoc(doc(db, 'affiliate_links', deal.id), deal);
+                        } catch (err) {
+                          console.error('Error saving affiliate link to Firestore: ', err);
+                          handleFirestoreError(err, OperationType.WRITE, 'affiliate_links/' + deal.id);
                         }
-                      });
-                      try {
-                        await setDoc(doc(db, 'affiliate_links', deal.id), deal);
-                      } catch (err) {
-                        console.error('Error saving affiliate link to Firestore: ', err);
-                        handleFirestoreError(err, OperationType.WRITE, 'affiliate_links/' + deal.id);
-                      }
-                    }}
-                    onDeleteDeal={async (deal) => {
-                      setAffiliateLinks(prev => prev.filter(a => a.id !== deal.id));
-                      try {
-                        await deleteDoc(doc(db, 'affiliate_links', deal.id));
-                      } catch (err) {
-                        console.error('Error deleting affiliate link from Firestore: ', err);
-                        handleFirestoreError(err, OperationType.DELETE, 'affiliate_links/' + deal.id);
-                      }
-                    }}
-                    onTogglePublish={async (deal) => {
-                      const updated = {
-                        ...deal,
-                        isPublished: deal.isPublished === false ? true : false,
-                        updatedAt: new Date().toISOString()
-                      };
-                      setAffiliateLinks(prev => prev.map(a => a.id === deal.id ? updated : a));
-                      try {
-                        await setDoc(doc(db, 'affiliate_links', deal.id), updated);
-                      } catch (err) {
-                        console.error('Error toggling publish state on Firestore: ', err);
-                        handleFirestoreError(err, OperationType.WRITE, 'affiliate_links/' + deal.id);
-                      }
-                    }}
-                    triggerToast={triggerToast}
-                    triggerConfirm={triggerConfirm}
-                  />
+                      }}
+                      onDeleteDeal={async (deal) => {
+                        setAffiliateLinks(prev => prev.filter(a => a.id !== deal.id));
+                        try {
+                          await deleteDoc(doc(db, 'affiliate_links', deal.id));
+                        } catch (err) {
+                          console.error('Error deleting affiliate link from Firestore: ', err);
+                          handleFirestoreError(err, OperationType.DELETE, 'affiliate_links/' + deal.id);
+                        }
+                      }}
+                      onTogglePublish={async (deal) => {
+                        const updated = {
+                          ...deal,
+                          isPublished: deal.isPublished === false ? true : false,
+                          updatedAt: new Date().toISOString()
+                        };
+                        setAffiliateLinks(prev => prev.map(a => a.id === deal.id ? updated : a));
+                        try {
+                          await setDoc(doc(db, 'affiliate_links', deal.id), updated);
+                        } catch (err) {
+                          console.error('Error toggling publish state on Firestore: ', err);
+                          handleFirestoreError(err, OperationType.WRITE, 'affiliate_links/' + deal.id);
+                        }
+                      }}
+                      triggerToast={triggerToast}
+                      triggerConfirm={triggerConfirm}
+                    />
+                  </React.Suspense>
                 )}
 
                 {/* PIXEL FIX SECURE VAULT CONTROL DESK */}
                 {adminSubTab === 'vault' && (
-                  <AdminVaultManager
-                    adminKey={adminKeyInput || "pixel2025"}
-                    currentTheme={currentTheme}
-                  />
+                  <React.Suspense fallback={<ComponentLoader />}>
+                    <AdminVaultManager
+                      adminKey={adminKeyInput || "pixel2025"}
+                      currentTheme={currentTheme}
+                    />
+                  </React.Suspense>
                 )}
 
                 {/* GLOBAL MEDIA HUB / IMAGE MANAGER */}
@@ -11125,54 +11040,14 @@ export default function App() {
                           viewport={{ once: true, margin: "-20px" }}
                           transition={{ duration: 0.6, ease: "easeOut" }}
                         >
-                          <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={d30} margin={{ top: 5, right: 10, left: -28, bottom: 0 }}>
-                              <defs>
-                                <linearGradient id="clickGradientTotal" x1="0" y1="0" x2="0" y2="1">
-                                  <stop offset="5%" stopColor="#FF5500" stopOpacity={0.2}/>
-                                  <stop offset="95%" stopColor="#FF5500" stopOpacity={0}/>
-                                </linearGradient>
-                                <linearGradient id="clickGradientUnique" x1="0" y1="0" x2="0" y2="1">
-                                  <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.2}/>
-                                  <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
-                                </linearGradient>
-                              </defs>
-                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={currentTheme === 'light' ? '#f1f5f9' : '#1e293b'} />
-                              <XAxis 
-                                dataKey="label" 
-                                tick={{ fill: currentTheme === 'light' ? '#64748b' : '#94a3b8', fontSize: 8 }}
-                                tickLine={false}
-                                axisLine={false}
-                              />
-                              <YAxis 
-                                tick={{ fill: currentTheme === 'light' ? '#64748b' : '#94a3b8', fontSize: 8 }}
-                                tickLine={false}
-                                axisLine={false}
-                              />
-                              <Tooltip 
-                                contentStyle={{ 
-                                  backgroundColor: currentTheme === 'light' ? '#ffffff' : '#0f172a', 
-                                  borderColor: currentTheme === 'light' ? '#e2e8f0' : '#1e293b',
-                                  borderRadius: '8px',
-                                  color: currentTheme === 'light' ? '#0f172a' : '#ffffff',
-                                  fontSize: '10px',
-                                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)'
-                                }}
-                                labelStyle={{ fontWeight: 'bold', color: primaryColor, marginBottom: '2px' }}
-                                itemStyle={{ color: currentTheme === 'light' ? '#0f172a' : '#ffffff', padding: 0 }}
-                              />
-                              <Area 
-                                type="monotone" 
-                                dataKey="clicks" 
-                                name={analyticsMetric === 'unique' ? 'Unique Clicks' : 'Total Clicks'}
-                                stroke={primaryColor} 
-                                strokeWidth={1.8}
-                                fillOpacity={1} 
-                                fill={analyticsMetric === 'unique' ? 'url(#clickGradientUnique)' : 'url(#clickGradientTotal)'} 
-                                activeDot={{ r: 4, strokeWidth: 0, fill: primaryColor }}
-                              />
-                            </AreaChart>
-                          </ResponsiveContainer>
+                          <React.Suspense fallback={<ComponentLoader minHeight="min-h-[110px]" />}>
+                            <AdminAnalyticsChart
+                              data={d30}
+                              currentTheme={currentTheme}
+                              primaryColor={primaryColor}
+                              analyticsMetric={analyticsMetric}
+                            />
+                          </React.Suspense>
                         </motion.div>
                       </div>
                     );
@@ -12712,19 +12587,21 @@ export default function App() {
             exit={{ opacity: 0, y: -15 }}
             transition={{ duration: 0.3 }}
           >
-            <PrivacyPolicyPage
-              currentTheme={currentTheme}
-              onNavigateHome={() => {
-                setActiveTab('home');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              onNavigateContact={() => {
-                setActiveTab('contact');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              contactPhoneIt={contactPhoneIt}
-              contactPhonePhotos={contactPhonePhotos}
-            />
+            <React.Suspense fallback={<ComponentLoader />}>
+              <PrivacyPolicyPage
+                currentTheme={currentTheme}
+                onNavigateHome={() => {
+                  setActiveTab('home');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                onNavigateContact={() => {
+                  setActiveTab('contact');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                contactPhoneIt={contactPhoneIt}
+                contactPhonePhotos={contactPhonePhotos}
+              />
+            </React.Suspense>
           </motion.div>
         )}
 
@@ -12738,21 +12615,23 @@ export default function App() {
             transition={{ type: "spring", stiffness: 180, damping: 20 }}
             className="w-full"
           >
-            <PixelFixVault
-              isOpen={true}
-              onClose={() => {
-                setActiveTab('home');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              onBackToWebsite={() => {
-                setActiveTab('home');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              currentTheme={currentTheme}
-              adminKey={isAuthorized ? (adminKeyInput || "pixel2025") : undefined}
-              isFullScreenPage={false}
-              isEmbeddedTab={true}
-            />
+            <React.Suspense fallback={<ComponentLoader />}>
+              <PixelFixVault
+                isOpen={true}
+                onClose={() => {
+                  setActiveTab('home');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                onBackToWebsite={() => {
+                  setActiveTab('home');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                currentTheme={currentTheme}
+                adminKey={isAuthorized ? (adminKeyInput || "pixel2025") : undefined}
+                isFullScreenPage={false}
+                isEmbeddedTab={true}
+              />
+            </React.Suspense>
           </motion.div>
         )}
         </AnimatePresence>
@@ -15286,25 +15165,27 @@ export default function App() {
             transition={{ duration: 0.2 }}
             className="fixed inset-0 z-[100] overflow-y-auto bg-[#0a0b12]"
           >
-            <PixelFixVault
-              isOpen={true}
-              onClose={() => {
-                setIsVaultOpen(false);
-                if (activeTab === 'vault') {
-                  setActiveTab('home');
-                }
-              }}
-              onBackToWebsite={() => {
-                setIsVaultOpen(false);
-                if (activeTab === 'vault') {
-                  setActiveTab('home');
-                }
-              }}
-              currentTheme={currentTheme}
-              adminKey={isAuthorized ? (adminKeyInput || "pixel2025") : undefined}
-              isFullScreenPage={true}
-              isEmbeddedTab={false}
-            />
+            <React.Suspense fallback={<ComponentLoader />}>
+              <PixelFixVault
+                isOpen={true}
+                onClose={() => {
+                  setIsVaultOpen(false);
+                  if (activeTab === 'vault') {
+                    setActiveTab('home');
+                  }
+                }}
+                onBackToWebsite={() => {
+                  setIsVaultOpen(false);
+                  if (activeTab === 'vault') {
+                    setActiveTab('home');
+                  }
+                }}
+                currentTheme={currentTheme}
+                adminKey={isAuthorized ? (adminKeyInput || "pixel2025") : undefined}
+                isFullScreenPage={true}
+                isEmbeddedTab={false}
+              />
+            </React.Suspense>
           </motion.div>
         )}
       </AnimatePresence>

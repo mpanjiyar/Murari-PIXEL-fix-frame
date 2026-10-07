@@ -140,16 +140,33 @@ export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
     return sessionStorage.getItem('pixelfix_vault_token') || null;
   });
 
-  // User Permissions: Admin has full write access; Guest/Client has view + download
+  // User Permissions: Admin has full write access; Authorized users have view/download/edit
   const canEditAndUpload = Boolean(token || isAuthorizedAdmin);
-  const [isGuestMode, setIsGuestMode] = useState<boolean>(true);
 
-  // Auto-sync token if adminKey becomes available
+  // Auto-sync token if adminKey becomes available, or verify stored session token
   useEffect(() => {
     if (isAuthorizedAdmin && !token) {
       setToken('admin_master_token');
+      return;
     }
-  }, [isAuthorizedAdmin]);
+
+    const storedToken = sessionStorage.getItem('pixelfix_vault_token');
+    if (storedToken && storedToken !== 'admin_master_token') {
+      fetch('/api/vault/verify-token', {
+        headers: { Authorization: `Bearer ${storedToken}` }
+      })
+        .then((res) => {
+          if (!res.ok) {
+            sessionStorage.removeItem('pixelfix_vault_token');
+            setToken(null);
+            setItems([]);
+          }
+        })
+        .catch(() => {
+          // If network failed, verify on next interaction
+        });
+    }
+  }, [isAuthorizedAdmin, token]);
 
   // Auth States
   const [passwordInput, setPasswordInput] = useState('');
@@ -157,8 +174,11 @@ export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
-  // Real-Time Data States
-  const [items, setItems] = useState<VaultItem[]>(INITIAL_KNOWLEDGE_DOCS);
+  // Real-Time Data States (Protected - only populated when authenticated)
+  const [items, setItems] = useState<VaultItem[]>(() => {
+    const hasInitialAuth = isAuthorizedAdmin || Boolean(sessionStorage.getItem('pixelfix_vault_token'));
+    return hasInitialAuth ? INITIAL_KNOWLEDGE_DOCS : [];
+  });
   const [folders, setFolders] = useState<VaultFolder[]>(KNOWLEDGE_BASE_FOLDERS);
   const [technicalLinks, setTechnicalLinks] = useState<VaultLinkItem[]>(INITIAL_TECHNICAL_LINKS);
   const [syncStatus, setSyncStatus] = useState<'connected' | 'connecting' | 'offline' | 'syncing'>('connecting');
@@ -307,6 +327,7 @@ export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
       const sessionToken = data.token || 'vault_auth_token_' + Date.now();
       sessionStorage.setItem('pixelfix_vault_token', sessionToken);
       setToken(sessionToken);
+      setItems(INITIAL_KNOWLEDGE_DOCS);
       setPasswordInput('');
       setAuthError(null);
       showToast('Vault authenticated & unlocked successfully.');
@@ -336,7 +357,7 @@ export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
     }
     sessionStorage.removeItem('pixelfix_vault_token');
     setToken(null);
-    setIsGuestMode(true);
+    setItems([]);
     setActiveModal('none');
     setSelectedItem(null);
     setUnlockedProtectedFiles({});
@@ -1218,23 +1239,13 @@ export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
               <button
                 type="button"
                 onClick={handleLockVault}
-                title="Lock Vault Workspace"
-                className="px-2.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 text-xs font-mono flex items-center gap-1.5 cursor-pointer transition-colors"
+                title="Lock & Exit Vault"
+                className="px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 hover:text-white border border-rose-500/20 text-xs font-mono flex items-center gap-1.5 cursor-pointer transition-colors shadow-xs"
               >
-                <Lock size={13} className="text-[#FF5500]" />
-                <span className="hidden md:inline">Lock Workspace</span>
+                <Lock size={13} className="text-rose-400" />
+                <span>Lock &amp; Exit</span>
               </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setIsGuestMode(false)}
-                title="Unlock Admin Privileges"
-                className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#FF5500] to-[#E04400] hover:from-[#FF4400] hover:to-[#CC3300] text-white text-xs font-mono font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-sm"
-              >
-                <Unlock size={13} />
-                <span>Admin Login</span>
-              </button>
-            )}
+            ) : null}
 
             {!isFullScreenPage && (
               <button
@@ -1250,9 +1261,9 @@ export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
         </header>
 
         {/* WORKSPACE BODY */}
-        {!token && !isAuthorizedAdmin && !isGuestMode ? (
+        {!token && !isAuthorizedAdmin ? (
           /* ========================================================= */
-          /* AUTHENTICATOR VIEW (CLEAN, NO RECOVERY, ZERO DEBUG TEXT)   */
+          /* AUTHENTICATOR VIEW (AUTHENTICATED ACCESS ONLY)            */
           /* ========================================================= */
           <div className="flex-1 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
             <motion.div
@@ -1267,10 +1278,10 @@ export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
                 </div>
                 <div>
                   <h2 className="text-xl sm:text-2xl font-black uppercase text-white font-mono tracking-tight">
-                    Vault Authenticator
+                    Private Vault Access
                   </h2>
                   <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                    Enter the authorized cryptographic passcode to unlock the Pixel Fix technical knowledge base and private file workspace.
+                    Authentication is required to access private client media, software licenses, and encrypted technical records.
                   </p>
                 </div>
               </div>
@@ -1332,21 +1343,18 @@ export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
                   ) : (
                     <>
                       <Unlock size={15} />
-                      <span>Unlock Vault Workspace</span>
+                      <span>Unlock Private Vault</span>
                     </>
                   )}
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => {
-                    setIsGuestMode(true);
-                    setAuthError(null);
-                  }}
+                  onClick={onBackToWebsite || onClose}
                   className="w-full py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-xs font-mono font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer border border-white/10"
                 >
-                  <BookOpen size={14} className="text-[#FF5500]" />
-                  <span>Browse Technical Knowledge Base (Guest Mode)</span>
+                  <ArrowLeft size={14} />
+                  <span>Return to Public Website</span>
                 </button>
               </form>
 
@@ -1355,7 +1363,7 @@ export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
                   <ShieldCheck size={12} className="text-[#FF5500]" />
                   Protected Session Auth
                 </span>
-                <span>Server Scrypt Verified</span>
+                <span>Scrypt 256-Bit Hash</span>
               </div>
             </motion.div>
           </div>
