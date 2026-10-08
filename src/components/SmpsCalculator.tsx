@@ -37,12 +37,12 @@ import {
 import WhatsAppIcon from './WhatsAppIcon';
 
 interface SmpsCalculatorProps {
-  currentTheme: 'light' | 'dark' | 'mono';
+  currentTheme?: 'light' | 'dark' | 'mono' | 'normal' | string;
 }
 
-export default function SmpsCalculator({ currentTheme }: SmpsCalculatorProps) {
+export default function SmpsCalculator({ currentTheme = 'normal' }: SmpsCalculatorProps) {
   // Theme helpers
-  const isDark = currentTheme === 'dark' || currentTheme === 'mono';
+  const isDark = currentTheme === 'dark' || currentTheme === 'mono' || currentTheme === 'normal';
   const isMono = currentTheme === 'mono';
 
   // 1. Processors (CPU) State

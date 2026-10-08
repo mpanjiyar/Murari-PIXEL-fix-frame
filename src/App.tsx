@@ -498,7 +498,7 @@ const slideVariants = {
 };
 
 const slideTransition = {
-  type: "spring",
+  type: "spring" as const,
   stiffness: 300,
   damping: 30,
 };
@@ -543,6 +543,7 @@ export default function App() {
   // Full-Screen Vault Route Navigators
   const openVaultPage = useCallback(() => {
     setActiveTab('vault');
+    setIsVaultOpen(false);
     if (window.location.hash !== '#vault') {
       window.history.pushState(null, '', '/#vault');
     }
@@ -2382,7 +2383,7 @@ export default function App() {
   const [isAuthorized, setIsAuthorized] = useState(() => {
     return localStorage.getItem('mp_admin_authorized') === 'true';
   });
-  const [adminSubTab, setAdminSubTab] = useState<'overview' | 'media' | 'gallery' | 'inquiries' | 'instagram' | 'branding' | 'vault'>('overview');
+  const [adminSubTab, setAdminSubTab] = useState<'overview' | 'media' | 'gallery' | 'inquiries' | 'instagram' | 'branding' | 'vault' | 'deals'>('overview');
   const [draftLogoUrl, setDraftLogoUrl] = useState<string>('');
   const [draftFaviconUrl, setDraftFaviconUrl] = useState<string>('');
 
@@ -2898,6 +2899,7 @@ export default function App() {
       // Check if accessing full-screen vault route directly via /vault or /vault/ or #vault
       if (pathname === '/vault' || pathname === '/vault/' || hash === 'vault') {
         setActiveTab('vault');
+        setIsVaultOpen(false);
         return;
       }
 
@@ -2928,9 +2930,9 @@ export default function App() {
           window.history.pushState(null, '', '/admin');
         }
       } else if (activeTab === 'vault') {
-        setIsVaultOpen(true);
-        if (window.location.pathname !== '/vault') {
-          window.history.pushState(null, '', '/vault');
+        setIsVaultOpen(false);
+        if (window.location.pathname !== '/vault' && window.location.hash !== '#vault') {
+          window.history.pushState(null, '', '/#vault');
         }
       } else {
         const currentHash = window.location.hash.replace('#', '');
@@ -4436,7 +4438,7 @@ export default function App() {
                   title="Noir Monochrome"
                   className={`p-1.5 rounded-md text-xs transition-all cursor-pointer ${
                     currentTheme === 'mono' 
-                      ? currentTheme === 'light' ? 'bg-slate-900 text-white' : 'bg-zinc-800 text-white'
+                      ? 'bg-zinc-800 text-white'
                       : 'text-slate-500 hover:text-slate-300 dark:hover:text-white'
                   }`}
                 >
@@ -4654,7 +4656,7 @@ export default function App() {
                       onClick={() => setCurrentTheme('mono')}
                       className={`py-1.5 rounded-md text-[10px] font-bold uppercase transition-all flex items-center justify-center gap-1 cursor-pointer ${
                         currentTheme === 'mono'
-                          ? currentTheme === 'light' ? 'bg-slate-900 text-white' : 'bg-white text-black font-bold'
+                          ? 'bg-white text-black font-bold'
                           : 'text-slate-500 hover:text-slate-300'
                       }`}
                     >
@@ -12627,7 +12629,7 @@ export default function App() {
                   window.scrollTo({ top: 0, behavior: 'smooth' });
                 }}
                 currentTheme={currentTheme}
-                adminKey={isAuthorized ? (adminKeyInput || "pixel2025") : undefined}
+                adminKey={isAuthorized ? (adminKeyInput || "Dispur123@") : undefined}
                 isFullScreenPage={false}
                 isEmbeddedTab={true}
               />
@@ -15156,7 +15158,7 @@ export default function App() {
 
       {/* Pixel Fix Secure Text & File Vault Full-Screen Modal Popout */}
       <AnimatePresence>
-        {isVaultOpen && (
+        {isVaultOpen && activeTab !== 'vault' && (
           <motion.div
             key="pixelfix-vault-fullscreen"
             initial={{ opacity: 0, scale: 0.99 }}
@@ -15170,18 +15172,12 @@ export default function App() {
                 isOpen={true}
                 onClose={() => {
                   setIsVaultOpen(false);
-                  if (activeTab === 'vault') {
-                    setActiveTab('home');
-                  }
                 }}
                 onBackToWebsite={() => {
                   setIsVaultOpen(false);
-                  if (activeTab === 'vault') {
-                    setActiveTab('home');
-                  }
                 }}
                 currentTheme={currentTheme}
-                adminKey={isAuthorized ? (adminKeyInput || "pixel2025") : undefined}
+                adminKey={isAuthorized ? (adminKeyInput || "Dispur123@") : undefined}
                 isFullScreenPage={true}
                 isEmbeddedTab={false}
               />

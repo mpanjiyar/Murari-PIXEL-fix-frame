@@ -4,7 +4,7 @@ import { Upload, X, AlertCircle } from 'lucide-react';
 interface ImageUploaderProps {
   value: string;
   onChange: (base64Url: string) => void;
-  currentTheme: 'light' | 'dark';
+  currentTheme?: 'light' | 'dark' | 'normal' | 'mono' | string;
   label?: string;
 }
 

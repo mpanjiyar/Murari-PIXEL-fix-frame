@@ -127,6 +127,7 @@ export interface VaultItem {
   content?: string;
   links?: VaultLink[];
   sizeBytes: number;
+  size?: number;
   createdAt: string;
   updatedAt: string;
   createdBy: string;
@@ -138,6 +139,8 @@ export interface VaultItem {
 export interface VaultAuthorizedUser {
   id: string;
   username: string;
+  name?: string;
+  email?: string;
   role: string;
   createdAt: string;
   lastLogin?: string;

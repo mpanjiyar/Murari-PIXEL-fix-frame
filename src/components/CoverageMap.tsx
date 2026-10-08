@@ -43,7 +43,7 @@ const LOCALITY_DATA: Record<string, LocalityInfo> = {
 };
 
 interface CoverageMapProps {
-  currentTheme: 'light' | 'dark';
+  currentTheme?: 'light' | 'dark' | 'normal' | 'mono' | string;
 }
 
 export default function CoverageMap({ currentTheme }: CoverageMapProps) {

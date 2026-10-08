@@ -9,6 +9,7 @@ interface ScrollRevealProps {
   duration?: number;
   once?: boolean;
   threshold?: number;
+  onClick?: () => void;
 }
 
 export const ScrollReveal: React.FC<ScrollRevealProps> = ({
@@ -19,6 +20,7 @@ export const ScrollReveal: React.FC<ScrollRevealProps> = ({
   duration = 0.5,
   once = true,
   threshold = 0.1,
+  onClick,
 }) => {
   const getVariants = () => {
     switch (variant) {
@@ -27,7 +29,7 @@ export const ScrollReveal: React.FC<ScrollRevealProps> = ({
           hidden: { opacity: 0 },
           visible: {
             opacity: 1,
-            transition: { duration, ease: [0.25, 0.1, 0.25, 1], delay },
+            transition: { duration, ease: [0.25, 0.1, 0.25, 1] as const, delay },
           },
         };
       case 'scale-up':
@@ -37,7 +39,7 @@ export const ScrollReveal: React.FC<ScrollRevealProps> = ({
             opacity: 1,
             scale: 1,
             transition: {
-              type: 'spring',
+              type: 'spring' as const,
               stiffness: 100,
               damping: 15,
               delay,
@@ -51,7 +53,7 @@ export const ScrollReveal: React.FC<ScrollRevealProps> = ({
             opacity: 1,
             x: 0,
             transition: {
-              type: 'spring',
+              type: 'spring' as const,
               stiffness: 100,
               damping: 15,
               delay,
@@ -65,7 +67,7 @@ export const ScrollReveal: React.FC<ScrollRevealProps> = ({
             opacity: 1,
             x: 0,
             transition: {
-              type: 'spring',
+              type: 'spring' as const,
               stiffness: 100,
               damping: 15,
               delay,
@@ -78,7 +80,7 @@ export const ScrollReveal: React.FC<ScrollRevealProps> = ({
           visible: {
             clipPath: 'inset(0% 0% 0% 0%)',
             opacity: 1,
-            transition: { duration: duration * 1.5, ease: [0.16, 1, 0.3, 1], delay },
+            transition: { duration: duration * 1.5, ease: [0.16, 1, 0.3, 1] as const, delay },
           },
         };
       case 'slide-in-up':
@@ -88,7 +90,7 @@ export const ScrollReveal: React.FC<ScrollRevealProps> = ({
             opacity: 1,
             y: 0,
             transition: {
-              type: 'spring',
+              type: 'spring' as const,
               stiffness: 80,
               damping: 20,
               delay,
@@ -103,7 +105,7 @@ export const ScrollReveal: React.FC<ScrollRevealProps> = ({
             opacity: 1,
             y: 0,
             transition: {
-              type: 'spring',
+              type: 'spring' as const,
               stiffness: 100,
               damping: 16,
               delay,
@@ -121,6 +123,7 @@ export const ScrollReveal: React.FC<ScrollRevealProps> = ({
       variants={getVariants()}
       className={className}
       style={{ willChange: 'transform, opacity' }}
+      onClick={onClick}
     >
       {children}
     </motion.div>
@@ -164,7 +167,7 @@ export const ScrollRevealText: React.FC<ScrollRevealTextProps> = ({
       y: 0,
       transition: {
         duration: 0.5,
-        ease: [0.25, 0.1, 0.25, 1],
+        ease: [0.25, 0.1, 0.25, 1] as const,
       },
     },
   };

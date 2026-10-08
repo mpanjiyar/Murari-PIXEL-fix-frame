@@ -544,8 +544,8 @@ export const VaultAdminTab: React.FC<VaultAdminTabProps> = ({
                     className="p-2.5 rounded-xl bg-black/40 border border-white/5 flex items-center justify-between text-xs font-mono"
                   >
                     <div>
-                      <span className="font-bold text-white block">{u.name}</span>
-                      <span className="text-[10px] text-zinc-500">{u.email}</span>
+                      <span className="font-bold text-white block">{u.name || u.username}</span>
+                      <span className="text-[10px] text-zinc-500">{u.email || u.username}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-[9px] uppercase px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">
@@ -554,7 +554,7 @@ export const VaultAdminTab: React.FC<VaultAdminTabProps> = ({
                       {users.length > 1 && u.role !== 'admin' && (
                         <button
                           type="button"
-                          onClick={() => handleDeleteUser(u.id, u.name)}
+                          onClick={() => handleDeleteUser(u.id, u.name || u.username)}
                           className="text-zinc-500 hover:text-rose-400 p-1"
                           title="Revoke access"
                         >
@@ -603,7 +603,7 @@ export const VaultAdminTab: React.FC<VaultAdminTabProps> = ({
                           {it.fileType}
                         </span>
                       </td>
-                      <td className="py-3 px-3 text-zinc-400">{formatBytes(it.size)}</td>
+                      <td className="py-3 px-3 text-zinc-400">{formatBytes(it.sizeBytes || Number(it.size) || 0)}</td>
                       <td className="py-3 px-3 text-zinc-500">{formatDate(it.updatedAt)}</td>
                       <td className="py-3 px-3 text-right">
                         <div className="flex items-center justify-end gap-1.5">

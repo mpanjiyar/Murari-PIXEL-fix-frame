@@ -80,7 +80,7 @@ export const ReviewQRCode: React.FC<ReviewQRCodeProps> = ({
       opacity: 1,
       scale: 1,
       transition: {
-        type: "spring",
+        type: "spring" as const,
         stiffness: 100,
         damping: 20,
         staggerChildren: 0.15,
@@ -96,7 +96,7 @@ export const ReviewQRCode: React.FC<ReviewQRCodeProps> = ({
       opacity: 1,
       y: 0,
       transition: {
-        type: "spring",
+        type: "spring" as const,
         stiffness: 80,
         damping: 15
       }
@@ -109,7 +109,7 @@ export const ReviewQRCode: React.FC<ReviewQRCodeProps> = ({
       scale: 1,
       opacity: 1,
       transition: {
-        type: "spring",
+        type: "spring" as const,
         stiffness: 110,
         damping: 14
       }
@@ -134,7 +134,7 @@ export const ReviewQRCode: React.FC<ReviewQRCodeProps> = ({
       opacity: 1,
       y: 0,
       transition: {
-        type: "spring",
+        type: "spring" as const,
         stiffness: 140,
         damping: 12
       }
@@ -160,7 +160,7 @@ export const ReviewQRCode: React.FC<ReviewQRCodeProps> = ({
       whileHover={{
         y: -8,
         scale: 1.03,
-        transition: { type: "spring", stiffness: 300, damping: 20 }
+        transition: { type: "spring" as const, stiffness: 300, damping: 20 }
       }}
     >
       <motion.div 
