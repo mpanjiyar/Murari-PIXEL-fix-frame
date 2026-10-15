@@ -182,3 +182,39 @@ html {
   }
 }
 
+/* 
+ * LEAFLET MAP CLARITY & RENDERING FIXES
+ * Prevents Tailwind preflight from distorting tiles and ensures crisp display
+ */
+.leaflet-container {
+  width: 100% !important;
+  height: 100% !important;
+  font-family: inherit !important;
+  z-index: 1;
+}
+
+.leaflet-container img,
+.leaflet-tile {
+  max-width: none !important;
+  max-height: none !important;
+  width: auto;
+  height: auto;
+  image-rendering: auto;
+}
+
+.leaflet-tile-container {
+  pointer-events: auto;
+}
+
+.custom-leaflet-marker-clean {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.leaflet-popup-content-wrapper {
+  border-radius: 14px !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.3) !important;
+}
+
+

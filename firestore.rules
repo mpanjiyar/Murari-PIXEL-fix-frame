@@ -221,5 +221,21 @@ service cloud.firestore {
       allow update: if isValidId(configId) && isValidHomepageConfig(incoming());
       allow delete: if isValidId(configId);
     }
+
+    // Collection: Reels Orders (150K Mega Reels & Shorts Pack)
+    match /reels_orders/{orderId} {
+      allow read: if isValidId(orderId);
+      allow create: if isValidId(orderId);
+      allow update: if isValidId(orderId);
+      allow delete: if false; // Orders cannot be deleted to preserve digital entitlement & audit trail
+    }
+
+    // Collection: Admin Notifications (Alerts for Murari Panjiyar)
+    match /admin_notifications/{notificationId} {
+      allow read: if isValidId(notificationId);
+      allow create: if isValidId(notificationId);
+      allow update: if isValidId(notificationId);
+      allow delete: if isValidId(notificationId);
+    }
   }
 }

@@ -189,9 +189,66 @@
         "order": { "type": "integer" }
       },
       "required": ["id", "name", "url", "category"]
+    },
+    "ReelOrder": {
+      "title": "ReelOrder",
+      "description": "Customer purchase order and digital entitlement record for the 150K+ Reels Pack.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "productId": { "type": "string" },
+        "productName": { "type": "string" },
+        "campaign": { "type": "string" },
+        "amount": { "type": "number" },
+        "currency": { "type": "string" },
+        "customerName": { "type": "string" },
+        "customerPhone": { "type": "string" },
+        "status": { "type": "string" },
+        "paymentMethod": { "type": "string" },
+        "upiId": { "type": "string" },
+        "receiverName": { "type": "string" },
+        "utrReference": { "type": "string" },
+        "submittedAt": { "type": "string" },
+        "approvedAt": { "type": "string" },
+        "rejectedAt": { "type": "string" },
+        "reviewedByAdminId": { "type": "string" },
+        "rejectionReason": { "type": "string" },
+        "downloadToken": { "type": "string" },
+        "downloadExpiresAt": { "type": "integer" },
+        "downloadCount": { "type": "integer" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "amount", "currency", "status"]
+    },
+    "AdminNotification": {
+      "title": "AdminNotification",
+      "description": "Administrative alerts for Murari Panjiyar regarding new manual payment requests, failed webhooks, and system warnings.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string" },
+        "severity": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "relatedOrderId": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "readAt": { "type": "string" },
+        "resolvedAt": { "type": "string" },
+        "eventFingerprint": { "type": "string" }
+      },
+      "required": ["id", "type", "severity", "title", "message", "createdAt"]
     }
   },
   "firestore": {
+    "/reels_orders/{orderId}": {
+      "schema": "ReelOrder",
+      "description": "Collection of purchase orders and download entitlements for the 150K Reels & Shorts Pack."
+    },
+    "/admin_notifications/{notificationId}": {
+      "schema": "AdminNotification",
+      "description": "Real-time alerts for Murari Panjiyar regarding manual payments and system events."
+    },
     "/vault_items/{itemId}": {
       "schema": "VaultItem",
       "description": "Encrypted and secured Pixel Fix Vault documents synchronized across devices in real time."

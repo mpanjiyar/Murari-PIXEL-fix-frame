@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { AffiliateLink } from '../types';
 import { ImageUploader } from './ImageUploader';
+import { getCategoryBadgeLabel } from './PartnerDealCard';
 
 interface AdminPartnerDealsManagerProps {
   deals: AffiliateLink[];
@@ -66,12 +67,63 @@ export const AdminPartnerDealsManager: React.FC<AdminPartnerDealsManagerProps> =
     { key: 'my_gears', label: 'My Daily Gear (Star)' },
   ];
 
+  // Helper to thoroughly clean product titles from Flipkart and Amazon noise
+  const cleanProductTitle = (raw: string): string => {
+    if (!raw) return '';
+    let clean = raw.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    clean = clean
+      .replace(/^(?:Amazon\.(?:in|com|co\.uk|ca|de|fr|co\.jp|com\.au|es|it)|Amazon|Flipkart(?:\.com)?):\s*/i, "")
+      .replace(/^(?:Amazon\.in:\s*Buy\s+|Flipkart:\s*Buy\s+|Buy\s+)/i, "");
+    clean = clean
+      .replace(/\s+Price\s+in\s+India\s*[-|:]\s*Buy[\s\S]*/i, "")
+      .replace(/\s*[-|:]\s*Buy\s+.*(?:Online\s+(?:at\s+Flipkart|in\s+India|at\s+Best\s+Prices|at\s+Lowest\s+Price)|at\s+Low(?:est)?\s+Prices?)[\s\S]*/i, "")
+      .replace(/\s+Online\s+at\s+(?:Lowest|Best|Low)\s+Prices?[\s\S]*/i, "")
+      .replace(/\s+(?:at\s+Low(?:est)?\s+Prices?\s+in\s+India|at\s+Best\s+Prices?\s+in\s+India)[\s\S]*/i, "")
+      .replace(/\s+Price\s+in\s+India[\s\S]*/i, "");
+    clean = clean
+      .replace(/:\s*Amazon\.(?:in|com|co\.uk|ca|de|fr|co\.jp|com\.au|es|it)[\s\S]*/i, "")
+      .replace(/(\s*-\s*Buy\s+.*Online|\|\s*Amazon\.(?:in|com|co\.uk|ca|de|fr|co\.jp|com\.au|es|it)|\s*at\s*Low\s*Prices\s*.*)$/i, "");
+    clean = clean
+      .replace(/\s*\|\s*(?:Amazon|Flipkart|Shop|Store|Best Buy|Ebay)(?:\.(?:com|in|co\.uk|org|net))?(?:\s*Commerce.*)?$/i, "")
+      .replace(/\s*-\s*(?:Amazon|Flipkart|Shop|Store|Best Buy|Ebay)(?:\.(?:com|in|co\.uk|org|net))?$/i, "")
+      .replace(/\s*:\s*(?:Amazon|Flipkart)(?:\.(?:com|in))?$/i, "")
+      .replace(/\s+at\s+Flipkart(?:\.com)?$/i, "")
+      .replace(/\s+at\s+Amazon(?:\.in|\.com)?$/i, "");
+    clean = clean.replace(/[\s\-|:|;|,|/|\\|&]+$/, "").trim();
+    const words = clean.split(/\s+/).filter(Boolean);
+    if (words.length > 15) {
+      clean = words.slice(0, 15).join(' ').replace(/[\s\-|:|;|,|/|\\|&]+$/, "").trim();
+    }
+    return clean;
+  };
+
   // Detect partner store from URL
   const detectPartnerStore = (url: string): 'Amazon' | 'Flipkart' | 'Direct' => {
     if (!url) return 'Direct';
-    if (/flipkart\.com|dl\.flipkart\.com|fkrt\.(it|co)/i.test(url)) return 'Flipkart';
-    if (/amazon\.(in|com|co\.uk|ca|de|fr|co\.jp|com\.au|es|it|com\.mx|com\.br|com\.tr|ae|sa|sg|se|pl|nl|be|com\.be|co\.za|eg)|\/amzn\.to\//i.test(url)) return 'Amazon';
+    if (/flipkart\.(com)|dl\.flipkart\.com|fkrt\.(it|co)/i.test(url)) return 'Flipkart';
+    if (/amazon\.(in|com|co\.uk|ca|de|fr|co\.jp|com\.au|es|it|com\.mx|com\.br|com\.tr|ae|sa|sg|se|pl|nl|be|com\.be|co\.za|eg)|amzn\.(to|in)|a\.co/i.test(url)) return 'Amazon';
     return 'Direct';
+  };
+
+  // Generate authentic, professional recommendation text / testimony based on product title and category
+  const generateCuratedTestimony = (title: string, category: string, store: 'Amazon' | 'Flipkart' | 'Direct' | string = 'Direct'): string => {
+    const clean = cleanProductTitle(title) || 'this curated gear';
+    const primary = (category || 'accessories').split(',')[0].trim().toLowerCase().replace(/\s+/g, '_');
+    switch (primary) {
+      case 'photography':
+      case 'photo':
+        return `Professional-grade ${clean} vetted for superior optical clarity, rugged construction, and dependable real-world performance. Highly recommended for studio sessions, live events, and demanding creative field production.`;
+      case 'it_tech':
+      case 'it':
+        return `High-performance ${clean} engineered for heavy computing workloads, rapid throughput, and rock-solid system stability. An outstanding upgrade choice delivering proven thermal efficiency and long-term endurance.`;
+      case 'software':
+        return `Genuine licensed software key for ${clean} with instant digital activation. Provides complete feature access, critical cloud security updates, and guaranteed authentic licensing.`;
+      case 'my_gears':
+        return `One of Murari's starred personal studio essentials (${clean}). Rigorously road-tested for daily creative and IT workloads, offering uncompromising reliability and performance.`;
+      case 'accessories':
+      default:
+        return `Premium, precision-crafted ${clean} designed for daily durability and seamless workflow integration. Highly rated for ergonomic convenience, high-grade materials, and dependable build quality.`;
+    }
   };
 
   // Filtered list of deals
@@ -79,8 +131,13 @@ export const AdminPartnerDealsManager: React.FC<AdminPartnerDealsManagerProps> =
     return deals.filter(deal => {
       // Category filter
       if (selectedCategory !== 'all') {
-        const cats = (deal.category || '').toLowerCase().split(',').map(c => c.trim());
-        if (!cats.includes(selectedCategory.toLowerCase())) return false;
+        const cats = (deal.category || '').toLowerCase().split(',').map(c => c.trim().replace(/\s+/g, '_'));
+        const target = selectedCategory.toLowerCase().trim().replace(/\s+/g, '_');
+        const matches = cats.includes(target) ||
+          (target === 'my_gears' && (deal.category || '').toLowerCase().includes('my_gears')) ||
+          (target === 'it_tech' && (cats.includes('it') || cats.includes('it_tech'))) ||
+          (target === 'photography' && (cats.includes('photo') || cats.includes('photography')));
+        if (!matches) return false;
       }
 
       // Status filter
@@ -175,17 +232,23 @@ export const AdminPartnerDealsManager: React.FC<AdminPartnerDealsManagerProps> =
       if (data && data.success && data.product) {
         const prod = data.product;
         const detectedSource = prod.partnerSource || detectPartnerStore(prod.url || rawUrl);
+        const cleanedTitle = cleanProductTitle(prod.title || formData.title || '');
+        const cleanCategory = prod.category || formData.category || 'accessories';
+        let cleanDescription = prod.description || formData.description || '';
+        if (!cleanDescription || cleanDescription.length < 35 || cleanDescription.toLowerCase().includes("price in india") || cleanDescription.toLowerCase().includes("buy online at best prices") || cleanDescription.toLowerCase().includes("curated product link")) {
+          cleanDescription = generateCuratedTestimony(cleanedTitle, cleanCategory, detectedSource);
+        }
 
         setFormData(prev => ({
           ...prev,
-          title: prod.title || prev.title,
-          description: prod.description || prev.description,
+          title: cleanedTitle,
+          description: cleanDescription,
           imageUrl: prod.imageUrl || prev.imageUrl,
           price: prod.price || prev.price,
           originalPrice: prod.originalPrice || prev.originalPrice,
           discountPercentage: prod.discountPercentage || prev.discountPercentage,
           availability: prod.availability || prev.availability || 'In Stock',
-          category: prod.category || prev.category || 'photography',
+          category: cleanCategory,
           partnerSource: detectedSource,
           url: prod.url || rawUrl,
         }));
@@ -195,7 +258,85 @@ export const AdminPartnerDealsManager: React.FC<AdminPartnerDealsManagerProps> =
         throw new Error(data?.error || 'Product details could not be extracted from this link.');
       }
     } catch (err: any) {
-      console.warn('[Admin Deals Fetch] Error:', err);
+      console.warn('[Admin Deals Fetch] Server API error, running client URL parsing fallback:', err);
+      try {
+        const isFk = detectPartnerStore(rawUrl) === 'Flipkart';
+        const isAmz = detectPartnerStore(rawUrl) === 'Amazon';
+        const detectedSource = detectPartnerStore(rawUrl);
+
+        let extractedTitle = "";
+        let asin = "";
+        const asinMatch = rawUrl.match(/\/(?:dp|gp\/product|d|asin)\/([A-Z0-9]{10})/i);
+        if (asinMatch) asin = asinMatch[1].toUpperCase();
+
+        try {
+          const urlObj = new URL(rawUrl);
+          const pathname = urlObj.pathname;
+          if (isFk) {
+            const fkMatch = pathname.match(/(?:\/dl)?\/([^\/]+)\/p\/(?:itm[a-zA-Z0-9]+)/i) ||
+                            pathname.match(/\/([^\/]+)\/p\//i);
+            if (fkMatch && fkMatch[1] && fkMatch[1] !== 'p' && fkMatch[1] !== 'dl') {
+              extractedTitle = fkMatch[1].replace(/[-_]/g, ' ').trim();
+            }
+          } else {
+            const parts = pathname.split('/').filter(p => p.length > 4 && !p.includes('.') && !['dp', 'gp', 'product', 'd', 'asin'].includes(p.toLowerCase()));
+            if (parts.length > 0) {
+              const slug = parts[0];
+              if (!/^[a-z0-9]{5,10}$/i.test(slug)) {
+                extractedTitle = slug.replace(/_|-/g, ' ').replace(/\b(ref|ie|UTF8|qid|sr|pf_rd_.*)\b.*/gi, '').trim();
+              }
+            }
+          }
+        } catch (_) {}
+
+        if (!extractedTitle && asin) {
+          extractedTitle = `Amazon Gear (ASIN: ${asin})`;
+        } else if (!extractedTitle) {
+          extractedTitle = isFk ? "Flipkart Curated Gear" : isAmz ? "Amazon Curated Gear" : "Curated Partner Deal";
+        }
+
+        const cleanedTitle = cleanProductTitle(
+          extractedTitle
+            .split(' ')
+            .map(w => w ? (w.charAt(0).toUpperCase() + w.slice(1)) : '')
+            .filter(Boolean)
+            .join(' ')
+            .replace(/\s+/g, ' ')
+            .trim()
+        );
+
+        let category = 'accessories';
+        const searchVec = `${rawUrl} ${cleanedTitle}`.toLowerCase();
+        if (/camera|lens|tripod|gimbal|microphone|sound|lighting|cinematography|sony|nikon|canon|lumix|fujifilm|audio|recorder|headphones/i.test(searchVec)) {
+          category = 'photography';
+        } else if (/ssd|drive|nvme|router|switch|laptop|desktop|ram|memory|ddr|processor|cpu|gpu|rtx|gtx|motherboard|server|computing|monitor/i.test(searchVec)) {
+          category = 'it_tech';
+        } else if (/software|license|activation|windows|office|adobe|antivirus|subscription|key/i.test(searchVec)) {
+          category = 'software';
+        }
+
+        const testimony = generateCuratedTestimony(cleanedTitle, category, detectedSource);
+
+        const imgUrl = (asin && isAmz)
+          ? `https://images-na.ssl-images-amazon.com/images/P/${asin}.01.LZZZZZZZ.jpg`
+          : formData.imageUrl || 'https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=600&auto=format&fit=crop';
+
+        setFormData(prev => ({
+          ...prev,
+          title: cleanedTitle,
+          description: testimony,
+          category,
+          partnerSource: detectedSource,
+          imageUrl: imgUrl,
+          url: rawUrl,
+        }));
+
+        triggerToast(`Auto-detected product details from ${detectedSource}!`, 'success');
+        return;
+      } catch (fallbackErr) {
+        console.error('[Admin Deals] Fallback extraction failed:', fallbackErr);
+      }
+
       const msg = 'Product details could not be fetched. Please verify the link and try again, or enter details manually below.';
       setFetchError(msg);
       triggerToast(msg, 'error');
@@ -709,10 +850,10 @@ export const AdminPartnerDealsManager: React.FC<AdminPartnerDealsManagerProps> =
                     />
                   </div>
 
-                  {/* Description */}
+                  {/* Recommendation Text / Testimony */}
                   <div className="space-y-1">
                     <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400">
-                      Short Description / Recommendation Text
+                      Recommendation Text / Testimony *
                     </label>
                     <LagFreeTextArea
                       rows={3}
@@ -731,7 +872,7 @@ export const AdminPartnerDealsManager: React.FC<AdminPartnerDealsManagerProps> =
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1">
                       <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400">
-                        Category Key *
+                        Category Group *
                       </label>
                       <LagFreeInput
                         type="text"
@@ -912,6 +1053,9 @@ export const AdminPartnerDealsManager: React.FC<AdminPartnerDealsManagerProps> =
 
                     {/* Preview Details */}
                     <div className="space-y-1">
+                      <span className="text-[7.5px] sm:text-[8px] font-mono font-bold tracking-wider uppercase block text-amber-500">
+                        {getCategoryBadgeLabel(formData.category)}
+                      </span>
                       <h4 className={`text-xs font-bold line-clamp-2 ${isLight ? 'text-slate-900' : 'text-white'}`}>
                         {formData.title || 'Product Title Appears Here'}
                       </h4>

@@ -1,0 +1,22 @@
+[
+  {
+    "ticketId": "MP-FIX-49532",
+    "serviceType": "pixelfix",
+    "serviceTitle": "Pixel Fix Doorstep Computer Support",
+    "date": "2026-10-18",
+    "time": "03:00 PM",
+    "timezone": "Asia/Kolkata (IST)",
+    "customerName": "Rohan Das",
+    "customerPhone": "+91 9876543210",
+    "customerAddress": "Guwahati, Assam",
+    "configuration": {},
+    "estimatedPrice": 499,
+    "status": "confirmed",
+    "createdAt": "2026-10-15T16:39:09.532Z",
+    "nextSteps": [
+      "Our certified technician will call you 30 minutes prior to doorstep arrival.",
+      "Please have power adapter and PC cables accessible.",
+      "Zero diagnostic charges if issue is unresolvable."
+    ]
+  }
+]

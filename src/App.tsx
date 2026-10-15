@@ -113,6 +113,7 @@ import { LicenseProductCardVisual } from './components/LicenseProductCardVisual'
 import { GalleryItemCard } from './components/GalleryItemCard';
 import { SoftwareLicenseCard } from './components/SoftwareLicenseCard';
 import { VirtualPartnerDealsGrid, PartnerDealItem } from './components/VirtualPartnerDealsGrid';
+import { getCategoryBadgeLabel } from './components/PartnerDealCard';
 import PFLogo from './components/PFLogo';
 import CursorEffect from './components/CursorEffect';
 import WhatsAppIcon from './components/WhatsAppIcon';
@@ -125,6 +126,11 @@ import { PixelFixBackground } from './components/PixelFixBackground';
 import { BiosKeysBackground } from './components/BiosKeysBackground';
 import { ReviewQRCode } from './components/ReviewQRCode';
 import { VaultTriggerButton } from './components/VaultTriggerButton';
+import { DurgaPujaOfferPopup } from './components/DurgaPujaOfferPopup';
+import { ReelsPackModal } from './components/ReelsPackModal';
+import { StandaloneReelsOfferPage } from './components/StandaloneReelsOfferPage';
+import { BookingAppointmentSection } from './components/BookingAppointmentSection';
+import { AdminCornerTrigger } from './components/AdminCornerTrigger';
 
 // Dynamic code-split lazy loaded components to keep initial bundle ultra-fast & lightweight
 const CoverageMap = React.lazy(() => import('./components/CoverageMap'));
@@ -135,6 +141,8 @@ const PrivacyPolicyPage = React.lazy(() => import('./components/PrivacyPolicyPag
 const PixelFixVault = React.lazy(() => import('./components/PixelFixVault').then(m => ({ default: m.PixelFixVault })));
 const AdminVaultManager = React.lazy(() => import('./components/AdminVaultManager').then(m => ({ default: m.AdminVaultManager })));
 const AdminPartnerDealsManager = React.lazy(() => import('./components/AdminPartnerDealsManager').then(m => ({ default: m.AdminPartnerDealsManager })));
+const AdminPurchaseManager = React.lazy(() => import('./components/AdminPurchaseManager').then(m => ({ default: m.AdminPurchaseManager })));
+const AdminNotificationsPanel = React.lazy(() => import('./components/AdminNotificationsPanel').then(m => ({ default: m.AdminNotificationsPanel })));
 const AdminAnalyticsChart = React.lazy(() => import('./components/AdminAnalyticsChart'));
 
 import { initAuth, googleSignIn, googleSignOut } from './lib/driveAuth';
@@ -539,6 +547,8 @@ export default function App() {
   });
 
   const [isVaultOpen, setIsVaultOpen] = useState(false);
+  const [isReelsModalOpen, setIsReelsModalOpen] = useState(false);
+  const [reelsModalInitialTab, setReelsModalInitialTab] = useState<'checkout' | 'categories' | 'included' | 'faq'>('checkout');
 
   // Full-Screen Vault Route Navigators
   const openVaultPage = useCallback(() => {
@@ -1780,18 +1790,34 @@ export default function App() {
       iterations++;
     } while (decoded !== prev && iterations < 4);
 
-    let clean = decoded
-      .replace(/^Amazon\.(in|com|co\.uk|ca|de|fr|co\.jp|com\.au|es|it):\s*/i, "")
-      .replace(/:\s*Amazon\.(in|com|co\.uk|ca|de|fr|co\.jp|com\.au|es|it)[\s\S]*/i, "")
-      .replace(/(\s*-\s*Buy\s+.*Online|\|\s*Amazon\.(in|com|co\.uk|ca|de|fr|co\.jp|com\.au|es|it)|\s*at\s*Low\s*Prices\s*.*)$/i, "")
-      .replace(/<[^>]+>/g, "") // Strip any HTML tags
-      .replace(/\s+/g, " ")
-      .trim();
+    // 2. Strip HTML tags and normalize whitespace
+    let clean = decoded.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 
-    // 2. Remove ONLY direct e-commerce site suffix endings, preserving all technical specs
+    // 3. Remove standard domain prefix noise (Amazon & Flipkart)
     clean = clean
-      .replace(/\s*\|\s*(?:Amazon|Flipkart|Shop|Store|Best Buy|Ebay)(?:\.(?:com|in|co\.uk|org|net))?\s*$/i, "")
-      .replace(/\s*-\s*(?:Amazon|Flipkart|Shop|Store|Best Buy|Ebay)(?:\.(?:com|in|co\.uk|org|net))?\s*$/i, "");
+      .replace(/^(?:Amazon\.(?:in|com|co\.uk|ca|de|fr|co\.jp|com\.au|es|it)|Amazon|Flipkart(?:\.com)?):\s*/i, "")
+      .replace(/^(?:Amazon\.in:\s*Buy\s+|Flipkart:\s*Buy\s+|Buy\s+)/i, "");
+
+    // 4. Remove Flipkart specific buy patterns and price boilerplate
+    clean = clean
+      .replace(/\s+Price\s+in\s+India\s*[-|:]\s*Buy[\s\S]*/i, "")
+      .replace(/\s*[-|:]\s*Buy\s+.*(?:Online\s+(?:at\s+Flipkart|in\s+India|at\s+Best\s+Prices|at\s+Lowest\s+Price)|at\s+Low(?:est)?\s+Prices?)[\s\S]*/i, "")
+      .replace(/\s+Online\s+at\s+(?:Lowest|Best|Low)\s+Prices?[\s\S]*/i, "")
+      .replace(/\s+(?:at\s+Low(?:est)?\s+Prices?\s+in\s+India|at\s+Best\s+Prices?\s+in\s+India)[\s\S]*/i, "")
+      .replace(/\s+Price\s+in\s+India[\s\S]*/i, "");
+
+    // 5. Remove Amazon specific buy patterns and price boilerplate
+    clean = clean
+      .replace(/:\s*Amazon\.(?:in|com|co\.uk|ca|de|fr|co\.jp|com\.au|es|it)[\s\S]*/i, "")
+      .replace(/(\s*-\s*Buy\s+.*Online|\|\s*Amazon\.(?:in|com|co\.uk|ca|de|fr|co\.jp|com\.au|es|it)|\s*at\s*Low\s*Prices\s*.*)$/i, "");
+
+    // 6. Remove direct site suffix endings
+    clean = clean
+      .replace(/\s*\|\s*(?:Amazon|Flipkart|Shop|Store|Best Buy|Ebay)(?:\.(?:com|in|co\.uk|org|net))?(?:\s*Commerce.*)?$/i, "")
+      .replace(/\s*-\s*(?:Amazon|Flipkart|Shop|Store|Best Buy|Ebay)(?:\.(?:com|in|co\.uk|org|net))?$/i, "")
+      .replace(/\s*:\s*(?:Amazon|Flipkart)(?:\.(?:com|in))?$/i, "")
+      .replace(/\s+at\s+Flipkart(?:\.com)?$/i, "")
+      .replace(/\s+at\s+Amazon(?:\.in|\.com)?$/i, "");
 
     // 3. Remove common keyword-stuffed fluff phrases to keep the title professional and clear
     clean = clean
@@ -1813,6 +1839,27 @@ export default function App() {
     }
 
     return clean;
+  };
+
+  // Generates authentic, professional recommendation text / testimony based on product title and category
+  const generateCuratedTestimony = (title: string, category: string, store: 'Amazon' | 'Flipkart' | 'Direct' | string = 'Direct'): string => {
+    const clean = cleanTitle(title) || 'this curated gear';
+    const primaryCat = (category || 'accessories').split(',')[0].trim().toLowerCase().replace(/\s+/g, '_');
+    switch (primaryCat) {
+      case 'photography':
+      case 'photo':
+        return `Professional-grade ${clean} vetted for superior optical clarity, rugged construction, and dependable real-world performance. Highly recommended for studio sessions, live events, and demanding creative field production.`;
+      case 'it_tech':
+      case 'it':
+        return `High-performance ${clean} engineered for heavy computing workloads, rapid throughput, and rock-solid system stability. An outstanding upgrade choice delivering proven thermal efficiency and long-term endurance.`;
+      case 'software':
+        return `Genuine licensed software key for ${clean} with instant digital activation. Provides complete feature access, critical cloud security updates, and guaranteed authentic licensing.`;
+      case 'my_gears':
+        return `One of Murari's starred personal studio essentials (${clean}). Rigorously road-tested for daily creative and IT workloads, offering uncompromising reliability and performance.`;
+      case 'accessories':
+      default:
+        return `Premium, precision-crafted ${clean} designed for daily durability and seamless workflow integration. Highly rated for ergonomic convenience, high-grade materials, and dependable build quality.`;
+    }
   };
 
   const handleBulkCleanTitles = async () => {
@@ -2172,7 +2219,12 @@ export default function App() {
           timestamp: Date.now()
         });
 
+        const detectedPartner = resData.product?.partnerSource || (/flipkart\.(com)|dl\.flipkart\.com|fkrt\.(it|co)/i.test(urlToFetch) ? 'Flipkart' : /amazon\.(in|com|co\.uk|ca|de|fr|co\.jp|com\.au|es|it|com\.mx|com\.br|com\.tr|ae|sa|sg|se|pl|nl|be|com\.be|co\.za|eg)|amzn\.(to|in)|a\.co/i.test(urlToFetch) ? 'Amazon' : 'Direct');
+
         let finalDescription = description;
+        if (!finalDescription || finalDescription.length < 35 || finalDescription.toLowerCase().includes("price in india") || finalDescription.toLowerCase().includes("curated product link") || finalDescription.toLowerCase().includes("buy online at best prices")) {
+          finalDescription = generateCuratedTestimony(cleanTitle(title) || 'curated gear', category || 'accessories', detectedPartner);
+        }
 
         setEditingItem(prev => {
           if (!prev) return null;
@@ -2188,8 +2240,6 @@ export default function App() {
           const updatedOriginalPrice = (shouldOverwrite || !data.originalPrice?.trim()) ? (originalPrice || data.originalPrice || '') : (data.originalPrice || originalPrice || '');
           const updatedDiscountPercentage = (shouldOverwrite || !data.discountPercentage?.trim()) ? (discountPercentage || data.discountPercentage || '') : (data.discountPercentage || discountPercentage || '');
           const updatedAvailability = (shouldOverwrite || !data.availability?.trim()) ? (availability || data.availability || '') : (data.availability || availability || '');
-
-          const detectedPartner = resData.product?.partnerSource || (/flipkart/i.test(urlToFetch) ? 'Flipkart' : /amazon/i.test(urlToFetch) ? 'Amazon' : 'Direct');
 
           return {
             ...prev,
@@ -2226,8 +2276,12 @@ export default function App() {
       
       // Client-side fallback extraction from the URL directly as a last-resort safe fallback
       try {
-        console.info("[Auto-Fill Fallback] Attempting client-side URL parsing fallback...");
+        console.info("[Auto-Fill Fallback] Attempting client-side URL parsing fallback for Amazon & Flipkart...");
         
+        const isFk = /flipkart\.(com)|dl\.flipkart\.com|fkrt\.(it|co)/i.test(urlToFetch);
+        const isAmz = /amazon\.(in|com|co\.uk|ca|de|fr|co\.jp|com\.au|es|it|com\.mx|com\.br|com\.tr|ae|sa|sg|se|pl|nl|be|com\.be|co\.za|eg)|amzn\.(to|in)|a\.co/i.test(urlToFetch);
+        const detectedPartner = isFk ? 'Flipkart' : isAmz ? 'Amazon' : 'Direct';
+
         // 1. Try to extract ASIN with comprehensive e-commerce patterns
         let asin = "";
         const asinPatterns = [
@@ -2249,15 +2303,19 @@ export default function App() {
           }
         }
 
-        // 2. Try to extract title from the path slug safely
+        // 2. Try to extract title from the path slug safely for both Amazon and Flipkart
         let extractedTitle = "";
         try {
           const urlObj = new URL(urlToFetch);
-          const hostname = urlObj.hostname.toLowerCase();
-          const isShortDomain = /amzn\.[a-z]{2,4}|a\.co|bit\.ly|tinyurl\.com|t\.co|murl\.com|tiny\.cc|is\.gd|lnk\.to|rebrand\.ly/i.test(hostname);
+          const pathname = urlObj.pathname;
           
-          if (!isShortDomain) {
-            const pathname = urlObj.pathname;
+          if (isFk) {
+            const fkMatch = pathname.match(/(?:\/dl)?\/([^\/]+)\/p\/(?:itm[a-zA-Z0-9]+)/i) ||
+                            pathname.match(/\/([^\/]+)\/p\//i);
+            if (fkMatch && fkMatch[1] && fkMatch[1] !== 'p' && fkMatch[1] !== 'dl') {
+              extractedTitle = fkMatch[1].replace(/[-_]/g, ' ').trim();
+            }
+          } else {
             const parts = pathname.split('/').filter(p => p.length > 4 && !p.includes('.') && !['dp', 'gp', 'product', 'd', 'asin'].includes(p.toLowerCase()));
             if (parts.length > 0) {
               const slug = parts[0];
@@ -2272,39 +2330,39 @@ export default function App() {
         } catch (_) {}
 
         if (!extractedTitle && asin) {
-          extractedTitle = `Product (ASIN: ${asin})`;
+          extractedTitle = `Amazon Gear (ASIN: ${asin})`;
         } else if (!extractedTitle) {
-          extractedTitle = "Curated Affiliate Deal";
+          extractedTitle = isFk ? "Flipkart Curated Gear" : isAmz ? "Amazon Curated Gear" : "Curated Partner Deal";
         }
 
-        // Capitalize words beautifully
-        extractedTitle = extractedTitle
-          .split(' ')
-          .map(w => w ? (w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()) : '')
-          .filter(Boolean)
-          .join(' ')
-          .replace(/\s+/g, ' ')
-          .trim();
+        // Clean & capitalize title cleanly
+        extractedTitle = cleanTitle(
+          extractedTitle
+            .split(' ')
+            .map(w => w ? (w.charAt(0).toUpperCase() + w.slice(1)) : '')
+            .filter(Boolean)
+            .join(' ')
+            .replace(/\s+/g, ' ')
+            .trim()
+        );
 
-        // Limit length
-        if (extractedTitle.length > 80) {
-          extractedTitle = extractedTitle.substring(0, 80) + "...";
-        }
-
-        // 3. Try to determine category
+        // 3. Category determination
         let category: 'photography' | 'it_tech' | 'software' | 'accessories' = 'accessories';
-        const lowercaseUrl = urlToFetch.toLowerCase();
-        if (lowercaseUrl.includes('camera') || lowercaseUrl.includes('lens') || lowercaseUrl.includes('tripod') || lowercaseUrl.includes('microphone') || lowercaseUrl.includes('gimbal')) {
+        const searchVec = `${urlToFetch} ${extractedTitle}`.toLowerCase();
+        if (/camera|lens|tripod|gimbal|microphone|sound|lighting|cinematography|sony|nikon|canon|lumix|fujifilm|audio|recorder|headphones/i.test(searchVec)) {
           category = 'photography';
-        } else if (lowercaseUrl.includes('ssd') || lowercaseUrl.includes('drive') || lowercaseUrl.includes('router') || lowercaseUrl.includes('laptop') || lowercaseUrl.includes('ram') || lowercaseUrl.includes('desktop')) {
+        } else if (/ssd|drive|nvme|router|switch|laptop|desktop|ram|memory|ddr|processor|cpu|gpu|rtx|gtx|motherboard|server|computing|monitor/i.test(searchVec)) {
           category = 'it_tech';
-        } else if (lowercaseUrl.includes('software') || lowercaseUrl.includes('license') || lowercaseUrl.includes('windows') || lowercaseUrl.includes('creative-cloud')) {
+        } else if (/software|license|activation|windows|office|adobe|antivirus|subscription|key/i.test(searchVec)) {
           category = 'software';
         }
 
-        const placeholderImageUrl = asin 
+        // 4. Generate authentic Recommendation Text / Testimony
+        const generatedTestimony = generateCuratedTestimony(extractedTitle, category, detectedPartner);
+
+        const placeholderImageUrl = (asin && isAmz)
           ? `https://images-na.ssl-images-amazon.com/images/P/${asin}.01.LZZZZZZZ.jpg`
-          : "https://images.unsplash.com/photo-1531403009284-440f080d1e12?auto=format&fit=crop&q=80&w=600";
+          : "https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&q=80&w=600";
 
         setEditingItem(prev => {
           if (!prev) return null;
@@ -2312,7 +2370,7 @@ export default function App() {
           const data = prev.data || {};
           
           const updatedTitle = (shouldOverwrite || !data.title?.trim()) ? (extractedTitle || data.title || '') : (data.title || extractedTitle || '');
-          const updatedDescription = (shouldOverwrite || !data.description?.trim()) ? (`Curated product link: ${urlToFetch}` || data.description || '') : (data.description || `Curated product link: ${urlToFetch}`);
+          const updatedDescription = (shouldOverwrite || !data.description?.trim()) ? (generatedTestimony || data.description || '') : (data.description || generatedTestimony);
           const updatedImageUrl = (shouldOverwrite || !data.imageUrl?.trim()) ? (placeholderImageUrl || data.imageUrl || '') : (data.imageUrl || placeholderImageUrl || '');
           const updatedCategory = (shouldOverwrite || !data.category?.trim() || data.category === 'accessories') ? (category || data.category || 'accessories') : (data.category || category || 'accessories');
 
@@ -2324,11 +2382,13 @@ export default function App() {
               description: updatedDescription,
               imageUrl: updatedImageUrl,
               category: updatedCategory,
+              partnerSource: detectedPartner,
+              url: urlToFetch,
             }
           };
         });
 
-        triggerToast("Auto-detected basic product info from link!", "success");
+        triggerToast(`Auto-detected product details from ${detectedPartner}!`, "success");
         setAmazonFetchError(null); // Clear error because we succeeded in falling back!
         setAutoFillStep(5);
         setTimeout(() => setAutoFillStep(0), 4000);
@@ -2383,7 +2443,9 @@ export default function App() {
   const [isAuthorized, setIsAuthorized] = useState(() => {
     return localStorage.getItem('mp_admin_authorized') === 'true';
   });
-  const [adminSubTab, setAdminSubTab] = useState<'overview' | 'media' | 'gallery' | 'inquiries' | 'instagram' | 'branding' | 'vault' | 'deals'>('overview');
+  const [adminSubTab, setAdminSubTab] = useState<'overview' | 'reels' | 'notifications' | 'media' | 'gallery' | 'inquiries' | 'instagram' | 'branding' | 'vault' | 'deals'>('overview');
+  const [adminSelectedOrderId, setAdminSelectedOrderId] = useState<string | null>(null);
+  const [adminUnreadNotifs, setAdminUnreadNotifs] = useState<number>(0);
   const [draftLogoUrl, setDraftLogoUrl] = useState<string>('');
   const [draftFaviconUrl, setDraftFaviconUrl] = useState<string>('');
 
@@ -2394,6 +2456,46 @@ export default function App() {
   useEffect(() => {
     setDraftFaviconUrl(faviconUrl);
   }, [faviconUrl]);
+
+  // Track real-time admin notifications count for Murari
+  useEffect(() => {
+    const fetchUnread = async () => {
+      try {
+        const res = await fetch('/api/reels/admin/notifications');
+        const data = await res.json();
+        if (data.success && typeof data.unreadCount === 'number') {
+          setAdminUnreadNotifs(data.unreadCount);
+        }
+      } catch (_) {}
+    };
+
+    fetchUnread();
+
+    let eventSource: EventSource | null = null;
+    try {
+      eventSource = new EventSource('/api/reels/events?isAdmin=true');
+      eventSource.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data);
+          if (payload.eventType === 'NEW_NOTIFICATION') {
+            setAdminUnreadNotifs(c => c + 1);
+          } else if (payload.eventType === 'NOTIFICATION_READ') {
+            setAdminUnreadNotifs(c => Math.max(0, c - 1));
+          } else if (payload.eventType === 'NOTIFICATIONS_ALL_READ') {
+            setAdminUnreadNotifs(0);
+          } else if (payload.eventType === 'ORDER_SUBMITTED_FOR_REVIEW') {
+            fetchUnread();
+          }
+        } catch (_) {}
+      };
+    } catch (_) {}
+
+    const interval = setInterval(fetchUnread, 15000);
+    return () => {
+      clearInterval(interval);
+      if (eventSource) eventSource.close();
+    };
+  }, []);
 
   const handleLogoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -2864,11 +2966,14 @@ export default function App() {
     }
   }, [activeToast]);
 
-  // Contact form state
+  // Contact & Booking form state
   const [bookingName, setBookingName] = useState('');
   const [bookingPhone, setBookingPhone] = useState('');
   const [bookingNotes, setBookingNotes] = useState('');
+  const [bookingAddress, setBookingAddress] = useState('');
+  const [bookingDateTime, setBookingDateTime] = useState('');
   const [bookingSuccess, setBookingSuccess] = useState(false);
+  const [bookingSubmittedTicket, setBookingSubmittedTicket] = useState<string | null>(null);
 
   // Sync state & Theme updates
   useEffect(() => {
@@ -3717,6 +3822,86 @@ export default function App() {
     }, 150);
   };
 
+  // Direct In-Portal Online Doorstep Booking handler
+  const handleDirectOnlineBooking = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!bookingName.trim() || !bookingPhone.trim()) {
+      triggerToast('Please provide your name and phone number!', 'error');
+      return;
+    }
+    const ticketId = 'MP-' + (quoteType === 'pixelfix' ? 'FIX' : 'PHOTO') + '-' + Date.now().toString().slice(-5);
+    const est = quoteType === 'pixelfix' ? itPriceEstimate() : photoPriceEstimate();
+    const serviceTitle = quoteType === 'pixelfix' ? 'Pixel Fix Doorstep Computer Support' : 'Pixel Frame Event Photography';
+    
+    const details = quoteType === 'pixelfix'
+      ? `Devices: ${itDeviceCount} | Windows Setup: ${itNeedOS ? 'Yes' : 'No'} | MS Office: ${itNeedOffice ? 'Yes' : 'No'} | SSD Upgrade: ${itSsdUpgrade ? 'Yes' : 'No'} | Speed: ${itServiceSpeed}`
+      : `Event Type: ${photoType} | Days: ${photoDays} | Pre-Wedding: ${photoNeedPreWedding ? 'Yes' : 'No'} | 4K Drone: ${photoNeedDrone ? 'Yes' : 'No'} | Photobook: ${photoNeedAlbum ? 'Yes' : 'No'}`;
+
+    const newMsg: ContactMessage = {
+      id: ticketId,
+      name: bookingName.trim(),
+      email: 'Online Portal Booking',
+      phone: bookingPhone.trim(),
+      serviceType: quoteType === 'pixelfix' ? 'it_fix' : 'photography',
+      message: `[DIRECT ONLINE BOOKING - ${ticketId}]\n` +
+               `Service: ${serviceTitle}\n` +
+               `Preferred Slot: ${bookingDateTime || 'Earliest available'}\n` +
+               `Doorstep Address: ${bookingAddress || 'Guwahati area'}\n` +
+               `Configuration: ${details}\n` +
+               `Estimated Proposal: ₹${est}\n` +
+               `Client Notes: ${bookingNotes || 'None'}`,
+      timestamp: new Date().toLocaleTimeString('en-IN') + ' ' + new Date().toLocaleDateString('en-IN'),
+      status: 'unread'
+    };
+
+    setContactMessages(prev => [newMsg, ...prev]);
+    saveContactMessage(newMsg);
+    setBookingSubmittedTicket(ticketId);
+    setBookingSuccess(true);
+    triggerToast(`Doorstep booking registered! Ticket ID: ${ticketId}`, 'success');
+  };
+
+  // Dedicated Formatted WhatsApp Dispatch handler
+  const handleBookingSendWhatsApp = () => {
+    if (!bookingName.trim() || !bookingPhone.trim()) {
+      triggerToast('Please enter your Name and WhatsApp phone number!', 'error');
+      return;
+    }
+    const ticketId = 'MP-' + (quoteType === 'pixelfix' ? 'FIX' : 'PHOTO') + '-' + Date.now().toString().slice(-5);
+    const est = quoteType === 'pixelfix' ? itPriceEstimate() : photoPriceEstimate();
+    const serviceTitle = quoteType === 'pixelfix' ? 'Pixel Fix Doorstep Computer Support' : 'Pixel Frame Photography';
+    const number = quoteType === 'pixelfix' ? '918638875231' : '919864361940';
+
+    const text = 
+      `*DIRECT DOORSTEP BOOKING REQUEST [${ticketId}]*\n` +
+      `--------------------------------\n` +
+      `👤 *Client Name:* ${bookingName.trim()}\n` +
+      `📞 *Phone/WhatsApp:* ${bookingPhone.trim()}\n` +
+      `🛠️ *Service:* ${serviceTitle}\n` +
+      `🗓️ *Preferred Slot:* ${bookingDateTime || 'Earliest available'}\n` +
+      `📍 *Doorstep Location:* ${bookingAddress || 'Guwahati area'}\n` +
+      `💰 *Estimated Proposal:* ₹${est}\n` +
+      `📝 *Notes / Symptoms:* ${bookingNotes || 'Standard consultation requested'}\n` +
+      `--------------------------------\n` +
+      `_Sent via Pixel Fix & Frame Official Booking Portal_`;
+
+    const newMsg: ContactMessage = {
+      id: ticketId,
+      name: bookingName.trim(),
+      email: 'WhatsApp Portal Booking',
+      phone: bookingPhone.trim(),
+      serviceType: quoteType === 'pixelfix' ? 'it_fix' : 'photography',
+      message: text,
+      timestamp: new Date().toLocaleTimeString('en-IN') + ' ' + new Date().toLocaleDateString('en-IN'),
+      status: 'unread'
+    };
+    setContactMessages(prev => [newMsg, ...prev]);
+    saveContactMessage(newMsg);
+
+    window.open(`https://wa.me/${number}?text=${encodeURIComponent(text)}`, '_blank');
+    triggerToast('Opening WhatsApp with your booking details...', 'success');
+  };
+
   const handleAdminVerify = (e: React.FormEvent) => {
     e.preventDefault();
     if (adminKeyInput === 'Dispur123@') {
@@ -4256,6 +4441,36 @@ export default function App() {
     }
   };
 
+  // Check if visitor is accessing the dedicated separate offer link
+  // Anyone opening this URL sees ONLY the 150K+ Reels Mega Pack Durga Puja offer and cannot access the repair website.
+  const isStandaloneOffer = useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    const params = new URLSearchParams(window.location.search);
+    const hash = window.location.hash.toLowerCase();
+    const path = window.location.pathname.toLowerCase();
+    return (
+      params.get('offer') === 'reels' ||
+      params.get('offer') === '150k' ||
+      params.get('view') === 'reels' ||
+      params.get('pack') === '150k' ||
+      hash === '#offer' ||
+      hash === '#reels' ||
+      hash === '#150k' ||
+      path === '/offer' ||
+      path === '/reels'
+    );
+  }, []);
+
+  if (isStandaloneOffer) {
+    return (
+      <StandaloneReelsOfferPage
+        currentTheme={currentTheme}
+        onToggleTheme={() => setCurrentTheme(prev => (prev === 'light' ? 'normal' : 'light'))}
+        isAuthorized={isAuthorized}
+      />
+    );
+  }
+
   return (
     <div className={`min-h-screen w-full overflow-x-hidden ${s.bg} transition-colors duration-300 relative selection:bg-[#FF5500] selection:text-white pb-12`}>
       {/* Admin Quick Status Control Ribbon */}
@@ -4457,6 +4672,19 @@ export default function App() {
                 </button>
               </div>
             </div>
+
+            {/* Durga Puja Special Offer Button */}
+            <motion.button
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.96 }}
+              onClick={() => {
+                setReelsModalInitialTab('checkout');
+                setIsReelsModalOpen(true);
+              }}
+              className="hidden lg:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-mono font-black uppercase tracking-wider bg-gradient-to-r from-red-600 via-amber-500 to-orange-500 text-black shadow-sm hover:shadow-amber-500/25 transition-all cursor-pointer"
+            >
+              <span>🎉 150K REELS · ₹199</span>
+            </motion.button>
           </div>
 
           {/* Mobile hamburger menu trigger (visible below md) */}
@@ -4631,8 +4859,28 @@ export default function App() {
                 })}
               </motion.div>
 
+              {/* Drawer Durga Puja Special Offer Banner */}
+              <div className="pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    setReelsModalInitialTab('checkout');
+                    setIsReelsModalOpen(true);
+                  }}
+                  className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-red-600 via-amber-500 to-orange-500 text-black font-mono font-black text-xs uppercase tracking-wider flex items-center justify-between shadow-lg shadow-amber-500/20 active:scale-95 transition-transform cursor-pointer"
+                >
+                  <span className="flex items-center gap-1.5">
+                    <span>🎉 DURGA PUJA OFFER</span>
+                  </span>
+                  <span className="bg-black text-amber-400 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                    ₹199 ONLY
+                  </span>
+                </button>
+              </div>
+
               {/* Drawer Footer Actions */}
-              <div className="pt-6 border-t border-dashed border-slate-200/50 dark:border-white/5 space-y-6">
+              <div className="pt-4 border-t border-dashed border-slate-200/50 dark:border-white/5 space-y-6">
                 {/* Theme Selection */}
                 <div className="space-y-2">
                   <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 block">
@@ -8427,112 +8675,105 @@ export default function App() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -15 }}
             transition={{ type: "spring", stiffness: 180, damping: 20 }}
-            className="space-y-12 text-left max-w-4xl mx-auto"
+            className="space-y-10 text-left max-w-5xl mx-auto px-2 sm:px-4"
           >
-            {/* Banner titles */}
-            <div className="text-center space-y-2">
-              <span className="text-[9px] uppercase font-mono tracking-widest text-[#FF5500] font-bold">DIRECTORY COMMUNICATIONS DIRECT DISPATCH</span>
-              <ScrollRevealText
-                tag="h1"
-                className={`text-2xl md:text-3xl font-black ${
-                  currentTheme === 'light' ? 'text-slate-900' : 'text-white'
-                }`}
-                text="INSTANT TELEPHONIC CONTACT PORTAL"
-              />
-              <ScrollReveal variant="fade-up" delay={0.15}>
-                <p className={`text-xs md:text-sm ${
-                  currentTheme === 'light' ? 'text-slate-600 font-medium' : 'text-slate-400'
-                }`}>
-                  No complex paperwork. Dial or text Murari directly on WhatsApp based on your target requirement. We answer within 15 minutes!
-                </p>
-              </ScrollReveal>
-            </div>
+            {/* BOOKING PAGE — MODERN AND SIMPLE UI */}
+            <BookingAppointmentSection
+              currentTheme={currentTheme}
+              triggerToast={triggerToast}
+              contactPhoneIt={contactPhoneIt}
+              contactPhonePhotos={contactPhonePhotos}
+            />
 
-            {/* Split cards phone numbers */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* Split Direct Hotline Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               
               {/* IT Fix Card */}
-              <div className={`p-6 rounded-3xl border ${s.card} space-y-4 text-left flex flex-col justify-between`}>
+              <div className={`p-6 rounded-3xl border ${s.card} space-y-4 text-left flex flex-col justify-between shadow-md`}>
                 <div className="space-y-3">
                   <div className="w-12 h-12 bg-orange-500/10 rounded-xl flex items-center justify-center text-[#FF5500]">
                     <Laptop size={24} />
                   </div>
                   <h3 className={`text-xl font-extrabold ${
                     currentTheme === 'light' ? 'text-slate-900' : 'text-white'
-                  }`}>Pixel Fix Support Booking</h3>
+                  }`}>Pixel Fix IT Support Hotline</h3>
                   <p className={`text-xs leading-relaxed ${
                     currentTheme === 'light' ? 'text-slate-600' : 'text-slate-400'
                   }`}>
-                    Contact Murari directly for computer hardware issues, Windows standard drivers installation, genuine office alignment setups, router reboots, and clean formats.
+                    Contact Murari directly for computer hardware issues, Windows standard drivers installation, genuine office setups, router reboots, and format recovery.
                   </p>
                   
                   <div className={`text-xs space-y-1 p-3 rounded-xl border font-mono ${
-                    currentTheme === 'light' ? 'bg-slate-55 border-slate-200 text-slate-700' : 'bg-black/40 border-white/5 text-slate-300'
+                    currentTheme === 'light' ? 'bg-slate-50 border-slate-200 text-slate-700' : 'bg-black/40 border-white/5 text-slate-300'
                   }`}>
-                    <div>📌 Guwahati office: Guwahati area doorstep dispatch</div>
+                    <div>📌 Guwahati Hub: Doorstep dispatch across Dispur, Beltola, Ulubari</div>
                     <div>📞 Mobile support: +91 {contactPhoneIt}</div>
                   </div>
                 </div>
 
-                <div className="space-y-2 pt-4">
+                <div className="space-y-2 pt-2">
                   <button
+                    type="button"
                     onClick={() => triggerQuickBooking('it_fix', 'Hello Murari, I want to book standard doorstep computer repair support!')}
-                    className="w-full bg-green-600 hover:bg-green-700 text-white font-extrabold text-xs uppercase py-3.5 tracking-wider rounded-lg flex items-center justify-center gap-2 text-center"
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs uppercase py-3 tracking-wider rounded-xl flex items-center justify-center gap-2 text-center cursor-pointer transition-colors"
                   >
-                    <WhatsAppIcon size={14} /> <span className="text-center">Send WhatsApp Support Ticket</span>
+                    <WhatsAppIcon size={14} className="shrink-0" />
+                    <span>Send WhatsApp Support Ticket</span>
                   </button>
                   <a
                     href={`tel:${contactPhoneIt}`}
-                    className={`w-full font-extrabold text-xs uppercase py-3.5 tracking-wider rounded-lg flex items-center justify-center gap-2 border ${
+                    className={`w-full font-extrabold text-xs uppercase py-3 tracking-wider rounded-xl flex items-center justify-center gap-2 border cursor-pointer transition-colors ${
                       currentTheme === 'light' 
-                        ? 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-800' 
+                        ? 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-800' 
                         : 'bg-white/5 hover:bg-white/10 border-white/10 text-white'
                     }`}
                   >
-                    <Phone size={14} /> Dial +91 {contactPhoneIt}
+                    <Phone size={14} className="shrink-0" /> Dial +91 {contactPhoneIt}
                   </a>
                 </div>
               </div>
 
               {/* Pixel Frame Card */}
-              <div className={`p-6 rounded-3xl border ${s.card} space-y-4 text-left flex flex-col justify-between`}>
+              <div className={`p-6 rounded-3xl border ${s.card} space-y-4 text-left flex flex-col justify-between shadow-md`}>
                 <div className="space-y-3">
                   <div className="w-12 h-12 bg-orange-500/10 rounded-xl flex items-center justify-center text-[#FF5500]">
                     <Camera size={24} />
                   </div>
                   <h3 className={`text-xl font-extrabold ${
                     currentTheme === 'light' ? 'text-slate-900' : 'text-white'
-                  }`}>Pixel Frame Photo Inquiry</h3>
+                  }`}>Pixel Frame Photography Hotline</h3>
                   <p className={`text-xs leading-relaxed ${
                     currentTheme === 'light' ? 'text-slate-600' : 'text-slate-400'
                   }`}>
-                    Capture your finest candid moments. Weddings, birthdays, post-shoot cinematic color corrections, and aerial drone reels handled with true precision.
+                    Capture your finest candid moments. Weddings, birthdays, post-shoot cinematic color corrections, and aerial 4K drone reels handled with true precision.
                   </p>
 
                   <div className={`text-xs space-y-1 p-3 rounded-xl border font-mono ${
-                    currentTheme === 'light' ? 'bg-slate-55 border-slate-200 text-slate-700' : 'bg-black/40 border-white/5 text-slate-300'
+                    currentTheme === 'light' ? 'bg-slate-50 border-slate-200 text-slate-700' : 'bg-black/40 border-white/5 text-slate-300'
                   }`}>
-                    <div>📌 Primary hub: Northeast destination shoot available</div>
+                    <div>📌 Northeast Hub: Guwahati &amp; Northeast destination shoots</div>
                     <div>📞 Mobile hotline: +91 {contactPhonePhotos}</div>
                   </div>
                 </div>
 
-                <div className="space-y-2 pt-4">
+                <div className="space-y-2 pt-2">
                   <button
+                    type="button"
                     onClick={() => triggerQuickBooking('photography', 'Hello Murari, I am inquiring about wedding, anniversary, or corporate event photography packages!')}
-                    className="w-full bg-green-600 hover:bg-green-700 text-white font-extrabold text-xs uppercase py-3.5 tracking-wider rounded-lg flex items-center justify-center gap-2 text-center"
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs uppercase py-3 tracking-wider rounded-xl flex items-center justify-center gap-2 text-center cursor-pointer transition-colors"
                   >
-                    <WhatsAppIcon size={14} /> <span className="text-center">WhatsApp Photographer</span>
+                    <WhatsAppIcon size={14} className="shrink-0" />
+                    <span>WhatsApp Photographer</span>
                   </button>
                   <a
                     href={`tel:${contactPhonePhotos}`}
-                    className={`w-full font-extrabold text-xs uppercase py-3.5 tracking-wider rounded-lg flex items-center justify-center gap-2 border ${
+                    className={`w-full font-extrabold text-xs uppercase py-3 tracking-wider rounded-xl flex items-center justify-center gap-2 border cursor-pointer transition-colors ${
                       currentTheme === 'light' 
-                        ? 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-800' 
+                        ? 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-800' 
                         : 'bg-white/5 hover:bg-white/10 border-white/10 text-white'
                     }`}
                   >
-                    <Phone size={14} /> Dial +91 {contactPhonePhotos}
+                    <Phone size={14} className="shrink-0" /> Dial +91 {contactPhonePhotos}
                   </a>
                 </div>
               </div>
@@ -8546,14 +8787,16 @@ export default function App() {
 
             {/* INTERACTIVE GEOGRAPHIC DISPATCH SERVICE AREA MAP */}
             <ScrollReveal variant="fade-up" delay={0.25}>
-              <div className={`p-6 md:p-8 rounded-[32px] border ${s.card} space-y-6 text-left relative overflow-hidden`}>
-                <div className="space-y-2">
-                  <span className="text-[10px] uppercase font-mono tracking-widest text-[#FF5500] font-bold">GEOGRAPHIC COVERAGE & DISPATCH NODES</span>
+              <div className={`p-5 sm:p-7 md:p-8 rounded-3xl border ${s.card} space-y-5 text-left relative overflow-hidden shadow-xl`}>
+                <div className="space-y-1.5">
+                  <span className="text-[10px] uppercase font-mono tracking-widest text-[#FF5500] font-bold">
+                    GEOGRAPHIC COVERAGE &amp; DISPATCH NODES
+                  </span>
                   <h3 className={`text-xl md:text-2xl font-black ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
-                    Guwahati Core Dispatch Zone Map
+                    Guwahati Dispatch Coverage Map
                   </h3>
                   <p className={`text-xs md:text-sm leading-relaxed ${currentTheme === 'light' ? 'text-slate-600' : 'text-slate-400'}`}>
-                    Instantly check if your home, workspace, or event venue resides inside our standard 12KM free dispatch perimeter for rapid doorstep IT checkups and premium photography deployment.
+                    Check whether your residence, office, or event venue is within our standard 12KM free dispatch perimeter for prompt doorstep IT repair and event photography.
                   </p>
                 </div>
 
@@ -10074,6 +10317,39 @@ export default function App() {
                   </button>
 
                   <button
+                    onClick={() => setAdminSubTab('reels')}
+                    className={`px-3 py-1.5 rounded-lg text-[10.5px] md:text-xs font-bold uppercase transition-all flex items-center gap-2 cursor-pointer ${
+                      adminSubTab === 'reels'
+                        ? 'bg-[#FF5500] text-white shadow-md'
+                        : currentTheme === 'light'
+                          ? 'bg-slate-50 hover:bg-slate-100 text-slate-700'
+                          : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-400'
+                    }`}
+                  >
+                    <Film size={14} className="text-amber-400" />
+                    <span>₹199 Reels Purchases</span>
+                  </button>
+
+                  <button
+                    onClick={() => setAdminSubTab('notifications')}
+                    className={`relative px-3 py-1.5 rounded-lg text-[10.5px] md:text-xs font-bold uppercase transition-all flex items-center gap-2 cursor-pointer ${
+                      adminSubTab === 'notifications'
+                        ? 'bg-[#FF5500] text-white shadow-md'
+                        : currentTheme === 'light'
+                          ? 'bg-slate-50 hover:bg-slate-100 text-slate-700'
+                          : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-400'
+                    }`}
+                  >
+                    <BellRing size={14} className="text-amber-400" />
+                    <span>Alerts &amp; Notifications</span>
+                    {adminUnreadNotifs > 0 && (
+                      <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black bg-red-600 text-white animate-pulse">
+                        {adminUnreadNotifs}
+                      </span>
+                    )}
+                  </button>
+
+                  <button
                     onClick={() => setAdminSubTab('media')}
                     className={`px-3 py-1.5 rounded-lg text-[10.5px] md:text-xs font-bold uppercase transition-all flex items-center gap-2 cursor-pointer ${
                       adminSubTab === 'media'
@@ -10171,6 +10447,32 @@ export default function App() {
                     <span>Partner Deals</span>
                   </button>
                 </div>
+
+                {/* ₹199 REELS PURCHASES & VERIFICATION DESK */}
+                {adminSubTab === 'reels' && (
+                  <React.Suspense fallback={<ComponentLoader />}>
+                    <AdminPurchaseManager
+                      currentTheme={currentTheme}
+                      triggerToast={triggerToast}
+                      selectedOrderId={adminSelectedOrderId}
+                      onClearSelectedOrder={() => setAdminSelectedOrderId(null)}
+                    />
+                  </React.Suspense>
+                )}
+
+                {/* ADMIN REAL-TIME NOTIFICATIONS PANEL */}
+                {adminSubTab === 'notifications' && (
+                  <React.Suspense fallback={<ComponentLoader />}>
+                    <AdminNotificationsPanel
+                      currentTheme={currentTheme}
+                      triggerToast={triggerToast}
+                      onOpenOrderReview={(orderId) => {
+                        setAdminSelectedOrderId(orderId);
+                        setAdminSubTab('reels');
+                      }}
+                    />
+                  </React.Suspense>
+                )}
 
                 {/* PARTNER DEALS MANAGEMENT DESK */}
                 {adminSubTab === 'deals' && (
@@ -14550,15 +14852,20 @@ export default function App() {
 
                               {/* Dynamic Micro-Badges for source tagging in preview */}
                               <div className="absolute top-2.5 left-2.5 z-20 flex items-center gap-1.5">
-                                {/amazon\.(in|com|co\.uk|ca|de|fr|co\.jp|com\.au|es|it|com\.mx|com\.br|com\.tr|ae|sa|sg|se|pl|nl|be|com\.be|co\.za|eg)|\/amzn\.to\//i.test(editingItem.data.url || '') ? (
-                                  <span className="px-2 py-0.5 rounded-full bg-amber-500/90 text-black font-mono text-[8px] font-black tracking-widest uppercase flex items-center gap-1 shadow-sm backdrop-blur-md">
+                                {/flipkart\.(com)|dl\.flipkart\.com|fkrt\.(it|co)/i.test(editingItem.data.url || '') || editingItem.data.partnerSource === 'Flipkart' ? (
+                                  <span className="px-2 py-0.5 rounded-full bg-[#2874F0] text-white font-mono text-[8px] font-black tracking-widest uppercase flex items-center gap-1 shadow-sm backdrop-blur-md">
+                                    <ShoppingBag size={8} className="stroke-[2.5]" />
+                                    <span>FLIPKART</span>
+                                  </span>
+                                ) : /amazon\.(in|com|co\.uk|ca|de|fr|co\.jp|com\.au|es|it|com\.mx|com\.br|com\.tr|ae|sa|sg|se|pl|nl|be|com\.be|co\.za|eg)|amzn\.(to|in)|a\.co/i.test(editingItem.data.url || '') || editingItem.data.partnerSource === 'Amazon' ? (
+                                  <span className="px-2 py-0.5 rounded-full bg-[#FF9900] text-black font-mono text-[8px] font-black tracking-widest uppercase flex items-center gap-1 shadow-sm backdrop-blur-md font-bold">
                                     <ShoppingBag size={8} className="stroke-[2.5]" />
                                     <span>AMAZON</span>
                                   </span>
                                 ) : (
                                   <span className="px-2 py-0.5 rounded-full bg-emerald-500/90 text-white font-mono text-[8px] font-black tracking-widest uppercase flex items-center gap-1 shadow-sm backdrop-blur-md">
                                     <ExternalLink size={8} className="stroke-[2.5]" />
-                                    <span>PARTNER</span>
+                                    <span>DEAL</span>
                                   </span>
                                 )}
                               </div>
@@ -14566,7 +14873,14 @@ export default function App() {
 
                             {/* 2. Text Content */}
                             <div className="flex-1 flex flex-col p-3.5 sm:p-4 min-w-0 justify-between">
-                              <div className="space-y-2">
+                              <div className="space-y-1.5 sm:space-y-2">
+                                {/* Category Group Badge */}
+                                <span className={`text-[7.5px] sm:text-[8.5px] font-mono font-bold tracking-wider uppercase block ${
+                                  currentTheme === 'light' ? 'text-amber-600' : 'text-amber-400/90'
+                                }`}>
+                                  {getCategoryBadgeLabel(editingItem.data.category || 'accessories')}
+                                </span>
+
                                 {/* Product Title */}
                                 <h3 className={`text-xs sm:text-sm font-bold tracking-tight leading-snug line-clamp-2 transition-colors duration-200 ${
                                   currentTheme === 'light' ? 'text-slate-900' : 'text-zinc-100'
@@ -14574,7 +14888,7 @@ export default function App() {
                                   {editingItem.data.title || 'Untitled Recommendation Listing'}
                                 </h3>
 
-                                {/* Product Description */}
+                                {/* Product Recommendation Text / Testimony */}
                                 <p className={`text-[10px] sm:text-[11px] leading-relaxed font-sans line-clamp-3 sm:line-clamp-4 ${
                                   currentTheme === 'light' ? 'text-slate-500 font-medium' : 'text-slate-400'
                                 }`}>
@@ -14582,12 +14896,33 @@ export default function App() {
                                 </p>
                               </div>
 
-                              {/* Code Section (Price has been removed per user request) */}
-                              {editingItem.data.discountCode && (
-                                <div className="mt-4 pt-3 flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 dark:border-white/[0.02]">
-                                  <span className="px-1.5 py-0.5 rounded-md bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/20 text-amber-500 font-mono text-[8px] font-bold tracking-wider">
-                                    CODE: {editingItem.data.discountCode}
-                                  </span>
+                              {/* Price and Promo Section */}
+                              {(editingItem.data.price || editingItem.data.discountCode) && (
+                                <div className="mt-3 pt-2.5 flex items-center justify-between gap-1.5 border-t border-slate-100 dark:border-white/[0.02]">
+                                  {editingItem.data.price ? (
+                                    <div className="flex flex-col text-left">
+                                      <span className="text-[6.5px] sm:text-[8px] uppercase font-bold tracking-widest text-slate-400 dark:text-zinc-500 block leading-none">
+                                        Price
+                                      </span>
+                                      <div className="flex items-center gap-1 mt-0.5">
+                                        <span className={`text-[10px] sm:text-[13px] font-black ${
+                                          currentTheme === 'light' ? 'text-slate-900' : 'text-emerald-400'
+                                        }`}>
+                                          {editingItem.data.price}
+                                        </span>
+                                        {editingItem.data.discountPercentage && (
+                                          <span className="text-[7px] sm:text-[8px] px-1 py-0.5 rounded bg-emerald-500/10 text-emerald-500 font-bold">
+                                            {editingItem.data.discountPercentage}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ) : <div />}
+                                  {editingItem.data.discountCode && (
+                                    <span className="px-1.5 py-0.5 rounded-md bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/20 text-amber-500 font-mono text-[8px] font-bold tracking-wider">
+                                      CODE: {editingItem.data.discountCode}
+                                    </span>
+                                  )}
                                 </div>
                               )}
                             </div>
@@ -15185,6 +15520,45 @@ export default function App() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Global Festive Offer Popup & Persistent Floating Reopen Badge - Only shown on booking page */}
+      <DurgaPujaOfferPopup
+        currentTheme={currentTheme}
+        isAuthorized={isAuthorized}
+        triggerToast={triggerToast}
+        isCheckoutActive={isReelsModalOpen}
+        onlyShowOnBooking={false}
+        activeTab={activeTab}
+        onUnlockPack={() => {
+          setReelsModalInitialTab('checkout');
+          setIsReelsModalOpen(true);
+        }}
+        onExploreCategories={() => {
+          setReelsModalInitialTab('categories');
+          setIsReelsModalOpen(true);
+        }}
+      />
+
+      {/* 150K+ Reels Mega Pack Checkout & Categories Interactive Modal */}
+      <ReelsPackModal
+        isOpen={isReelsModalOpen}
+        onClose={() => setIsReelsModalOpen(false)}
+        currentTheme={currentTheme}
+        initialTab={reelsModalInitialTab}
+        triggerToast={triggerToast}
+      />
+
+      {/* Discreet Fixed Admin Corner Trigger in Bottom-Right Corner - Only shown on booking page */}
+      {activeTab === 'contact' && (
+        <AdminCornerTrigger
+          currentTheme={currentTheme}
+          isAuthorized={isAuthorized}
+          onOpenAdmin={() => {
+            setActiveTab('dashboard');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+        />
+      )}
 
     </div>
   );

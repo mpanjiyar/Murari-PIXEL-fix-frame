@@ -37,6 +37,16 @@ export interface PartnerDealCardProps {
   onDeleteItem: (item: PartnerDealItem) => void;
 }
 
+export const getCategoryBadgeLabel = (catStr: string): string => {
+  const primary = (catStr || '').split(',')[0].trim().toLowerCase().replace(/\s+/g, '_');
+  if (primary === 'photography' || primary === 'photo') return 'Photography';
+  if (primary === 'it_tech' || primary === 'it') return 'IT & Tech';
+  if (primary === 'software') return 'Software';
+  if (primary === 'my_gears') return 'My Gears';
+  if (primary === 'accessories') return 'Accessories';
+  return primary ? primary.split(/[_-]/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : 'Curated';
+};
+
 export const PartnerDealCard = React.memo<PartnerDealCardProps>(
   ({
     item,
@@ -47,8 +57,8 @@ export const PartnerDealCard = React.memo<PartnerDealCardProps>(
     onEditItem,
     onDeleteItem,
   }) => {
-    const isFlipkart = item.partnerSource === 'Flipkart' || /flipkart\.com|dl\.flipkart\.com|fkrt\.(it|co)/i.test(item.url || '');
-    const isAmazon = !isFlipkart && (item.partnerSource === 'Amazon' || /amazon\.(in|com|co\.uk|ca|de|fr|co\.jp|com\.au|es|it|com\.mx|com\.br|com\.tr|ae|sa|sg|se|pl|nl|be|com\.be|co\.za|eg)|\/amzn\.to\//i.test(item.url || ''));
+    const isFlipkart = item.partnerSource === 'Flipkart' || /flipkart\.(com)|dl\.flipkart\.com|fkrt\.(it|co)/i.test(item.url || '');
+    const isAmazon = !isFlipkart && (item.partnerSource === 'Amazon' || /amazon\.(in|com|co\.uk|ca|de|fr|co\.jp|com\.au|es|it|com\.mx|com\.br|com\.tr|ae|sa|sg|se|pl|nl|be|com\.be|co\.za|eg)|amzn\.(to|in)|a\.co/i.test(item.url || ''));
 
     const [imgSrc, setImgSrc] = React.useState<string>(item.imageUrl || 'https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=600&auto=format&fit=crop');
 
@@ -143,6 +153,12 @@ export const PartnerDealCard = React.memo<PartnerDealCardProps>(
           {/* Content Details */}
           <div className="flex-1 flex flex-col p-2.5 sm:p-4 min-w-0 justify-between">
             <div className="space-y-1 sm:space-y-1.5">
+              <span className={`text-[7.5px] sm:text-[8.5px] font-mono font-bold tracking-wider uppercase block ${
+                currentTheme === 'light' ? 'text-amber-600' : 'text-amber-400/90'
+              }`}>
+                {getCategoryBadgeLabel(item.category)}
+              </span>
+
               <h3
                 className={`text-[11px] sm:text-sm font-bold tracking-tight leading-snug line-clamp-2 transition-colors duration-200 ${
                   currentTheme === 'light'

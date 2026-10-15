@@ -1,20 +1,22 @@
 import React, { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
 
-export interface LagFreeInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onChange' | 'value'> {
+export interface LagFreeInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onChange' | 'value' | 'defaultValue'> {
   value?: string | number;
+  defaultValue?: string | number;
   onChange?: ((e: React.ChangeEvent<HTMLInputElement>) => void) | ((val: string) => void);
   debounceMs?: number;
 }
 
 export const LagFreeInput = forwardRef<HTMLInputElement, LagFreeInputProps>(({
   value,
+  defaultValue,
   onChange,
   debounceMs = 120,
   onBlur,
   onKeyDown,
   ...props
 }, ref) => {
-  const initialVal = value !== undefined ? value : (props.defaultValue ?? '');
+  const initialVal = value !== undefined ? value : (defaultValue ?? '');
   const [localValue, setLocalValue] = useState<string>(String(initialVal ?? ''));
   const onChangeRef = useRef(onChange);
   const valuePropRef = useRef(value);
@@ -30,8 +32,10 @@ export const LagFreeInput = forwardRef<HTMLInputElement, LagFreeInputProps>(({
     if (value !== undefined) {
       valuePropRef.current = value;
       setLocalValue(String(value ?? ''));
+    } else if (defaultValue !== undefined) {
+      setLocalValue(String(defaultValue ?? ''));
     }
-  }, [value]);
+  }, [value, defaultValue]);
 
   const flushChange = useCallback((valToFlush: string) => {
     if (valuePropRef.current !== undefined && valToFlush === String(valuePropRef.current ?? '')) return;
@@ -82,21 +86,23 @@ export const LagFreeInput = forwardRef<HTMLInputElement, LagFreeInputProps>(({
 
 LagFreeInput.displayName = 'LagFreeInput';
 
-export interface LagFreeTextAreaProps extends Omit<React.TextareaHTMLAttributes<HTMLTextAreaElement>, 'onChange' | 'value'> {
+export interface LagFreeTextAreaProps extends Omit<React.TextareaHTMLAttributes<HTMLTextAreaElement>, 'onChange' | 'value' | 'defaultValue'> {
   value?: string | number;
+  defaultValue?: string | number;
   onChange?: ((e: React.ChangeEvent<HTMLTextAreaElement>) => void) | ((val: string) => void);
   debounceMs?: number;
 }
 
 export const LagFreeTextArea = forwardRef<HTMLTextAreaElement, LagFreeTextAreaProps>(({
   value,
+  defaultValue,
   onChange,
   debounceMs = 120,
   onBlur,
   onKeyDown,
   ...props
 }, ref) => {
-  const initialVal = value !== undefined ? value : (props.defaultValue ?? '');
+  const initialVal = value !== undefined ? value : (defaultValue ?? '');
   const [localValue, setLocalValue] = useState<string>(String(initialVal ?? ''));
   const onChangeRef = useRef(onChange);
   const valuePropRef = useRef(value);
@@ -112,8 +118,10 @@ export const LagFreeTextArea = forwardRef<HTMLTextAreaElement, LagFreeTextAreaPr
     if (value !== undefined) {
       valuePropRef.current = value;
       setLocalValue(String(value ?? ''));
+    } else if (defaultValue !== undefined) {
+      setLocalValue(String(defaultValue ?? ''));
     }
-  }, [value]);
+  }, [value, defaultValue]);
 
   const flushChange = useCallback((valToFlush: string) => {
     if (valuePropRef.current !== undefined && valToFlush === String(valuePropRef.current ?? '')) return;
