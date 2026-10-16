@@ -17,6 +17,8 @@ import {
   Phone,
   Tag
 } from 'lucide-react';
+import { db } from '../firebase';
+import { collection, doc, setDoc, onSnapshot } from 'firebase/firestore';
 import { AdminAlertNotification, AdminNotificationType, AdminNotificationSeverity } from '../types';
 
 interface AdminNotificationsPanelProps {
@@ -60,7 +62,45 @@ export const AdminNotificationsPanel: React.FC<AdminNotificationsPanelProps> = (
   useEffect(() => {
     fetchNotifications();
 
-    // Setup real-time Server-Sent Events (SSE) listener
+    // 1. Direct Multi-Device Real-Time Firestore Listener
+    let unsubscribeFirestore: (() => void) | null = null;
+    try {
+      if (db) {
+        unsubscribeFirestore = onSnapshot(
+          collection(db, 'admin_notifications'),
+          (snapshot) => {
+            const liveNotifs: AdminAlertNotification[] = [];
+            snapshot.forEach((docSnap) => {
+              const data = docSnap.data() as AdminAlertNotification;
+              if (data && data.id) {
+                liveNotifs.push(data);
+              }
+            });
+
+            if (liveNotifs.length > 0) {
+              setNotifications((prev) => {
+                const map = new Map<string, AdminAlertNotification>();
+                prev.forEach((n) => map.set(n.id, n));
+                liveNotifs.forEach((n) => map.set(n.id, { ...(map.get(n.id) || {}), ...n }));
+                const merged = Array.from(map.values()).sort(
+                  (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+                );
+                setUnreadCount(merged.filter((n) => !n.readAt).length);
+                return merged;
+              });
+              setIsLoading(false);
+            }
+          },
+          (err) => {
+            console.warn('Firestore notifications live listener note:', err);
+          }
+        );
+      }
+    } catch (fsErr) {
+      console.warn('Firestore notifications subscription init error:', fsErr);
+    }
+
+    // 2. Setup real-time Server-Sent Events (SSE) listener
     let eventSource: EventSource | null = null;
     try {
       eventSource = new EventSource('/api/reels/events?isAdmin=true');
@@ -89,21 +129,32 @@ export const AdminNotificationsPanel: React.FC<AdminNotificationsPanelProps> = (
       console.warn('SSE notification stream unavailable:', err);
     }
 
-    // Backup polling every 12 seconds
+    // 3. Backup polling every 12 seconds
     const interval = setInterval(() => fetchNotifications(true), 12000);
 
     return () => {
-      clearInterval(interval);
+      if (unsubscribeFirestore) unsubscribeFirestore();
       if (eventSource) eventSource.close();
+      clearInterval(interval);
     };
   }, []);
 
   // Mark single as read
   const handleMarkAsRead = async (id: string) => {
+    const nowIso = new Date().toISOString();
+    // Update local state
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, readAt: nowIso } : n));
+    setUnreadCount(c => Math.max(0, c - 1));
+
+    // Update Firestore directly
+    if (db) {
+      try {
+        await setDoc(doc(db, 'admin_notifications', id), { readAt: nowIso }, { merge: true });
+      } catch (_) {}
+    }
+
     try {
       await fetch(`/api/reels/admin/notifications/${id}/read`, { method: 'POST' });
-      setNotifications(prev => prev.map(n => n.id === id ? { ...n, readAt: new Date().toISOString() } : n));
-      setUnreadCount(c => Math.max(0, c - 1));
     } catch (_) {}
   };
 

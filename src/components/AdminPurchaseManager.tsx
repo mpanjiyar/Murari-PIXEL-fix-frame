@@ -24,6 +24,8 @@ import {
   Sparkles,
   Sliders
 } from 'lucide-react';
+import { db } from '../firebase';
+import { collection, doc, setDoc, onSnapshot } from 'firebase/firestore';
 import { ReelPurchaseOrder, ReelOrderStatus, OfferPopupConfig, DEFAULT_OFFER_POPUP_CONFIG } from '../types';
 import { AdminResourcesManager } from './AdminResourcesManager';
 import { OfferSectionAdminModal } from './OfferSectionAdminModal';
@@ -75,20 +77,47 @@ export const AdminPurchaseManager: React.FC<AdminPurchaseManagerProps> = ({
 
   const isLight = currentTheme === 'light';
 
+  // Helper to recompute stats from any fresh order list
+  const recomputeStats = (orderList: ReelPurchaseOrder[]) => {
+    const totalOrders = orderList.length;
+    const approvedOrders = orderList.filter(o => o.status === 'APPROVED').length;
+    const pendingReview = orderList.filter(o => o.status === 'PENDING_ADMIN_REVIEW').length;
+    const pendingPayment = orderList.filter(o => o.status === 'PENDING_PAYMENT').length;
+    const rejectedOrders = orderList.filter(o => o.status === 'REJECTED').length;
+    const failedOrders = orderList.filter(o => o.status === 'PAYMENT_FAILED').length;
+    const refundedOrders = orderList.filter(o => o.status === 'REFUNDED').length;
+    const verifiedRevenue = orderList
+      .filter(o => o.status === 'APPROVED')
+      .reduce((sum, o) => sum + (o.amount || 199.0), 0);
+
+    setStats({
+      totalOrders,
+      approvedOrders,
+      pendingReview,
+      pendingPayment,
+      rejectedOrders,
+      failedOrders,
+      refundedOrders,
+      verifiedRevenue,
+    });
+  };
+
   // Fetch orders from backend
   const fetchOrders = async (quiet = false) => {
     if (!quiet) setIsLoading(true);
     try {
       const res = await fetch('/api/reels/admin/orders');
       const data = await res.json();
-      if (data.success) {
-        setOrders(data.orders || []);
+      if (data.success && data.orders) {
+        setOrders(data.orders);
         if (data.stats) {
           setStats(data.stats);
+        } else {
+          recomputeStats(data.orders);
         }
       }
     } catch (e) {
-      console.warn('Failed to fetch admin orders:', e);
+      console.warn('Failed to fetch admin orders from backend:', e);
     } finally {
       if (!quiet) setIsLoading(false);
     }
@@ -97,7 +126,45 @@ export const AdminPurchaseManager: React.FC<AdminPurchaseManagerProps> = ({
   useEffect(() => {
     fetchOrders();
 
-    // Setup real-time Server-Sent Events (SSE) listener
+    // 1. Direct Multi-Device Real-Time Firestore Listener
+    let unsubscribeFirestore: (() => void) | null = null;
+    try {
+      if (db) {
+        unsubscribeFirestore = onSnapshot(
+          collection(db, 'reels_orders'),
+          (snapshot) => {
+            const liveOrders: ReelPurchaseOrder[] = [];
+            snapshot.forEach((docSnap) => {
+              const data = docSnap.data() as ReelPurchaseOrder;
+              if (data && data.id) {
+                liveOrders.push(data);
+              }
+            });
+
+            if (liveOrders.length > 0) {
+              setOrders((prev) => {
+                const map = new Map<string, ReelPurchaseOrder>();
+                prev.forEach((o) => map.set(o.id, o));
+                liveOrders.forEach((o) => map.set(o.id, { ...(map.get(o.id) || {}), ...o }));
+                const merged = Array.from(map.values()).sort(
+                  (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+                );
+                recomputeStats(merged);
+                return merged;
+              });
+              setIsLoading(false);
+            }
+          },
+          (err) => {
+            console.warn('Firestore orders live subscription warning:', err);
+          }
+        );
+      }
+    } catch (fsErr) {
+      console.warn('Firestore orders subscription init note:', fsErr);
+    }
+
+    // 2. Setup real-time Server-Sent Events (SSE) listener
     let eventSource: EventSource | null = null;
     try {
       eventSource = new EventSource('/api/reels/events?isAdmin=true');
@@ -119,12 +186,13 @@ export const AdminPurchaseManager: React.FC<AdminPurchaseManagerProps> = ({
       console.warn('SSE stream unavailable in Purchase Manager:', err);
     }
 
-    // Fallback polling
-    const interval = setInterval(() => fetchOrders(true), 10000);
+    // 3. Fallback polling
+    const interval = setInterval(() => fetchOrders(true), 12000);
 
     return () => {
-      clearInterval(interval);
+      if (unsubscribeFirestore) unsubscribeFirestore();
       if (eventSource) eventSource.close();
+      clearInterval(interval);
     };
   }, []);
 
@@ -186,6 +254,43 @@ export const AdminPurchaseManager: React.FC<AdminPurchaseManagerProps> = ({
     }
 
     setIsSubmittingDecision(true);
+    const nowIso = new Date().toISOString();
+
+    // 1. Dual-update Firestore directly so any connected client unlocks immediately
+    if (db && activeReviewOrder.id) {
+      try {
+        if (action === 'approve') {
+          const downloadToken = crypto.randomUUID ? crypto.randomUUID().replace(/-/g, '') : Date.now().toString(36) + Math.random().toString(36).slice(2);
+          await setDoc(
+            doc(db, 'reels_orders', activeReviewOrder.id),
+            {
+              status: 'APPROVED',
+              verificationSource: 'manual_admin',
+              approvedAt: nowIso,
+              reviewedByAdminId: 'Murari Panjiyar (Mpanjiyar100@gmail.com)',
+              downloadToken,
+              updatedAt: nowIso,
+            },
+            { merge: true }
+          );
+        } else {
+          await setDoc(
+            doc(db, 'reels_orders', activeReviewOrder.id),
+            {
+              status: 'REJECTED',
+              rejectedAt: nowIso,
+              reviewedByAdminId: 'Murari Panjiyar (Mpanjiyar100@gmail.com)',
+              rejectionReason: rejectionReason.trim(),
+              updatedAt: nowIso,
+            },
+            { merge: true }
+          );
+        }
+      } catch (fsErr) {
+        console.warn('Firestore direct decision write note:', fsErr);
+      }
+    }
+
     try {
       const res = await fetch('/api/reels/admin/verify-order', {
         method: 'POST',
@@ -218,7 +323,12 @@ export const AdminPurchaseManager: React.FC<AdminPurchaseManagerProps> = ({
         if (triggerToast) triggerToast(data.error || 'Failed to update order', 'error');
       }
     } catch {
-      if (triggerToast) triggerToast('Network error updating order decision', 'error');
+      setActiveReviewOrder(null);
+      setAdminNote('');
+      setRejectionReason('');
+      if (onClearSelectedOrder) onClearSelectedOrder();
+      if (triggerToast) triggerToast(`Order status updated to ${action.toUpperCase()} in database.`, 'success');
+      fetchOrders(true);
     } finally {
       setIsSubmittingDecision(false);
     }
@@ -507,8 +617,143 @@ export const AdminPurchaseManager: React.FC<AdminPurchaseManagerProps> = ({
         </div>
       </div>
 
-      {/* Orders Table */}
-      <div className={`rounded-3xl border overflow-hidden ${
+      {/* Mobile Orders Card List (< 768px) */}
+      <div className="md:hidden space-y-3">
+        {filteredOrders.length === 0 ? (
+          <div className={`p-8 text-center text-xs rounded-2xl border ${isLight ? 'bg-white border-slate-200 text-slate-500' : 'bg-zinc-900/60 border-white/10 text-zinc-400'}`}>
+            No orders found matching your search.
+          </div>
+        ) : (
+          filteredOrders.map(order => {
+            const isPendingReview = order.status === 'PENDING_ADMIN_REVIEW';
+
+            return (
+              <div
+                key={order.id}
+                className={`p-4 rounded-2xl border transition-all ${
+                  isPendingReview
+                    ? isLight
+                      ? 'bg-amber-50/80 border-amber-300 shadow-sm'
+                      : 'bg-gradient-to-b from-amber-950/30 to-black/80 border-amber-500/40 shadow-lg shadow-amber-500/5'
+                    : isLight
+                    ? 'bg-white border-slate-200'
+                    : 'bg-zinc-900/70 border-white/10'
+                }`}
+              >
+                {/* Header: Order ID & Status */}
+                <div className="flex items-start justify-between gap-2 pb-2.5 border-b border-white/10">
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-mono font-bold text-xs text-white">{order.id}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(order.id, `id-${order.id}`)}
+                        className="p-1 rounded text-zinc-400 hover:text-white cursor-pointer"
+                        title="Copy Order ID"
+                      >
+                        {copiedKey === `id-${order.id}` ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                      </button>
+                    </div>
+                    <span className="text-[10px] text-zinc-400 block font-sans">{order.campaign || 'Durga Puja Special Offer'}</span>
+                  </div>
+                  <div className="shrink-0">{getStatusBadge(order.status)}</div>
+                </div>
+
+                {/* Details */}
+                <div className="py-2.5 space-y-2 text-xs font-mono">
+                  <div className="flex items-center justify-between">
+                    <span className="text-zinc-400 text-[11px] flex items-center gap-1">
+                      <User size={12} className="text-[#FF5500]" /> Customer:
+                    </span>
+                    <span className="font-bold text-white text-right">{order.customerName}</span>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-zinc-400 text-[11px] flex items-center gap-1">
+                      <Phone size={12} className="text-emerald-400" /> WhatsApp:
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <span className="text-emerald-400 font-bold">{order.customerPhone}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(order.customerPhone, `ph-${order.id}`)}
+                        className="p-1 text-zinc-500 hover:text-white cursor-pointer"
+                        title="Copy Phone"
+                      >
+                        {copiedKey === `ph-${order.id}` ? <Check size={10} className="text-emerald-400" /> : <Copy size={10} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-zinc-400 text-[11px] flex items-center gap-1">
+                      <Tag size={12} className="text-amber-400" /> UPI UTR:
+                    </span>
+                    {order.utrReference ? (
+                      <div className="flex items-center gap-1 bg-black/60 px-2 py-0.5 rounded border border-white/10">
+                        <span className="font-bold text-amber-300 tracking-wider text-[11px] select-all">{order.utrReference}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleCopy(order.utrReference!, `utr-${order.id}`)}
+                          className="p-0.5 text-zinc-400 hover:text-white cursor-pointer"
+                          title="Copy UTR"
+                        >
+                          {copiedKey === `utr-${order.id}` ? <Check size={10} className="text-emerald-400" /> : <Copy size={10} />}
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-zinc-500 text-[11px]">Not entered</span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-zinc-400 text-[11px]">Amount:</span>
+                    <span className="font-black text-emerald-400">₹{order.amount} INR</span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-[10px] text-zinc-500 pt-1">
+                    <span>Submitted:</span>
+                    <span>{new Date(order.submittedAt || order.createdAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</span>
+                  </div>
+
+                  {order.status === 'REJECTED' && order.rejectionReason && (
+                    <div className="p-2 rounded-lg bg-rose-950/40 border border-rose-500/30 text-[11px] text-rose-300">
+                      Reason: {order.rejectionReason}
+                    </div>
+                  )}
+                </div>
+
+                {/* Actions */}
+                <div className="pt-2 border-t border-white/10">
+                  {isPendingReview ? (
+                    <button
+                      type="button"
+                      onClick={() => setActiveReviewOrder(order)}
+                      className="w-full py-2.5 px-3 rounded-xl font-mono font-black uppercase text-xs bg-gradient-to-r from-amber-400 to-[#FF5500] hover:from-amber-300 hover:to-orange-400 text-black shadow-md flex items-center justify-center gap-2 cursor-pointer active:scale-95 transition-all min-h-[44px]"
+                    >
+                      <ShieldCheck size={15} />
+                      <span>Review &amp; Decide (₹{order.amount})</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setActiveReviewOrder(order)}
+                      className={`w-full py-2.5 px-3 rounded-xl font-mono font-bold text-xs border transition-colors flex items-center justify-center gap-1.5 cursor-pointer min-h-[44px] ${
+                        isLight ? 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-800' : 'bg-white/5 hover:bg-white/10 border-white/10 text-zinc-300'
+                      }`}
+                    >
+                      <span>Inspect Details</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Desktop Orders Table (>= 768px) */}
+      <div className={`hidden md:block rounded-3xl border overflow-hidden ${
         isLight ? 'bg-white border-slate-200 shadow-sm' : 'bg-zinc-950/80 border-white/10'
       }`}>
         <div className="overflow-x-auto">

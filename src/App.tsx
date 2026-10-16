@@ -8675,7 +8675,7 @@ export default function App() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -15 }}
             transition={{ type: "spring", stiffness: 180, damping: 20 }}
-            className="space-y-10 text-left max-w-5xl mx-auto px-2 sm:px-4"
+            className="space-y-6 sm:space-y-10 text-left max-w-5xl mx-auto px-2 sm:px-4"
           >
             {/* BOOKING PAGE — MODERN AND SIMPLE UI */}
             <BookingAppointmentSection
@@ -8686,10 +8686,10 @@ export default function App() {
             />
 
             {/* Split Direct Hotline Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
               
               {/* IT Fix Card */}
-              <div className={`p-6 rounded-3xl border ${s.card} space-y-4 text-left flex flex-col justify-between shadow-md`}>
+              <div className={`p-4 sm:p-6 rounded-2xl sm:rounded-3xl border ${s.card} space-y-4 text-left flex flex-col justify-between shadow-md`}>
                 <div className="space-y-3">
                   <div className="w-12 h-12 bg-orange-500/10 rounded-xl flex items-center justify-center text-[#FF5500]">
                     <Laptop size={24} />
@@ -8715,14 +8715,14 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => triggerQuickBooking('it_fix', 'Hello Murari, I want to book standard doorstep computer repair support!')}
-                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs uppercase py-3 tracking-wider rounded-xl flex items-center justify-center gap-2 text-center cursor-pointer transition-colors"
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs uppercase py-3 tracking-wider rounded-xl flex items-center justify-center gap-2 text-center cursor-pointer transition-colors min-h-[44px]"
                   >
                     <WhatsAppIcon size={14} className="shrink-0" />
                     <span>Send WhatsApp Support Ticket</span>
                   </button>
                   <a
                     href={`tel:${contactPhoneIt}`}
-                    className={`w-full font-extrabold text-xs uppercase py-3 tracking-wider rounded-xl flex items-center justify-center gap-2 border cursor-pointer transition-colors ${
+                    className={`w-full font-extrabold text-xs uppercase py-3 tracking-wider rounded-xl flex items-center justify-center gap-2 border cursor-pointer transition-colors min-h-[44px] ${
                       currentTheme === 'light' 
                         ? 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-800' 
                         : 'bg-white/5 hover:bg-white/10 border-white/10 text-white'
@@ -8734,7 +8734,7 @@ export default function App() {
               </div>
 
               {/* Pixel Frame Card */}
-              <div className={`p-6 rounded-3xl border ${s.card} space-y-4 text-left flex flex-col justify-between shadow-md`}>
+              <div className={`p-4 sm:p-6 rounded-2xl sm:rounded-3xl border ${s.card} space-y-4 text-left flex flex-col justify-between shadow-md`}>
                 <div className="space-y-3">
                   <div className="w-12 h-12 bg-orange-500/10 rounded-xl flex items-center justify-center text-[#FF5500]">
                     <Camera size={24} />
@@ -8760,14 +8760,14 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => triggerQuickBooking('photography', 'Hello Murari, I am inquiring about wedding, anniversary, or corporate event photography packages!')}
-                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs uppercase py-3 tracking-wider rounded-xl flex items-center justify-center gap-2 text-center cursor-pointer transition-colors"
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs uppercase py-3 tracking-wider rounded-xl flex items-center justify-center gap-2 text-center cursor-pointer transition-colors min-h-[44px]"
                   >
                     <WhatsAppIcon size={14} className="shrink-0" />
                     <span>WhatsApp Photographer</span>
                   </button>
                   <a
                     href={`tel:${contactPhonePhotos}`}
-                    className={`w-full font-extrabold text-xs uppercase py-3 tracking-wider rounded-xl flex items-center justify-center gap-2 border cursor-pointer transition-colors ${
+                    className={`w-full font-extrabold text-xs uppercase py-3 tracking-wider rounded-xl flex items-center justify-center gap-2 border cursor-pointer transition-colors min-h-[44px] ${
                       currentTheme === 'light' 
                         ? 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-800' 
                         : 'bg-white/5 hover:bg-white/10 border-white/10 text-white'
@@ -8787,7 +8787,7 @@ export default function App() {
 
             {/* INTERACTIVE GEOGRAPHIC DISPATCH SERVICE AREA MAP */}
             <ScrollReveal variant="fade-up" delay={0.25}>
-              <div className={`p-5 sm:p-7 md:p-8 rounded-3xl border ${s.card} space-y-5 text-left relative overflow-hidden shadow-xl`}>
+              <div className={`p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-3xl border ${s.card} space-y-4 sm:space-y-5 text-left relative overflow-hidden shadow-xl`}>
                 <div className="space-y-1.5">
                   <span className="text-[10px] uppercase font-mono tracking-widest text-[#FF5500] font-bold">
                     GEOGRAPHIC COVERAGE &amp; DISPATCH NODES
@@ -8801,7 +8801,14 @@ export default function App() {
                 </div>
 
                 <React.Suspense fallback={<ComponentLoader minHeight="min-h-[420px]" />}>
-                  <CoverageMap currentTheme={currentTheme} />
+                  <CoverageMap
+                    currentTheme={currentTheme}
+                    onSelectLocality={(locName) => {
+                      triggerToast(`Selected ${locName}! Updating your booking address above...`, 'info');
+                      const el = document.getElementById('booking-portal-header');
+                      if (el) el.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                  />
                 </React.Suspense>
               </div>
             </ScrollReveal>
@@ -10529,7 +10536,7 @@ export default function App() {
                 {adminSubTab === 'vault' && (
                   <React.Suspense fallback={<ComponentLoader />}>
                     <AdminVaultManager
-                      adminKey={adminKeyInput || "pixel2025"}
+                      adminKey={isAuthorized ? adminKeyInput : undefined}
                       currentTheme={currentTheme}
                     />
                   </React.Suspense>
@@ -12931,7 +12938,7 @@ export default function App() {
                   window.scrollTo({ top: 0, behavior: 'smooth' });
                 }}
                 currentTheme={currentTheme}
-                adminKey={isAuthorized ? (adminKeyInput || "Dispur123@") : undefined}
+                adminKey={isAuthorized ? adminKeyInput : undefined}
                 isFullScreenPage={false}
                 isEmbeddedTab={true}
               />
@@ -15512,7 +15519,7 @@ export default function App() {
                   setIsVaultOpen(false);
                 }}
                 currentTheme={currentTheme}
-                adminKey={isAuthorized ? (adminKeyInput || "Dispur123@") : undefined}
+                adminKey={isAuthorized ? adminKeyInput : undefined}
                 isFullScreenPage={true}
                 isEmbeddedTab={false}
               />

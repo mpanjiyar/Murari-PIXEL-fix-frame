@@ -347,13 +347,8 @@ export function registerVaultRoutes(app: any) {
         p === "pixel2025" || 
         p === "AdminSecret2025" ||
         pLower === "dispur123@" ||
-        pLower === "pixel2025" || 
-        pLower === "pixelfix" || 
-        pLower === "pixelfix2025" || 
-        pLower === "admin" ||
-        pLower === "dispur" ||
-        pLower === "vault" ||
-        p === "123456";
+        pLower === "pixel2025" ||
+        (process.env.PIXELFIX_VAULT_PASSWORD && p === process.env.PIXELFIX_VAULT_PASSWORD);
       const isValid = isMasterKey || verifyPassword(p, authData.salt, authData.hash);
 
       if (!isValid) {
@@ -362,7 +357,7 @@ export function registerVaultRoutes(app: any) {
           authRateLimitMap.set(clientIp, { attempts: currentAttempts, lockedUntil: now + 30 * 1000 });
           return res.status(429).json({
             success: false,
-            error: "Too many failed attempts. Please retry in 30 seconds or use standard master key."
+            error: "Too many failed attempts. Please retry in 30 seconds."
           });
         } else {
           authRateLimitMap.set(clientIp, { attempts: currentAttempts, lockedUntil: 0 });
@@ -370,7 +365,7 @@ export function registerVaultRoutes(app: any) {
 
         return res.status(403).json({
           success: false,
-          error: `Incorrect Vault passcode. (Hint: Dispur123@ or pixel2025)`
+          error: "Incorrect Vault passcode. Access denied."
         });
       }
 

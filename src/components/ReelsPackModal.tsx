@@ -30,6 +30,8 @@ import {
   AlertTriangle,
   XCircle
 } from 'lucide-react';
+import { db } from '../firebase';
+import { doc, setDoc, onSnapshot } from 'firebase/firestore';
 import { ReelPurchaseOrder, ReelOrderStatus } from '../types';
 import { MegaPackBundleDirectory } from './MegaPackBundleDirectory';
 
@@ -245,10 +247,47 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
     }
   }, [orderId]);
 
-  // Real-Time Server-Sent Events (SSE) listener for this order
+  // Real-Time Listener: Multi-Device Firestore onSnapshot + SSE Backup
   useEffect(() => {
     if (!orderId || orderStatus === 'APPROVED') return;
 
+    // 1. Direct real-time Firestore listener across all devices
+    let unsubscribeFirestore: (() => void) | null = null;
+    try {
+      if (db) {
+        unsubscribeFirestore = onSnapshot(
+          doc(db, 'reels_orders', orderId),
+          (snapshot) => {
+            if (snapshot.exists()) {
+              const liveOrder = snapshot.data() as ReelPurchaseOrder;
+              if (liveOrder.status === 'APPROVED') {
+                setOrderStatus('APPROVED');
+                if (liveOrder.downloadToken) setDownloadToken(liveOrder.downloadToken);
+                if (storeConfig.masterDriveLink) setMasterDriveUrl(storeConfig.masterDriveLink);
+                if (triggerToast) {
+                  triggerToast('🎉 Murari Panjiyar approved your payment! Master Google Drive unlocked.', 'success');
+                }
+              } else if (liveOrder.status === 'REJECTED') {
+                setOrderStatus('REJECTED');
+                setRejectionReason(liveOrder.rejectionReason || 'Payment verification could not be confirmed.');
+                if (triggerToast) {
+                  triggerToast('Verification update: Please review rejection reason.', 'error');
+                }
+              } else if (liveOrder.status) {
+                setOrderStatus(liveOrder.status);
+              }
+            }
+          },
+          (err) => {
+            console.warn('Firestore order live listener warning:', err);
+          }
+        );
+      }
+    } catch (fsErr) {
+      console.warn('Firestore live listener init error:', fsErr);
+    }
+
+    // 2. Real-Time Server-Sent Events (SSE) listener
     let eventSource: EventSource | null = null;
     try {
       eventSource = new EventSource(`/api/reels/events?orderId=${encodeURIComponent(orderId)}`);
@@ -261,11 +300,15 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
               setOrderStatus('APPROVED');
               if (payload.downloadToken) setDownloadToken(payload.downloadToken);
               if (payload.masterDriveLink) setMasterDriveUrl(payload.masterDriveLink);
-              triggerToast('🎉 Murari Panjiyar approved your payment! Google Drive download access unlocked.', 'success');
+              if (triggerToast) {
+                triggerToast('🎉 Murari Panjiyar approved your payment! Google Drive download access unlocked.', 'success');
+              }
             } else if (payload.status === 'REJECTED' || payload.eventType === 'ORDER_REJECTED') {
               setOrderStatus('REJECTED');
               setRejectionReason(payload.rejectionReason || 'Payment verification could not be confirmed.');
-              triggerToast('Verification update: Please review rejection reason.', 'error');
+              if (triggerToast) {
+                triggerToast('Verification update: Please review rejection reason.', 'error');
+              }
             }
           }
         } catch (_) {}
@@ -274,7 +317,7 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
       console.warn('SSE connection unavailable for customer:', e);
     }
 
-    // Polling fallback every 8 seconds if waiting for Murari's approval
+    // 3. Polling fallback every 8 seconds if waiting for Murari's approval
     const pollInterval = setInterval(() => {
       if (orderStatus === 'PENDING_ADMIN_REVIEW') {
         fetch(`/api/reels/order-status/${orderId}`)
@@ -285,7 +328,9 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
                 setOrderStatus('APPROVED');
                 if (data.order.downloadToken) setDownloadToken(data.order.downloadToken);
                 if (data.links?.masterGoogleDrive) setMasterDriveUrl(data.links.masterGoogleDrive);
-                triggerToast('🎉 Your payment has been approved! Master Drive is unlocked.', 'success');
+                if (triggerToast) {
+                  triggerToast('🎉 Your payment has been approved! Master Drive is unlocked.', 'success');
+                }
               } else if (data.order.status === 'REJECTED') {
                 setOrderStatus('REJECTED');
                 setRejectionReason(data.order.rejectionReason || '');
@@ -297,10 +342,11 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
     }, 8000);
 
     return () => {
-      clearInterval(pollInterval);
+      if (unsubscribeFirestore) unsubscribeFirestore();
       if (eventSource) eventSource.close();
+      clearInterval(pollInterval);
     };
-  }, [orderId, orderStatus]);
+  }, [orderId, orderStatus, storeConfig.masterDriveLink]);
 
   // Generate responsive UPI QR Code
   useEffect(() => {
@@ -346,11 +392,12 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
   // Submit UTR for Admin Verification (STRICT ADMIN APPROVAL BEFORE ACCESS)
   const handleSubmitUtr = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmittingUtr) return; // Prevent duplicate rapid clicks
     setSubmitErrorMessage('');
 
     // Validate customer name
     if (!customerName.trim() || customerName.trim().length < 2) {
-      setSubmitErrorMessage('Please enter your full name.');
+      setSubmitErrorMessage('Please enter your full name (minimum 2 characters).');
       return;
     }
 
@@ -375,47 +422,191 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
     setIsSubmittingUtr(true);
 
     try {
-      const res = await fetch('/api/reels/submit-payment-reference', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          orderId: orderId || undefined,
-          utrReference: cleanUtr,
-          customerName: customerName.trim(),
-          customerPhone: customerPhone.trim(),
-        }),
-      });
+      let serverData: any = null;
+      let serverError: string | null = null;
 
-      const data = await res.json();
+      const submitPayload = {
+        orderId: orderId || undefined,
+        utrReference: cleanUtr,
+        customerName: customerName.trim(),
+        customerPhone: customerPhone.trim(),
+      };
 
-      if (data.success) {
-        const assignedId = data.order?.id || orderId;
+      const attemptFetch = async () => {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        try {
+          const res = await fetch('/api/reels/submit-payment-reference', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(submitPayload),
+            signal: controller.signal,
+          });
+          return res;
+        } finally {
+          clearTimeout(timeoutId);
+        }
+      };
+
+      let res: Response | null = null;
+      try {
+        res = await attemptFetch();
+      } catch (firstErr) {
+        console.warn('First fetch attempt encountered network issue, retrying...', firstErr);
+        await new Promise((r) => setTimeout(r, 600));
+        try {
+          res = await attemptFetch();
+        } catch (retryErr) {
+          console.warn('Backend fetch retry failed, checking Firestore fallback:', retryErr);
+        }
+      }
+
+      if (res) {
+        const text = await res.text();
+        try {
+          serverData = JSON.parse(text);
+        } catch {
+          if (!res.ok) {
+            serverError = `Server returned status ${res.status}`;
+          }
+        }
+
+        if (!res.ok) {
+          serverError = serverData?.error || serverData?.message || `Server returned error (${res.status})`;
+        }
+      }
+
+      // If backend responded successfully
+      if (serverData && serverData.success) {
+        const assignedId = serverData.order?.id || orderId;
         setOrderId(assignedId);
-        localStorage.setItem('last_reels_order_id', assignedId);
-        setOrderStatus(data.order?.status || 'PENDING_ADMIN_REVIEW');
+        try {
+          localStorage.setItem('last_reels_order_id', assignedId);
+        } catch {}
+        setOrderStatus(serverData.order?.status || 'PENDING_ADMIN_REVIEW');
         setStatusMessage(
-          data.message ||
+          serverData.message ||
             'Your payment details have been submitted successfully. Your order is awaiting administrator verification. You will receive download access on this website after approval.'
         );
 
-        // If server auto-approved (e.g. test mode or already verified)
-        if (data.order?.status === 'APPROVED' && data.order?.downloadToken) {
-          setDownloadToken(data.order.downloadToken);
-          if (data.links?.masterGoogleDrive) {
-            setMasterDriveUrl(data.links.masterGoogleDrive);
+        // Also write/sync to Firestore directly from client to ensure zero delay across all devices
+        if (db) {
+          try {
+            const nowIso = new Date().toISOString();
+            await setDoc(
+              doc(db, 'reels_orders', assignedId),
+              {
+                id: assignedId,
+                productId: '150k-mega-reels-pack',
+                productName: storeConfig.productName || '150K+ MEGA PACK — REELS & SHORTS',
+                campaign: storeConfig.campaignName || 'Durga Puja Special Offer',
+                amount: storeConfig.productPrice || 199.0,
+                currency: 'INR',
+                customerName: customerName.trim(),
+                customerPhone: customerPhone.trim(),
+                status: serverData.order?.status || 'PENDING_ADMIN_REVIEW',
+                utrReference: cleanUtr,
+                submittedAt: nowIso,
+                updatedAt: nowIso,
+              },
+              { merge: true }
+            );
+          } catch (fsSyncErr) {
+            console.warn('Client Firestore backup sync note:', fsSyncErr);
           }
-          triggerToast('🎉 Payment Verified! Download access approved.', 'success');
-        } else {
-          // Normal secure path: AWAITING MURARI'S APPROVAL
-          triggerToast('Payment submitted for verification. Murari Panjiyar has been notified.', 'info');
         }
-      } else {
-        setSubmitErrorMessage(data.error || 'Failed to submit payment reference. Please check your 12-digit receipt code.');
-        triggerToast(data.error || 'Payment reference submission failed.', 'error');
+
+        if (serverData.order?.status === 'APPROVED' && serverData.order?.downloadToken) {
+          setDownloadToken(serverData.order.downloadToken);
+          if (serverData.links?.masterGoogleDrive) {
+            setMasterDriveUrl(serverData.links.masterGoogleDrive);
+          }
+          if (triggerToast) triggerToast('🎉 Payment Verified! Download access approved.', 'success');
+        } else {
+          if (triggerToast) triggerToast('Payment submitted for verification. Murari Panjiyar has been notified.', 'info');
+        }
+        return;
       }
-    } catch {
-      setSubmitErrorMessage('Network error communicating with server. Please retry.');
-      triggerToast('Network error submitting payment.', 'error');
+
+      // If backend returned a clear validation or conflict error (e.g. duplicate UTR)
+      if (serverError) {
+        setSubmitErrorMessage(serverError);
+        if (triggerToast) triggerToast(serverError, 'error');
+        return;
+      }
+
+      // If backend was unreachable due to network/server failure, use client Firestore persistence
+      if (db) {
+        try {
+          const fallbackId = orderId && orderId.startsWith('RP-') ? orderId : `RP-${Date.now().toString(36).toUpperCase()}-${Math.floor(Math.random() * 900 + 100)}`;
+          const nowIso = new Date().toISOString();
+
+          await setDoc(
+            doc(db, 'reels_orders', fallbackId),
+            {
+              id: fallbackId,
+              productId: '150k-mega-reels-pack',
+              productName: storeConfig.productName || '150K+ MEGA PACK — REELS & SHORTS',
+              campaign: storeConfig.campaignName || 'Durga Puja Special Offer',
+              amount: storeConfig.productPrice || 199.0,
+              currency: 'INR',
+              customerName: customerName.trim(),
+              customerPhone: customerPhone.trim(),
+              status: 'PENDING_ADMIN_REVIEW',
+              paymentMethod: 'UPI_BHARATPE',
+              upiId: storeConfig.upiId,
+              receiverName: storeConfig.receiverName,
+              utrReference: cleanUtr,
+              submittedAt: nowIso,
+              createdAt: nowIso,
+              updatedAt: nowIso,
+            },
+            { merge: true }
+          );
+
+          // Also create notification in Firestore
+          const notifId = 'NOTIF-' + Date.now().toString(36).toUpperCase();
+          await setDoc(
+            doc(db, 'admin_notifications', notifId),
+            {
+              id: notifId,
+              type: 'MANUAL_VERIFICATION_REQUEST',
+              severity: 'INFO',
+              title: 'New Manual UPI Payment Verification Request',
+              message: `Murari, order ${fallbackId} from ${customerName.trim()} (${customerPhone.trim()}) has submitted UTR ${cleanUtr} for ₹199. Please verify BharatPe statement and approve.`,
+              relatedOrderId: fallbackId,
+              customerName: customerName.trim(),
+              customerPhone: customerPhone.trim(),
+              amount: 199,
+              utrReference: cleanUtr,
+              createdAt: nowIso,
+              readAt: null,
+              resolvedAt: null,
+            },
+            { merge: true }
+          );
+
+          setOrderId(fallbackId);
+          try {
+            localStorage.setItem('last_reels_order_id', fallbackId);
+          } catch {}
+          setOrderStatus('PENDING_ADMIN_REVIEW');
+          setStatusMessage(
+            'Your payment details have been saved directly to the database. Your order is awaiting administrator verification.'
+          );
+          if (triggerToast) triggerToast('Payment details saved. Murari Panjiyar has been notified for review.', 'info');
+          return;
+        } catch (fsDirectErr) {
+          console.warn('Firestore fallback write error:', fsDirectErr);
+        }
+      }
+
+      setSubmitErrorMessage('Unable to connect to server. Please check your internet connection and tap Submit again.');
+      if (triggerToast) triggerToast('Connection issue. Please retry submission.', 'error');
+    } catch (finalErr: any) {
+      console.error('Submission fatal error:', finalErr);
+      setSubmitErrorMessage(finalErr?.message || 'Unable to connect to server. Please check your network and retry.');
+      if (triggerToast) triggerToast('Connection issue. Please retry submission.', 'error');
     } finally {
       setIsSubmittingUtr(false);
     }
@@ -686,7 +877,7 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
                       <span>Live status check active... This page will automatically update once Murari approves your order.</span>
                     </div>
 
-                    <div className="pt-2">
+                    <div className="pt-2 flex flex-wrap items-center justify-center gap-3">
                       <button
                         type="button"
                         onClick={() => {
@@ -695,17 +886,26 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
                             .then(d => {
                               if (d.success && d.order?.status === 'APPROVED') {
                                 setOrderStatus('APPROVED');
-                                triggerToast('Order approved!', 'success');
+                                triggerToast('Order approved! Download access unlocked.', 'success');
                               } else {
-                                triggerToast('Verification in progress. Please check again in a few moments.', 'info');
+                                triggerToast('Verification in progress. Murari Panjiyar has been notified.', 'info');
                               }
                             });
                         }}
-                        className={`py-2 px-4 rounded-xl text-xs font-mono font-bold border transition-all cursor-pointer ${
-                          isLight ? 'bg-white border-slate-300 text-slate-800' : 'bg-white/10 border-white/10 text-white'
+                        className={`py-2 px-4 rounded-xl text-xs font-mono font-bold border transition-all cursor-pointer flex items-center gap-2 ${
+                          isLight ? 'bg-white border-slate-300 text-slate-800 hover:bg-slate-100' : 'bg-white/10 border-white/10 text-white hover:bg-white/20'
                         }`}
                       >
-                        Check Status Now
+                        <RefreshCw size={13} />
+                        <span>Check Status Now</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setOrderStatus('PENDING_PAYMENT')}
+                        className={`py-2 px-3 rounded-xl text-xs font-mono text-zinc-400 hover:text-white transition-colors cursor-pointer`}
+                      >
+                        Need to edit UTR or phone?
                       </button>
                     </div>
                   </div>
@@ -869,7 +1069,7 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
                           maxLength={12}
                           value={utrNumber}
                           onChange={e => setUtrNumber(e.target.value.replace(/[^\d]/g, '').slice(0, 12))}
-                          placeholder="e.g. 428819034812"
+                          placeholder="e.g. 882349102845"
                           className={`w-full px-3.5 py-3 rounded-xl text-base font-mono font-bold tracking-widest outline-none transition-colors ${
                             isLight
                               ? 'bg-white border-2 border-amber-400 text-slate-900 focus:border-amber-500'

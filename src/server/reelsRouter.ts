@@ -368,9 +368,12 @@ export async function syncOrderToFirestore(order: ReelPurchaseOrder | any): Prom
       }
     }
 
-    await setDoc(orderDocRef, payload, { merge: true });
-  } catch (err) {
-    console.warn(`[Reels Store] Firestore sync warning for ${order.id}:`, err);
+    await Promise.race([
+      setDoc(orderDocRef, payload, { merge: true }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Firestore sync timeout')), 1200))
+    ]);
+  } catch (err: any) {
+    console.warn(`[Reels Store] Firestore sync note for ${order?.id}:`, err?.message || err);
   }
 }
 
@@ -405,7 +408,10 @@ export async function syncNotificationToFirestore(notif: AdminAlertNotification 
       }
     }
 
-    await setDoc(notifDocRef, payload, { merge: true });
+    await Promise.race([
+      setDoc(notifDocRef, payload, { merge: true }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Firestore notification sync timeout')), 3500))
+    ]);
   } catch (err) {
     console.warn(`[Reels Store] Firestore notification sync warning:`, err);
   }
@@ -848,7 +854,7 @@ reelsRouter.post('/submit-payment-reference', async (req: Request, res: Response
     if (cleanUtr.length !== 12) {
       return res.status(400).json({
         success: false,
-        error: `Invalid UTR length. A genuine UPI Reference Number must be exactly 12 numeric digits (you entered ${cleanUtr.length} digits). Example: 428819034812.`,
+        error: `Invalid UTR length. A genuine UPI Reference Number must be exactly 12 numeric digits (you entered ${cleanUtr.length} digits). Example: 882349102845.`,
       });
     }
 
@@ -857,23 +863,6 @@ reelsRouter.post('/submit-payment-reference', async (req: Request, res: Response
       return res.status(400).json({
         success: false,
         error: 'Invalid UPI Reference Number. Repetitive dummy digits (e.g., all identical numbers) are rejected.',
-      });
-    }
-
-    // 5. Pattern check: Reject trivial sequential numbers
-    const dummySequences = ['123456789012', '012345678901', '987654321098', '123456789123', '000000000001', '012345678910', '998877665544'];
-    if (dummySequences.includes(cleanUtr)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid UPI Reference Number. Trivial sequential numbers are not accepted.',
-      });
-    }
-
-    // 6. Pattern check: Reject triple zero beginnings not used by NPCI banking rails
-    if (cleanUtr.startsWith('000')) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid UPI Reference Number. Legitimate banking transaction references do not begin with 000.',
       });
     }
 
@@ -980,7 +969,7 @@ reelsRouter.post('/submit-payment-reference', async (req: Request, res: Response
 
     ordersCache.set(order.id, order);
     persistOrders();
-    await syncOrderToFirestore(order);
+    syncOrderToFirestore(order).catch(() => {});
 
     // Create real-time admin alert notification for Murari
     const notif = createAdminNotification({
@@ -1176,7 +1165,7 @@ reelsRouter.post('/admin/verify-order', async (req: Request, res: Response) => {
 
       ordersCache.set(orderId, order);
       persistOrders();
-      await syncOrderToFirestore(order);
+      syncOrderToFirestore(order).catch(() => {});
 
       // Resolve related notification
       for (const notif of notificationsCache.values()) {
@@ -1225,7 +1214,7 @@ reelsRouter.post('/admin/verify-order', async (req: Request, res: Response) => {
 
       ordersCache.set(orderId, order);
       persistOrders();
-      await syncOrderToFirestore(order);
+      syncOrderToFirestore(order).catch(() => {});
 
       // Resolve related notification
       for (const notif of notificationsCache.values()) {

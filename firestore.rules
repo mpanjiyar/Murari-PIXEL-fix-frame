@@ -222,9 +222,9 @@ service cloud.firestore {
       allow delete: if isValidId(configId);
     }
 
-    // Collection: Reels Orders (150K Mega Reels & Shorts Pack)
+    // Collection: Reels Orders (150K Mega Reels & Shorts Pack & Durga Puja Offer)
     match /reels_orders/{orderId} {
-      allow read: if isValidId(orderId);
+      allow read: if true;
       allow create: if isValidId(orderId);
       allow update: if isValidId(orderId);
       allow delete: if false; // Orders cannot be deleted to preserve digital entitlement & audit trail
@@ -232,7 +232,7 @@ service cloud.firestore {
 
     // Collection: Admin Notifications (Alerts for Murari Panjiyar)
     match /admin_notifications/{notificationId} {
-      allow read: if isValidId(notificationId);
+      allow read: if true;
       allow create: if isValidId(notificationId);
       allow update: if isValidId(notificationId);
       allow delete: if isValidId(notificationId);

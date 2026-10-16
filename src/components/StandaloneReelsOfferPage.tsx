@@ -37,6 +37,8 @@ import {
   Search
 } from 'lucide-react';
 import QRCode from 'qrcode';
+import { db } from '../firebase';
+import { doc, setDoc, onSnapshot } from 'firebase/firestore';
 import { DurgaPujaOfferPopup } from './DurgaPujaOfferPopup';
 import { AdminNotificationsPanel } from './AdminNotificationsPanel';
 import { AdminPurchaseManager } from './AdminPurchaseManager';
@@ -304,10 +306,43 @@ export function StandaloneReelsOfferPage({
       .catch(() => {});
   }, [config.upiId, config.receiverName, config.productPrice, config.campaignName, orderId]);
 
-  // REAL-TIME APPROVAL LISTENER: Unlocks access only when Murari approves!
+  // REAL-TIME APPROVAL LISTENER: Unlocks access only when Murari approves (Multi-Device Firestore + SSE)
   useEffect(() => {
     if (!orderId) return;
 
+    // 1. Direct Firestore real-time listener across all devices
+    let unsubscribeFirestore: (() => void) | null = null;
+    try {
+      if (db) {
+        unsubscribeFirestore = onSnapshot(
+          doc(db, 'reels_orders', orderId),
+          (snapshot) => {
+            if (snapshot.exists()) {
+              const liveData = snapshot.data();
+              if (liveData.status === 'APPROVED') {
+                setOrderStatus('approved');
+                setUnlockedDriveLink(liveData.links?.masterGoogleDrive || config.masterDriveLink);
+                setDownloadToken(liveData.downloadToken || '');
+                showToast('🎉 Payment Verified & Approved by Murari Panjiyar! Access Unlocked.', 'success');
+              } else if (liveData.status === 'REJECTED') {
+                setOrderStatus('rejected');
+                setRejectionReason(liveData.rejectionReason || 'UPI UTR could not be reconciled in BharatPe settlement.');
+                showToast('Verification Unsuccessful. Please check details.', 'error');
+              } else if (liveData.status === 'PENDING_ADMIN_REVIEW') {
+                setOrderStatus('pending_approval');
+              }
+            }
+          },
+          (err) => {
+            console.warn('Firestore real-time order listener note:', err);
+          }
+        );
+      }
+    } catch (fsErr) {
+      console.warn('Firestore listener init error:', fsErr);
+    }
+
+    // 2. Server-Sent Events (SSE) stream
     let eventSource: EventSource | null = null;
     try {
       eventSource = new EventSource(`/api/reels/events?orderId=${encodeURIComponent(orderId)}`);
@@ -331,7 +366,7 @@ export function StandaloneReelsOfferPage({
       };
     } catch (_) {}
 
-    // Polling fallback while in pending approval state
+    // 3. Polling fallback while in pending approval state
     let pollInterval: NodeJS.Timeout | null = null;
     if (orderStatus === 'pending_approval') {
       pollInterval = setInterval(async () => {
@@ -350,10 +385,11 @@ export function StandaloneReelsOfferPage({
             }
           }
         } catch (_) {}
-      }, 4000);
+      }, 5000);
     }
 
     return () => {
+      if (unsubscribeFirestore) unsubscribeFirestore();
       if (eventSource) eventSource.close();
       if (pollInterval) clearInterval(pollInterval);
     };
@@ -426,39 +462,177 @@ export function StandaloneReelsOfferPage({
       const activeOrderId = orderId || `RP-${Date.now().toString(36).toUpperCase()}-${Math.floor(Math.random() * 900 + 100)}`;
       if (!orderId) setOrderId(activeOrderId);
 
-      const res = await fetch('/api/reels/submit-payment-reference', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          orderId: activeOrderId,
-          utrReference: cleanUtr,
-          customerName: customerName.trim(),
-          customerPhone: cleanPhone,
-        }),
-      });
+      let serverData: any = null;
+      let serverError: string | null = null;
 
-      const data = await res.json();
+      const submitPayload = {
+        orderId: activeOrderId,
+        utrReference: cleanUtr,
+        customerName: customerName.trim(),
+        customerPhone: cleanPhone,
+      };
 
-      if (data.success) {
+      const attemptFetch = async () => {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        try {
+          const res = await fetch('/api/reels/submit-payment-reference', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(submitPayload),
+            signal: controller.signal,
+          });
+          return res;
+        } finally {
+          clearTimeout(timeoutId);
+        }
+      };
+
+      let res: Response | null = null;
+      try {
+        res = await attemptFetch();
+      } catch (firstErr) {
+        console.warn('First fetch attempt encountered issue, retrying...', firstErr);
+        await new Promise((r) => setTimeout(r, 600));
+        try {
+          res = await attemptFetch();
+        } catch (retryErr) {
+          console.warn('Backend fetch retry failed, checking Firestore fallback:', retryErr);
+        }
+      }
+
+      if (res) {
+        const text = await res.text();
+        try {
+          serverData = JSON.parse(text);
+        } catch {
+          if (!res.ok) {
+            serverError = `Server returned status ${res.status}`;
+          }
+        }
+
+        if (!res.ok) {
+          serverError = serverData?.error || serverData?.message || `Server returned error (${res.status})`;
+        }
+      }
+
+      if (serverData && serverData.success) {
+        const assignedId = serverData.order?.id || activeOrderId;
+        setOrderId(assignedId);
         setSubmittedUtr(cleanUtr);
         setSubmittedTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-        if (data.order?.status === 'APPROVED') {
+
+        // Also write/sync to Firestore for multi-device instant propagation
+        if (db) {
+          try {
+            const nowIso = new Date().toISOString();
+            await setDoc(
+              doc(db, 'reels_orders', assignedId),
+              {
+                id: assignedId,
+                productId: '150k-mega-reels-pack',
+                productName: config.productName || '150K+ MEGA PACK — REELS & SHORTS',
+                campaign: config.campaignName || 'Durga Puja Special Offer',
+                amount: config.productPrice || 199.0,
+                currency: 'INR',
+                customerName: customerName.trim(),
+                customerPhone: cleanPhone,
+                status: serverData.order?.status || 'PENDING_ADMIN_REVIEW',
+                utrReference: cleanUtr,
+                submittedAt: nowIso,
+                updatedAt: nowIso,
+              },
+              { merge: true }
+            );
+          } catch (fsSyncErr) {
+            console.warn('Firestore live sync note:', fsSyncErr);
+          }
+        }
+
+        if (serverData.order?.status === 'APPROVED') {
           setOrderStatus('approved');
-          setUnlockedDriveLink(data.links?.masterGoogleDrive || config.masterDriveLink);
-          setDownloadToken(data.order.downloadToken || '');
+          setUnlockedDriveLink(serverData.links?.masterGoogleDrive || config.masterDriveLink);
+          setDownloadToken(serverData.order.downloadToken || '');
           showToast('🎉 Order already approved! Access granted.', 'success');
         } else {
-          // STRICT APPROVAL FLOW: Stays in pending_approval until Murari approves
           setOrderStatus('pending_approval');
           showToast('Payment submitted! Awaiting Murari Panjiyar verification.', 'info');
         }
-      } else {
-        setOrderStatus('error');
-        setErrorMessage(data.error || 'Verification request failed. Please check your 12-digit UPI reference number.');
+        return;
       }
-    } catch {
+
+      if (serverError) {
+        setOrderStatus('error');
+        setErrorMessage(serverError);
+        showToast(serverError, 'error');
+        return;
+      }
+
+      // If backend was unreachable, persist directly to Firestore
+      if (db) {
+        try {
+          const nowIso = new Date().toISOString();
+          await setDoc(
+            doc(db, 'reels_orders', activeOrderId),
+            {
+              id: activeOrderId,
+              productId: '150k-mega-reels-pack',
+              productName: config.productName || '150K+ MEGA PACK — REELS & SHORTS',
+              campaign: config.campaignName || 'Durga Puja Special Offer',
+              amount: config.productPrice || 199.0,
+              currency: 'INR',
+              customerName: customerName.trim(),
+              customerPhone: cleanPhone,
+              status: 'PENDING_ADMIN_REVIEW',
+              paymentMethod: 'UPI_BHARATPE',
+              upiId: config.upiId,
+              receiverName: config.receiverName,
+              utrReference: cleanUtr,
+              submittedAt: nowIso,
+              createdAt: nowIso,
+              updatedAt: nowIso,
+            },
+            { merge: true }
+          );
+
+          // Also write alert notification
+          const notifId = 'NOTIF-' + Date.now().toString(36).toUpperCase();
+          await setDoc(
+            doc(db, 'admin_notifications', notifId),
+            {
+              id: notifId,
+              type: 'MANUAL_VERIFICATION_REQUEST',
+              severity: 'INFO',
+              title: 'New Manual UPI Payment Verification Request',
+              message: `Murari, order ${activeOrderId} from ${customerName.trim()} (${cleanPhone}) has submitted UTR ${cleanUtr} for ₹199. Please verify BharatPe statement and approve.`,
+              relatedOrderId: activeOrderId,
+              customerName: customerName.trim(),
+              customerPhone: cleanPhone,
+              amount: 199,
+              utrReference: cleanUtr,
+              createdAt: nowIso,
+              readAt: null,
+              resolvedAt: null,
+            },
+            { merge: true }
+          );
+
+          setSubmittedUtr(cleanUtr);
+          setSubmittedTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+          setOrderStatus('pending_approval');
+          showToast('Payment details saved. Murari Panjiyar has been notified for verification.', 'info');
+          return;
+        } catch (fsDirectErr) {
+          console.warn('Firestore fallback write error:', fsDirectErr);
+        }
+      }
+
       setOrderStatus('error');
-      setErrorMessage('Network error submitting payment verification. Please try again.');
+      setErrorMessage('Unable to connect to server. Please check your internet connection and tap Submit again.');
+      showToast('Connection issue. Please retry submission.', 'error');
+    } catch (finalErr: any) {
+      setOrderStatus('error');
+      setErrorMessage(finalErr?.message || 'Unable to connect to server. Please check your network and retry.');
     }
   };
 
@@ -1510,7 +1684,7 @@ export function StandaloneReelsOfferPage({
                         ) : (
                           <>
                             <CheckCircle2 size={16} />
-                            <span>Submit for Administrator Approval</span>
+                            <span>Submit for Admin Approval</span>
                           </>
                         )}
                       </button>
@@ -1731,13 +1905,13 @@ export function StandaloneReelsOfferPage({
                     type="password"
                     value={adminPasswordInput}
                     onChange={e => setAdminPasswordInput(e.target.value)}
-                    placeholder="Enter admin password (e.g. Dispur123@)"
+                    placeholder="Enter admin password..."
                     className="w-full px-3.5 py-2.5 rounded-xl bg-black border border-white/10 text-white text-xs font-mono focus:border-amber-500 focus:outline-none"
                   />
                   <button
                     type="button"
                     onClick={() => {
-                      if (adminPasswordInput === 'Dispur123@' || adminPasswordInput === 'admin' || isAuthorized) {
+                      if (adminPasswordInput === 'Dispur123@' || isAuthorized) {
                         setAdminUnlocked(true);
                         showToast('Admin controls unlocked!');
                       } else {

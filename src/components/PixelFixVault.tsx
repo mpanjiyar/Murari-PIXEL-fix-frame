@@ -136,8 +136,7 @@ export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
     adminKey && (
       adminKey === 'pixel2025' ||
       adminKey === 'AdminSecret2025' ||
-      adminKey === 'Dispur123@' ||
-      adminKey.length > 0
+      adminKey === 'Dispur123@'
     )
   );
 
@@ -291,20 +290,14 @@ export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
     setIsAuthenticating(true);
     setAuthError(null);
 
-    // Instant Fast-Path for Known Master Keys (Dispur123@, pixel2025, etc.)
+    // Instant Fast-Path for Known Master Keys (Dispur123@, pixel2025, AdminSecret2025)
     const pLower = effectivePassword.toLowerCase();
     const isMasterKey = 
       effectivePassword === 'Dispur123@' || 
       effectivePassword === 'pixel2025' || 
       effectivePassword === 'AdminSecret2025' ||
       pLower === 'dispur123@' ||
-      pLower === 'pixel2025' || 
-      pLower === 'pixelfix' || 
-      pLower === 'pixelfix2025' || 
-      pLower === 'admin' ||
-      pLower === 'dispur' ||
-      pLower === 'vault' ||
-      effectivePassword === '123456';
+      pLower === 'pixel2025';
 
     if (isMasterKey) {
       const sessionToken = 'vault_auth_token_' + Date.now();
@@ -357,7 +350,7 @@ export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
       clearTimeout(timeoutId);
 
       if (!res.ok || !data.success) {
-        setAuthError(data.error || 'Incorrect Vault passcode. (Hint: Dispur123@ or pixel2025)');
+        setAuthError(data.error || 'Incorrect Vault passcode. Access denied.');
         setIsAuthenticating(false);
         return;
       }
@@ -372,15 +365,8 @@ export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
       showToast('Vault authenticated & unlocked successfully.');
     } catch (err: any) {
       clearTimeout(timeoutId);
-      console.warn('[Vault Auth] Connection recovery:', err);
-      // If network is offline or server unreachable, fallback to client-side unlock for peace of mind
-      const sessionToken = 'vault_auth_token_' + Date.now();
-      sessionStorage.setItem('pixelfix_vault_token', sessionToken);
-      setToken(sessionToken);
-      setPasswordInput('');
-      setAuthError(null);
-      setActiveModal('none');
-      showToast('Vault unlocked in offline recovery mode.');
+      console.warn('[Vault Auth] Verification error:', err);
+      setAuthError('Authentication failed. Please verify your passcode and try again.');
     } finally {
       setIsAuthenticating(false);
     }
@@ -1278,35 +1264,43 @@ export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
               )}
             </div>
 
-            {canEditAndUpload ? (
+            {!token && !isAuthorizedAdmin ? (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-[10px] font-mono text-amber-400 font-bold">
+                <Lock size={12} className="text-amber-400" />
+                <span>RESTRICTED ACCESS</span>
+              </div>
+            ) : (
               <div className="flex items-center gap-2">
-                <span className="hidden md:inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-mono font-bold uppercase">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  Admin Mode
-                </span>
+                {isAuthorizedAdmin && (
+                  <span className="hidden md:inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-mono font-bold uppercase">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    Admin Mode
+                  </span>
+                )}
+                {!isAuthorizedAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthError(null);
+                      setActiveModal('auth_vault');
+                    }}
+                    title="Unlock Admin & Edit Privileges"
+                    className="px-3 py-1.5 rounded-xl bg-[#FF5500]/15 hover:bg-[#FF5500]/25 text-[#FF5500] hover:text-white border border-[#FF5500]/30 text-xs font-mono flex items-center gap-1.5 cursor-pointer transition-colors shadow-xs"
+                  >
+                    <KeyRound size={13} className="text-[#FF5500]" />
+                    <span className="font-bold">Unlock Admin Mode</span>
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={handleLockVault}
-                  title="Lock Admin Mode & Return to Read-Only"
+                  title="Lock Vault & Terminate Session"
                   className="px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 hover:text-white border border-rose-500/20 text-xs font-mono flex items-center gap-1.5 cursor-pointer transition-colors shadow-xs"
                 >
                   <Lock size={13} className="text-rose-400" />
-                  <span>Lock Admin</span>
+                  <span>Lock Vault</span>
                 </button>
               </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  setAuthError(null);
-                  setActiveModal('auth_vault');
-                }}
-                title="Unlock Admin & Edit Privileges"
-                className="px-3 py-1.5 rounded-xl bg-[#FF5500]/15 hover:bg-[#FF5500]/25 text-[#FF5500] hover:text-white border border-[#FF5500]/30 text-xs font-mono flex items-center gap-1.5 cursor-pointer transition-colors shadow-xs"
-              >
-                <KeyRound size={13} className="text-[#FF5500]" />
-                <span className="font-bold">Unlock Admin Mode</span>
-              </button>
             )}
 
             {!isFullScreenPage && (
@@ -1322,8 +1316,94 @@ export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
           </div>
         </header>
 
-        {/* WORKSPACE BODY - FULL KNOWLEDGE BASE ALWAYS ACCESSIBLE */}
-        <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
+        {/* WORKSPACE BODY OR LOCKED PASSCODE GATE */}
+        {!token && !isAuthorizedAdmin ? (
+          <div className="flex-1 flex items-center justify-center p-4 sm:p-6 md:p-10 bg-[#090a12]/95 overflow-y-auto min-h-[500px]">
+            <div className="w-full max-w-md bg-[#11121d] border border-white/10 rounded-2xl sm:rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl relative text-left">
+              <div className="text-center space-y-3">
+                <div className="relative w-16 h-16 mx-auto flex items-center justify-center">
+                  <div className="absolute inset-0 rounded-2xl bg-[#FF5500]/20 blur-md animate-pulse" />
+                  <div className="relative w-16 h-16 rounded-2xl bg-gradient-to-tr from-[#FF5500]/25 to-orange-500/10 border border-[#FF5500]/40 flex items-center justify-center text-[#FF5500] shadow-lg shadow-[#FF5500]/25">
+                    <Lock size={30} />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <h2 className="text-lg sm:text-xl font-black uppercase tracking-tight text-white font-mono">
+                    Pixel Fix Protected Vault
+                  </h2>
+                  <p className="text-xs text-slate-400 font-mono leading-relaxed">
+                    Access restricted. Master security passcode required to unlock and browse technical documentation, SOPs, and system utilities.
+                  </p>
+                </div>
+              </div>
+
+              {authError && (
+                <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs font-mono flex items-start gap-2">
+                  <AlertCircle size={15} className="shrink-0 mt-0.5 text-rose-400" />
+                  <span>{authError}</span>
+                </div>
+              )}
+
+              <form onSubmit={(e) => handleAuthenticate(e)} className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-300 font-mono">
+                    Vault Access Passcode
+                  </label>
+                  <div className="relative">
+                    <LagFreeInput
+                      type={showPassword ? 'text' : 'password'}
+                      value={passwordInput}
+                      onChange={(e) => {
+                        setPasswordInput(e.target.value);
+                        setAuthError(null);
+                      }}
+                      placeholder="Enter vault passcode..."
+                      autoFocus
+                      disabled={isAuthenticating}
+                      className="w-full bg-[#08090f] border border-white/10 focus:border-[#FF5500] rounded-xl pl-4 pr-10 py-3 text-xs text-white placeholder-slate-500 outline-none transition-all font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1 cursor-pointer"
+                      title="Toggle password visibility"
+                    >
+                      {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isAuthenticating}
+                  className="w-full py-3 rounded-xl bg-[#FF5500] hover:bg-[#FF4400] text-white text-xs font-mono font-bold uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-[#FF5500]/25 transition-all disabled:opacity-50 min-h-[46px]"
+                >
+                  {isAuthenticating ? (
+                    <>
+                      <RefreshCw size={14} className="animate-spin" />
+                      <span>Verifying Passcode...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Unlock size={14} />
+                      <span>Unlock Vault</span>
+                    </>
+                  )}
+                </button>
+              </form>
+
+              <div className="pt-3 border-t border-white/5 flex items-center justify-between text-[10px] font-mono text-slate-500">
+                <span className="flex items-center gap-1.5">
+                  <ShieldCheck size={12} className="text-emerald-400" />
+                  <span>Server Scrypt Verified</span>
+                </span>
+                <span>Confidential Security Gate</span>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
             {/* SIDEBAR: FOLDERS NAVIGATION */}
             <aside className="w-full md:w-64 lg:w-72 bg-[#0d0e17] border-b md:border-b-0 md:border-r border-white/10 flex flex-col shrink-0">
               {/* Workspace Navigation Tabs */}
@@ -1849,6 +1929,7 @@ export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
               </div>
             </main>
           </div>
+        )}
 
         {/* MODAL: VIEW DOCUMENT WITH PRIVATE PASSWORD LOCK SUPPORT */}
         {activeModal === 'view_item' && selectedItem && (
@@ -1903,33 +1984,18 @@ export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
                       type="password"
                       value={filePasswordInput}
                       onChange={(e) => setFilePasswordInput(e.target.value)}
-                      placeholder="Enter File Password (or use Quick Unlock)..."
+                      placeholder="Enter document password..."
                       autoFocus
                       required
                       className="w-full bg-[#090a12] border border-white/10 focus:border-[#FF5500] rounded-xl px-3.5 py-2.5 text-xs text-white outline-none font-mono text-center"
                     />
-                    <div className="flex flex-col gap-2">
-                      <button
-                        type="submit"
-                        disabled={isFileAuthenticating}
-                        className="w-full py-2.5 rounded-xl bg-[#FF5500] hover:bg-[#FF4400] text-white text-xs font-mono font-bold uppercase transition-all disabled:opacity-50"
-                      >
-                        {isFileAuthenticating ? 'Verifying...' : 'Unlock Document'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setUnlockedProtectedFiles((prev) => ({ ...prev, [selectedItem.id]: true }));
-                          setFilePasswordInput('');
-                          setFileAuthError(null);
-                          showToast('Protected document unlocked for this session.');
-                        }}
-                        className="w-full py-2 rounded-xl bg-white/5 hover:bg-white/10 text-emerald-400 hover:text-white text-xs font-mono transition-all border border-emerald-500/20 flex items-center justify-center gap-1.5"
-                      >
-                        <CheckCircle2 size={13} />
-                        <span>⚡ Quick Owner Unlock</span>
-                      </button>
-                    </div>
+                    <button
+                      type="submit"
+                      disabled={isFileAuthenticating}
+                      className="w-full py-2.5 rounded-xl bg-[#FF5500] hover:bg-[#FF4400] text-white text-xs font-mono font-bold uppercase transition-all disabled:opacity-50 min-h-[44px] cursor-pointer"
+                    >
+                      {isFileAuthenticating ? 'Verifying...' : 'Unlock Document'}
+                    </button>
                   </form>
                 </div>
               ) : (
@@ -2114,7 +2180,7 @@ export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
                         setPasswordInput(e.target.value);
                         setAuthError(null);
                       }}
-                      placeholder="Enter passcode (Dispur123@ or pixel2025)..."
+                      placeholder="Enter administrator passcode..."
                       autoFocus
                       disabled={isAuthenticating}
                       className="w-full bg-[#090a12] border border-white/10 focus:border-[#FF5500] rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-500 outline-none transition-all font-mono"
@@ -2122,21 +2188,19 @@ export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1 cursor-pointer"
+                      title="Toggle password visibility"
                     >
                       {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
                     </button>
                   </div>
-                  <p className="text-[10px] text-slate-500 font-mono">
-                    Master Keys: <span className="text-[#FF5500]">Dispur123@</span> or <span className="text-[#FF5500]">pixel2025</span>
-                  </p>
                 </div>
 
-                <div className="flex flex-col gap-2 pt-1">
+                <div className="pt-1">
                   <button
                     type="submit"
                     disabled={isAuthenticating}
-                    className="w-full py-2.5 rounded-xl bg-[#FF5500] hover:bg-[#FF4400] text-white text-xs font-mono font-bold uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                    className="w-full py-2.5 rounded-xl bg-[#FF5500] hover:bg-[#FF4400] text-white text-xs font-mono font-bold uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 min-h-[44px] transition-all"
                   >
                     {isAuthenticating ? (
                       <>
@@ -2149,15 +2213,6 @@ export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
                         <span>Unlock Admin Privileges</span>
                       </>
                     )}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleAuthenticate(undefined, 'Dispur123@')}
-                    className="w-full py-2 rounded-xl bg-white/5 hover:bg-white/10 text-emerald-400 hover:text-emerald-300 text-xs font-mono font-bold transition-all flex items-center justify-center gap-1.5 border border-emerald-500/20"
-                  >
-                    <CheckCircle2 size={13} />
-                    <span>⚡ One-Click Owner Unlock (Dispur123@)</span>
                   </button>
                 </div>
               </form>
