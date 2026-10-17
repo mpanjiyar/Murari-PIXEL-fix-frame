@@ -13,8 +13,9 @@ dotenv.config();
 const app = express();
 const PORT = 3000;
 
-// Request logging middleware to log to console and file
+// Request logging middleware to log to console and file with response status code
 app.use((req, res, next) => {
+  const startTime = Date.now();
   const logMsg = `[${new Date().toISOString()}] ${req.method} ${req.url}\n`;
   console.log(logMsg.trim());
   try {
@@ -22,6 +23,15 @@ app.use((req, res, next) => {
   } catch (err) {
     // Ignore log write errors
   }
+
+  res.on('finish', () => {
+    const elapsed = Date.now() - startTime;
+    const finishLog = `[${new Date().toISOString()}] ${req.method} ${req.url} -> ${res.statusCode} (${elapsed}ms)\n`;
+    try {
+      fs.appendFileSync(path.join(process.cwd(), "server.log"), finishLog);
+    } catch {}
+  });
+
   next();
 });
 
@@ -45,6 +55,8 @@ registerVaultRoutes(app);
 
 // Register 150K+ Reels Pack & Durga Puja Store routes
 app.use('/api/reels', reelsRouter);
+// Direct alias for Reels routes (supports /api/submit-payment-reference, /api/order-lookup, etc.)
+app.use('/api', reelsRouter);
 
 // Register Interactive Doorstep & Photography Booking routes
 app.use('/api/booking', bookingRouter);
@@ -1972,6 +1984,16 @@ ${htmlContent ? `HTML Scraping Snippet:\n${htmlContent}` : `Note: Direct scrapin
     return res.status(400).json({ error: err?.message || "Failed to fetch or validate product details." });
   }
 }
+
+// Explicit JSON 404 handler for unmatched /api/* endpoints
+// Prevents API calls from returning Vite SPA HTML, which breaks JSON parsing in client fetch calls
+app.all('/api/*', (req, res) => {
+  return res.status(404).json({
+    success: false,
+    error: `API endpoint '${req.method} ${req.path}' not found on server.`,
+    isApi404: true,
+  });
+});
 
 // Vite middleware for development or static server for production
 async function startServer() {

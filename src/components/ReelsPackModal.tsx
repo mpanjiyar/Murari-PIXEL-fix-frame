@@ -523,8 +523,29 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
         return;
       }
 
-      // If backend returned a clear validation or conflict error (e.g. duplicate UTR or invalid input)
-      if (result.error && !result.error.toLowerCase().includes('network') && !result.error.toLowerCase().includes('timeout') && !result.error.toLowerCase().includes('failed to fetch')) {
+      // If backend returned a clear user validation or business conflict error (e.g. duplicate UTR or invalid phone)
+      const isDefiniteValidationOrConflict = (err?: string) => {
+        if (!err) return false;
+        const lower = err.toLowerCase();
+        if (
+          lower.includes('network') ||
+          lower.includes('timeout') ||
+          lower.includes('failed to fetch') ||
+          lower.includes('unexpected') ||
+          lower.includes('server error') ||
+          lower.includes('endpoint unavailable') ||
+          lower.includes('404') ||
+          lower.includes('500') ||
+          lower.includes('502') ||
+          lower.includes('503') ||
+          lower.includes('504')
+        ) {
+          return false;
+        }
+        return true;
+      };
+
+      if (result.error && isDefiniteValidationOrConflict(result.error)) {
         setSubmitErrorMessage(result.error);
         if (triggerToast) triggerToast(result.error, 'error');
         return;

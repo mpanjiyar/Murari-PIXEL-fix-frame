@@ -96,18 +96,24 @@ export async function fetchWithRetry(
 
       clearTimeout(timeoutId);
 
-      // Validation errors (400, 401, 403, 404, 409) represent definite client input or business conflicts.
-      // Retrying them is wasteful; return immediately so the user sees clear feedback.
-      if (res.status >= 400 && res.status < 500) {
+      // Non-retryable client validation/authentication conflicts:
+      // 400 Bad Request (invalid phone, malformed UTR)
+      // 401 Unauthorized / 403 Forbidden
+      // 409 Conflict (e.g. duplicate UTR already claimed)
+      // 422 Unprocessable Entity
+      const isClientValidationError = [400, 401, 403, 409, 422].includes(res.status);
+
+      if (isClientValidationError) {
         console.log(
-          `[API Lifecycle] Client/Business response ${res.status} on attempt ${attempt}. Returning immediately without retry.`
+          `[API Lifecycle] Definite client/validation response ${res.status} on attempt ${attempt}. Returning immediately without retry.`
         );
         return { res, attemptsUsed: attempt };
       }
 
-      // 5xx Server errors should be retried with exponential backoff
-      if (res.status >= 500) {
-        throw new Error(`Server returned status ${res.status}`);
+      // If server returned 404 (endpoint temporarily unavailable/proxy glitch) or 5xx (server error):
+      // These are server or routing glitches that must be retried with exponential backoff
+      if (!res.ok) {
+        throw new Error(`Server returned status ${res.status} (${res.statusText || 'Endpoint unavailable'})`);
       }
 
       // Success 2xx
@@ -137,7 +143,7 @@ export async function fetchWithRetry(
     }
   }
 
-  throw lastError || new Error('Network communication error after multiple retries.');
+  throw lastError || new Error('Network communication error: Server was unreachable after multiple retry attempts.');
 }
 
 /**
@@ -170,7 +176,7 @@ export async function submitPaymentReferenceWithRetry(
       if (!res.ok) {
         return {
           success: false,
-          error: `Server returned unexpected response (${res.status}). Please try again.`,
+          error: `Network communication error: Server returned unexpected non-JSON response (${res.status}). Please try again.`,
           attemptsUsed,
           totalTimeMs,
         };
@@ -197,7 +203,10 @@ export async function submitPaymentReferenceWithRetry(
     };
   } catch (err: any) {
     const totalTimeMs = Date.now() - startTime;
-    const reason = err?.name === 'AbortError' ? 'Server connection timed out' : err?.message || 'Network error communicating with server';
+    const rawReason = err?.name === 'AbortError' ? 'Server connection timed out' : err?.message || 'Network communication error';
+    const reason = rawReason.toLowerCase().includes('network') 
+      ? rawReason 
+      : `Network communication error: ${rawReason}`;
 
     return {
       success: false,
