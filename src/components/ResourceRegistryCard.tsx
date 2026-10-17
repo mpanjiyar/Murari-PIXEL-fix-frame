@@ -22,6 +22,7 @@ interface ResourceRegistryCardProps {
   fallbackMasterUrl?: string;
   onCopy?: (url: string, title: string) => void;
   isCopied?: boolean;
+  onRequestUnlock?: () => void;
 }
 
 export const ResourceRegistryCard: React.FC<ResourceRegistryCardProps> = ({
@@ -29,32 +30,41 @@ export const ResourceRegistryCard: React.FC<ResourceRegistryCardProps> = ({
   fallbackMasterUrl,
   onCopy,
   isCopied = false,
+  onRequestUnlock,
 }) => {
   const [localCopied, setLocalCopied] = useState<boolean>(false);
+  const [lockNotice, setLockNotice] = useState<string | null>(null);
 
-  // Authoritative destination URL, defaulting to the verified Mega Reels Vault
-  const destinationUrl = (
-    resource.destinationUrl && resource.destinationUrl.trim()
-      ? resource.destinationUrl.trim()
-      : (fallbackMasterUrl && fallbackMasterUrl.trim() ? fallbackMasterUrl.trim() : CANONICAL_MEGA_REELS_VAULT_URL)
-  );
-  const isFallback = !resource.destinationUrl && !!fallbackMasterUrl;
+  // Strict access check: Without verified authorization, destinationUrl is locked and cannot be accessed
+  const isLocked = Boolean(resource.isLocked || !resource.destinationUrl || resource.destinationUrl.trim() === '');
+  const destinationUrl = !isLocked && resource.destinationUrl ? resource.destinationUrl.trim() : '';
 
   const handleOpen = useCallback(() => {
+    if (isLocked) {
+      setLockNotice('Access locked: A valid registered mobile number or approved Order ID is required to access this resource.');
+      setTimeout(() => setLockNotice(null), 4000);
+      if (onRequestUnlock) onRequestUnlock();
+      return;
+    }
     try {
       window.open(destinationUrl, '_blank', 'noopener,noreferrer');
     } catch (_) {
       window.location.href = destinationUrl;
     }
-  }, [destinationUrl]);
+  }, [destinationUrl, isLocked, onRequestUnlock]);
 
-  const handleCardClick = (e: React.MouseEvent) => {
-    // Open destination automatically when card is clicked
+  const handleCardClick = () => {
     handleOpen();
   };
 
   const handleCopy = (e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent card navigation when copying
+    e.stopPropagation();
+    if (isLocked) {
+      setLockNotice('Access locked: Please verify your mobile number or Order ID.');
+      setTimeout(() => setLockNotice(null), 4000);
+      if (onRequestUnlock) onRequestUnlock();
+      return;
+    }
     if (onCopy) {
       onCopy(destinationUrl, resource.title);
     } else {
@@ -189,10 +199,10 @@ export const ResourceRegistryCard: React.FC<ResourceRegistryCardProps> = ({
           {resource.description || 'Verified curated digital creator video assets for high retention and engagement.'}
         </p>
 
-        {isFallback && (
-          <span className="text-[9.5px] font-mono text-amber-400 block">
-            ● Managed via Master Vault destination
-          </span>
+        {lockNotice && (
+          <div className="p-2 rounded-lg bg-amber-500/20 border border-amber-500/40 text-[10.5px] font-mono text-amber-300">
+            {lockNotice}
+          </div>
         )}
       </div>
 
@@ -204,23 +214,39 @@ export const ResourceRegistryCard: React.FC<ResourceRegistryCardProps> = ({
         <button
           type="button"
           onClick={handleOpen}
-          className="flex-1 py-2.5 px-3.5 rounded-xl text-xs font-mono font-bold uppercase tracking-wider bg-white/10 group-hover:bg-teal-500 group-hover:text-black text-white flex items-center justify-center gap-1.5 transition-all active:scale-[0.98] cursor-pointer shadow-sm"
-          title={`Open ${resource.title}`}
-          aria-label={`Open ${resource.title}`}
+          className={`flex-1 py-2.5 px-3.5 rounded-xl text-xs font-mono font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all active:scale-[0.98] cursor-pointer shadow-sm ${
+            isLocked
+              ? 'bg-zinc-800 hover:bg-zinc-700 text-amber-300 border border-amber-500/30'
+              : 'bg-white/10 group-hover:bg-teal-500 group-hover:text-black text-white'
+          }`}
+          title={isLocked ? 'Access Locked: Valid mobile number or Order ID required' : `Open ${resource.title}`}
+          aria-label={isLocked ? 'Access Locked' : `Open ${resource.title}`}
         >
-          <span>OPEN RESOURCE</span>
-          <ExternalLink size={13} className="shrink-0" />
+          {isLocked ? (
+            <>
+              <Lock size={13} className="text-amber-400 shrink-0" />
+              <span>LOCKED • VERIFY</span>
+            </>
+          ) : (
+            <>
+              <span>OPEN RESOURCE</span>
+              <ExternalLink size={13} className="shrink-0" />
+            </>
+          )}
         </button>
 
         <button
           type="button"
           onClick={handleCopy}
+          disabled={isLocked}
           className={`p-2.5 rounded-xl border transition-colors cursor-pointer shrink-0 ${
-            isCopied || localCopied
+            isLocked
+              ? 'opacity-40 border-white/5 bg-transparent text-zinc-500 cursor-not-allowed'
+              : isCopied || localCopied
               ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400'
               : 'border-white/10 bg-white/5 hover:bg-white/15 text-zinc-300 hover:text-white'
           }`}
-          title="Copy Resource Link"
+          title={isLocked ? 'Locked: Verification required' : 'Copy Resource Link'}
           aria-label={`Copy link for ${resource.title}`}
         >
           {isCopied || localCopied ? <Check size={14} /> : <Copy size={14} />}

@@ -20,6 +20,7 @@ import {
 import { db } from '../firebase';
 import { collection, doc, setDoc, onSnapshot } from 'firebase/firestore';
 import { AdminAlertNotification, AdminNotificationType, AdminNotificationSeverity } from '../types';
+import { fetchWithRetry } from '../utils/retryWithBackoff';
 
 interface AdminNotificationsPanelProps {
   currentTheme?: 'light' | 'normal' | 'dark' | 'mono';
@@ -172,17 +173,26 @@ export const AdminNotificationsPanel: React.FC<AdminNotificationsPanelProps> = (
   const handleQuickApprove = async (orderId: string, notifId: string) => {
     setActionLoadingId(notifId);
     try {
-      const res = await fetch('/api/reels/admin/verify-order', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          orderId,
-          action: 'approve',
-          reason: 'Verified in BharatPe records by Murari Panjiyar',
-          adminEmail: 'Mpanjiyar100@gmail.com',
-          adminName: 'Murari Panjiyar',
-        }),
-      });
+      const { res } = await fetchWithRetry(
+        '/api/reels/admin/verify-order',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            orderId,
+            action: 'approve',
+            reason: 'Verified in BharatPe records by Murari Panjiyar',
+            adminEmail: 'Mpanjiyar100@gmail.com',
+            adminName: 'Murari Panjiyar',
+          }),
+        },
+        {
+          maxRetries: 3,
+          initialDelayMs: 600,
+          backoffFactor: 2,
+          timeoutMs: 8000,
+        }
+      );
       const data = await res.json();
       if (data.success) {
         if (triggerToast) triggerToast(`Order ${orderId} approved! Digital access unlocked.`, 'success');
@@ -192,7 +202,7 @@ export const AdminNotificationsPanel: React.FC<AdminNotificationsPanelProps> = (
         if (triggerToast) triggerToast(data.error || 'Approval failed', 'error');
       }
     } catch {
-      if (triggerToast) triggerToast('Network error processing approval', 'error');
+      if (triggerToast) triggerToast('Network error processing approval after retries. Please retry.', 'error');
     } finally {
       setActionLoadingId(null);
     }

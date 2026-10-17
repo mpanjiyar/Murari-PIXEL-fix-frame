@@ -28,6 +28,7 @@ import { db } from '../firebase';
 import { collection, doc, setDoc, onSnapshot } from 'firebase/firestore';
 import { ReelPurchaseOrder, ReelOrderStatus, OfferPopupConfig, DEFAULT_OFFER_POPUP_CONFIG } from '../types';
 import { AdminResourcesManager } from './AdminResourcesManager';
+import { fetchWithRetry } from '../utils/retryWithBackoff';
 import { OfferSectionAdminModal } from './OfferSectionAdminModal';
 
 interface AdminPurchaseManagerProps {
@@ -292,17 +293,26 @@ export const AdminPurchaseManager: React.FC<AdminPurchaseManagerProps> = ({
     }
 
     try {
-      const res = await fetch('/api/reels/admin/verify-order', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          orderId: activeReviewOrder.id,
-          action,
-          reason: action === 'approve' ? (adminNote.trim() || 'Verified by Murari Panjiyar in BharatPe records') : rejectionReason.trim(),
-          adminEmail: 'Mpanjiyar100@gmail.com',
-          adminName: 'Murari Panjiyar',
-        }),
-      });
+      const { res } = await fetchWithRetry(
+        '/api/reels/admin/verify-order',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            orderId: activeReviewOrder.id,
+            action,
+            reason: action === 'approve' ? (adminNote.trim() || 'Verified by Murari Panjiyar in BharatPe records') : rejectionReason.trim(),
+            adminEmail: 'Mpanjiyar100@gmail.com',
+            adminName: 'Murari Panjiyar',
+          }),
+        },
+        {
+          maxRetries: 3,
+          initialDelayMs: 600,
+          backoffFactor: 2,
+          timeoutMs: 8000,
+        }
+      );
 
       const data = await res.json();
       if (data.success) {

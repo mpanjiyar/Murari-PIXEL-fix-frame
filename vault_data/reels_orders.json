@@ -859,5 +859,51 @@
     "rejectedAt": "2026-10-16T15:28:02.543Z",
     "reviewedByAdminId": "Murari Panjiyar (Mpanjiyar100@gmail.com)",
     "rejectionReason": "UTR not reflected in BharatPe statement"
+  },
+  {
+    "id": "RP-20261017-33201A",
+    "productId": "150k-mega-reels-pack",
+    "productName": "150K+ MEGA PACK — REELS & SHORTS",
+    "campaign": "Durga Puja Special Offer",
+    "amount": 199,
+    "currency": "INR",
+    "customerName": "Rohan Sharma",
+    "customerPhone": "9876543210",
+    "status": "APPROVED",
+    "paymentMethod": "UPI_BHARATPE",
+    "upiId": "BHARATPE2J0A0P3W3B36214@unitype",
+    "receiverName": "MURARI PANJIYAR",
+    "downloadCount": 0,
+    "createdAt": "2026-10-17T15:00:56.066Z",
+    "updatedAt": "2026-10-17T15:01:09.236Z",
+    "auditLogs": [
+      {
+        "action": "ORDER_INITIATED_VIA_UTR",
+        "timestamp": "2026-10-17T15:00:56.066Z",
+        "actor": "CUSTOMER",
+        "details": "Auto-generated order for UTR submission 883920194821"
+      },
+      {
+        "action": "PAYMENT_REFERENCE_SUBMITTED",
+        "timestamp": "2026-10-17T15:00:56.066Z",
+        "actor": "CUSTOMER_UTR_SUBMISSION",
+        "details": "12-Digit UPI Reference submitted (883920194821). Awaiting manual admin approval."
+      },
+      {
+        "action": "PAYMENT_APPROVED_BY_ADMIN",
+        "timestamp": "2026-10-17T15:01:09.236Z",
+        "actor": "Murari Panjiyar (Mpanjiyar100@gmail.com)",
+        "details": "Verified in BharatPe account"
+      }
+    ],
+    "utrReference": "883920194821",
+    "customerNotes": "",
+    "submittedAt": "2026-10-17T15:00:56.066Z",
+    "verificationSource": "manual_admin",
+    "paymentVerifiedAt": "2026-10-17T15:01:09.236Z",
+    "approvedAt": "2026-10-17T15:01:09.236Z",
+    "reviewedByAdminId": "Murari Panjiyar (Mpanjiyar100@gmail.com)",
+    "downloadToken": "9ac8d41a9dcdb94e87da1a8dc0a35d7589b7ddae52ff1e2d5e74f4c8bbb6f98c",
+    "downloadExpiresAt": 1792854069236
   }
 ]

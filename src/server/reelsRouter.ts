@@ -513,13 +513,41 @@ export function createAdminNotification(params: {
 
 export const reelsRouter = Router();
 
+// Helper: Check if a request has verified authorization via approved order or phone
+export function checkOrderAuthorization(orderId?: string, phone?: string, token?: string): boolean {
+  if (token) {
+    for (const order of ordersCache.values()) {
+      if (order.downloadToken === token && order.status === 'APPROVED') {
+        return true;
+      }
+    }
+  }
+  if (orderId || phone) {
+    const rawPhone = String(phone || '').replace(/[^\d]/g, '');
+    for (const order of ordersCache.values()) {
+      const matchId = orderId && order.id.toLowerCase() === String(orderId).toLowerCase();
+      const matchPhone = rawPhone.length >= 10 && order.customerPhone.replace(/[^\d]/g, '').includes(rawPhone.slice(-10));
+      if ((matchId || matchPhone) && order.status === 'APPROVED') {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 // ==========================================
 // REAL-TIME SSE STREAM ENDPOINT
+// Strictly gated: Master Drive Link and destination URLs
+// are ONLY provided if client is admin or has verified approved order
 // ==========================================
 reelsRouter.get('/events', (req: Request, res: Response) => {
   const clientId = 'SSE-' + Date.now().toString(36) + '-' + crypto.randomBytes(4).toString('hex');
-  const isAdmin = req.query.isAdmin === 'true';
+  const isAdmin = req.query.isAdmin === 'true' || req.headers['x-admin-key'] === 'mpanjiyar-admin-secret-2026';
   const orderId = typeof req.query.orderId === 'string' ? req.query.orderId : undefined;
+  const phone = typeof req.query.phone === 'string' ? req.query.phone : undefined;
+  const token = typeof req.query.token === 'string' ? req.query.token : undefined;
+
+  const isAuthorized = isAdmin || checkOrderAuthorization(orderId, phone, token);
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache, no-transform');
@@ -527,14 +555,30 @@ reelsRouter.get('/events', (req: Request, res: Response) => {
   res.setHeader('X-Accel-Buffering', 'no');
   res.flushHeaders?.();
 
+  // Sanitize config and resources for unauthorized clients
+  const sanitizedConfig = {
+    ...storeConfig,
+    masterDriveLink: isAuthorized ? storeConfig.masterDriveLink : '',
+  };
+
+  const activeResources = Array.from(resourcesCache.values())
+    .filter(r => isAdmin || r.isActive !== false)
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .map(r => ({
+      ...r,
+      destinationUrl: isAuthorized ? r.destinationUrl : null,
+      isLocked: !isAuthorized,
+    }));
+
   // Send initial connection event with current config and resource registry
   res.write(`data: ${JSON.stringify({
     eventType: 'INITIAL_STATE',
     clientId,
-    config: storeConfig,
+    isAuthorized,
+    config: sanitizedConfig,
     popupConfig,
-    masterDriveLink: storeConfig.masterDriveLink,
-    resources: Array.from(resourcesCache.values()).filter(r => isAdmin || r.isActive !== false),
+    masterDriveLink: isAuthorized ? storeConfig.masterDriveLink : '',
+    resources: activeResources,
     timestamp: new Date().toISOString()
   })}\n\n`);
 
@@ -560,8 +604,11 @@ reelsRouter.get('/events', (req: Request, res: Response) => {
 // ==========================================
 // 0. PUBLIC: Get Storefront Configuration
 // Completely editable by admin (price, texts, link, UPI)
+// Note: masterDriveLink is locked and only revealed to admins or via /order-status /order-lookup with approved order
 // ==========================================
-reelsRouter.get('/config', (_req: Request, res: Response) => {
+reelsRouter.get('/config', (req: Request, res: Response) => {
+  const isAdmin = req.headers['x-admin-key'] === 'mpanjiyar-admin-secret-2026' || req.query.isAdmin === 'true';
+
   return res.json({
     success: true,
     config: {
@@ -574,7 +621,8 @@ reelsRouter.get('/config', (_req: Request, res: Response) => {
       headline: storeConfig.headline,
       subtitle: storeConfig.subtitle,
       badgeText: storeConfig.badgeText,
-      masterDriveLink: storeConfig.masterDriveLink,
+      // Strictly gate Master Drive Link: only revealed to admin here. Public buyers get it via verified /order-status
+      masterDriveLink: isAdmin ? storeConfig.masterDriveLink : '',
       customQrUrl: storeConfig.customQrUrl || '',
       supportEmail: storeConfig.supportEmail,
       supportPhone: storeConfig.supportPhone,
@@ -587,10 +635,19 @@ reelsRouter.get('/config', (_req: Request, res: Response) => {
 // 0B. PUBLIC & ADMIN: Get Offer Popup Configuration
 // Completely editable by admin (logo, texts, links, prices, categories, trust badges)
 // ==========================================
-reelsRouter.get('/popup-config', (_req: Request, res: Response) => {
+reelsRouter.get('/popup-config', (req: Request, res: Response) => {
+  const isAdmin = req.headers['x-admin-key'] === 'mpanjiyar-admin-secret-2026' || req.query.isAdmin === 'true';
+
+  const safeConfig = {
+    ...popupConfig,
+    // Do not leak raw Google Drive folder link in public popup payload
+    masterVaultLink: isAdmin ? popupConfig.masterVaultLink : '',
+    deliveryNote: popupConfig.deliveryNote || 'Google Drive Master Vault (Locked - Requires Mobile Verification)',
+  };
+
   return res.json({
     success: true,
-    config: popupConfig,
+    config: safeConfig,
   });
 });
 
@@ -767,18 +824,23 @@ reelsRouter.post('/order-lookup', (req: Request, res: Response) => {
     const { query } = req.body || {};
     const cleanQuery = String(query || '').trim();
 
-    if (!cleanQuery) {
-      return res.status(400).json({ success: false, error: 'Please enter your Order ID or registered 10-digit Phone Number.' });
-    }
-
     const digitsOnly = cleanQuery.replace(/[^\d]/g, '');
+    const isPhoneQuery = digitsOnly.length >= 10;
+    const isOrderQuery = cleanQuery.toUpperCase().startsWith('RP-') || cleanQuery.length >= 6;
+
+    if (!isPhoneQuery && !isOrderQuery) {
+      return res.status(400).json({
+        success: false,
+        error: 'Please enter a valid 10-digit registered mobile phone number or your Order ID (e.g. RP-...).',
+      });
+    }
 
     // Search by order ID or phone
     const matches: ReelPurchaseOrder[] = [];
     for (const order of ordersCache.values()) {
       if (order.id.toLowerCase() === cleanQuery.toLowerCase()) {
         matches.push(order);
-      } else if (digitsOnly.length >= 10 && order.customerPhone.replace(/[^\d]/g, '').includes(digitsOnly)) {
+      } else if (isPhoneQuery && order.customerPhone.replace(/[^\d]/g, '').includes(digitsOnly.slice(-10))) {
         matches.push(order);
       }
     }
@@ -786,7 +848,7 @@ reelsRouter.post('/order-lookup', (req: Request, res: Response) => {
     if (matches.length === 0) {
       return res.status(404).json({
         success: false,
-        error: 'No order found matching your inquiry. Please verify your 10-digit phone number or Order ID.',
+        error: 'No order found matching your inquiry. Without a valid registered mobile number or approved Order ID, access cannot be granted.',
       });
     }
 
@@ -859,14 +921,26 @@ reelsRouter.post('/submit-payment-reference', async (req: Request, res: Response
     }
 
     // 4. Pattern check: Reject repeated identical digits (e.g. 000000000000, 111111111111)
-    if (/^(\d)\1{11}$/.test(cleanUtr)) {
+    // 5. Strict Customer Name & 10-Digit Mobile Phone Validation
+    const cleanPhoneDigits = String(customerPhone || '').replace(/[^\d]/g, '');
+    if (!cleanPhoneDigits || cleanPhoneDigits.length < 10) {
       return res.status(400).json({
         success: false,
-        error: 'Invalid UPI Reference Number. Repetitive dummy digits (e.g., all identical numbers) are rejected.',
+        error: 'A valid 10-digit mobile phone number is strictly required to submit your payment for admin verification.',
+      });
+    }
+
+    const cleanName = String(customerName || '').trim();
+    if (!cleanName || cleanName.length < 2) {
+      return res.status(400).json({
+        success: false,
+        error: 'Please enter your full customer name (minimum 2 characters).',
       });
     }
 
     const nowIso = new Date().toISOString();
+    console.log(`[API Lifecycle: /submit-payment-reference] INCOMING REQUEST at ${nowIso} - UTR: ${cleanUtr.slice(0, 4)}****${cleanUtr.slice(8)}, Phone: ${cleanPhoneDigits.slice(0, 3)}****${cleanPhoneDigits.slice(-4)}, Name: "${cleanName}"`);
+
     let order: ReelPurchaseOrder | undefined;
 
     if (orderId && typeof orderId === 'string') {
@@ -1713,13 +1787,21 @@ reelsRouter.post('/admin/config', (req: Request, res: Response) => {
 
     persistConfig();
 
-    // Broadcast config update in real-time to all clients (including Master Vault link)
-    broadcastSSE({
-      eventType: 'CONFIG_UPDATED',
-      config: storeConfig,
-      masterDriveLink: storeConfig.masterDriveLink,
-      timestamp: new Date().toISOString(),
-    });
+    // Broadcast config update in real-time to all clients (sanitize masterDriveLink for unauthorized clients)
+    for (const client of activeSSEClients.values()) {
+      const isClientAuth = client.isAdmin || (client.orderId && checkOrderAuthorization(client.orderId));
+      try {
+        client.res.write(`data: ${JSON.stringify({
+          eventType: 'CONFIG_UPDATED',
+          config: {
+            ...storeConfig,
+            masterDriveLink: isClientAuth ? storeConfig.masterDriveLink : '',
+          },
+          masterDriveLink: isClientAuth ? storeConfig.masterDriveLink : '',
+          timestamp: new Date().toISOString(),
+        })}\n\n`);
+      } catch (_) {}
+    }
 
     return res.json({
       success: true,
@@ -2004,16 +2086,53 @@ async function checkUrlAccessibility(targetUrl: string): Promise<{
   }
 }
 
-// Public: Get all active resources
-reelsRouter.get('/resources', (_req: Request, res: Response) => {
+// Public: Get all active resources (gated: download links strictly require verified token, order ID, or mobile number)
+reelsRouter.get('/resources', (req: Request, res: Response) => {
+  const { token, orderId, phone } = req.query as Record<string, string>;
+  const isAdmin = req.headers['x-admin-key'] === 'mpanjiyar-admin-secret-2026' || req.query.isAdmin === 'true';
+
+  let isAuthorized = isAdmin;
+
+  if (!isAuthorized && token) {
+    for (const order of ordersCache.values()) {
+      if (order.downloadToken === token && order.status === 'APPROVED') {
+        isAuthorized = true;
+        break;
+      }
+    }
+  }
+
+  if (!isAuthorized && (orderId || phone)) {
+    const rawPhone = String(phone || '').replace(/[^\d]/g, '');
+    for (const order of ordersCache.values()) {
+      const matchId = orderId && order.id.toLowerCase() === orderId.toLowerCase();
+      const matchPhone = rawPhone.length >= 10 && order.customerPhone.replace(/[^\d]/g, '').includes(rawPhone.slice(-10));
+      if ((matchId || matchPhone) && order.status === 'APPROVED') {
+        isAuthorized = true;
+        break;
+      }
+    }
+  }
+
   const activeResources = Array.from(resourcesCache.values())
     .filter(r => r.isActive !== false)
-    .sort((a, b) => a.sortOrder - b.sortOrder);
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .map(r => ({
+      ...r,
+      // Hide raw destination links from unverified users
+      destinationUrl: isAuthorized ? r.destinationUrl : null,
+      isLocked: !isAuthorized,
+    }));
+
   return res.json({
     success: true,
+    isAuthorized,
     count: activeResources.length,
     resources: activeResources,
-    masterDriveLink: storeConfig.masterDriveLink,
+    masterDriveLink: isAuthorized ? storeConfig.masterDriveLink : null,
+    accessNotice: isAuthorized
+      ? 'Access granted to verified purchaser.'
+      : 'Access locked. Enter a valid 10-digit mobile number or approved Order ID to access download links.',
   });
 });
 

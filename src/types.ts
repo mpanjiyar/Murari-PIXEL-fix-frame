@@ -248,7 +248,8 @@ export interface MegaPackResource {
   categoryLabel: string;
   categoryColor: string;
   description: string;
-  destinationUrl: string;
+  destinationUrl?: string | null;
+  isLocked?: boolean;
   resourceType: 'drive_folder' | 'drive_file' | 'telegram' | 'pdf_guide' | 'ebook' | 'tool' | 'link';
   thumbnail?: string;
   badge?: string;

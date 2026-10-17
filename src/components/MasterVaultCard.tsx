@@ -18,17 +18,19 @@ interface MasterVaultCardProps {
   orderId?: string;
   currentTheme?: string;
   onLaunchSuccess?: () => void;
+  onRequestUnlock?: () => void;
 }
 
 export const CANONICAL_MEGA_REELS_VAULT_URL = 'https://drive.google.com/drive/folders/1jkXdin8dyQ99mYKxC2JOczG8e7EHlF3C?usp=sharing';
 
 export const MasterVaultCard: React.FC<MasterVaultCardProps> = ({
   masterDriveLink,
-  isUnlocked = true,
+  isUnlocked = false,
   customerName,
   orderId,
   currentTheme = 'dark',
   onLaunchSuccess,
+  onRequestUnlock,
 }) => {
   const [copyStatus, setCopyStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [copyFeedbackMsg, setCopyFeedbackMsg] = useState<string>('');
@@ -37,9 +39,9 @@ export const MasterVaultCard: React.FC<MasterVaultCardProps> = ({
 
   const isLight = currentTheme === 'light';
 
-  // Sanitize and validate the master URL with target drive folder fallback
-  const sanitizedUrl = (masterDriveLink && masterDriveLink.trim() ? masterDriveLink.trim() : CANONICAL_MEGA_REELS_VAULT_URL);
-  const isValidUrl = sanitizedUrl.startsWith('https://') || sanitizedUrl.startsWith('http://');
+  // Strict authorization: Only populate destination if explicitly unlocked
+  const sanitizedUrl = isUnlocked && masterDriveLink && masterDriveLink.trim() ? masterDriveLink.trim() : '';
+  const isValidUrl = Boolean(isUnlocked && sanitizedUrl && (sanitizedUrl.startsWith('https://') || sanitizedUrl.startsWith('http://')));
   const isGoogleDrive = sanitizedUrl.includes('drive.google.com');
   const isFileFormat = sanitizedUrl.includes('/file/d/');
   const isFolderFormat = sanitizedUrl.includes('/folders/');
@@ -48,15 +50,16 @@ export const MasterVaultCard: React.FC<MasterVaultCardProps> = ({
   const handleLaunchMasterVault = useCallback(() => {
     setLaunchError(null);
 
-    if (!isValidUrl) {
-      setLaunchError('Invalid destination URL. Please verify the Master Vault link or contact administrator.');
+    if (!isUnlocked || !isValidUrl) {
+      const msg = 'Access Locked: Without a valid registered 10-digit mobile number or approved Order ID, access cannot be granted.';
+      setLaunchError(msg);
+      if (onRequestUnlock) onRequestUnlock();
       return;
     }
 
     try {
       const newWindow = window.open(sanitizedUrl, '_blank', 'noopener,noreferrer');
       if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
-        // Popup was blocked by browser
         setLaunchError('Browser pop-up blocked. Click the accessible direct link below to open.');
       } else {
         if (onLaunchSuccess) onLaunchSuccess();
@@ -64,19 +67,20 @@ export const MasterVaultCard: React.FC<MasterVaultCardProps> = ({
     } catch (err: any) {
       setLaunchError('Navigation was blocked by your browser. Please use the direct destination link below.');
     }
-  }, [sanitizedUrl, isValidUrl, onLaunchSuccess]);
+  }, [sanitizedUrl, isValidUrl, isUnlocked, onLaunchSuccess, onRequestUnlock]);
 
   // Copy Master Link action
   const handleCopyMasterLink = useCallback(async () => {
-    if (isCopying) return; // Prevent double-clicks
+    if (isCopying) return;
     setIsCopying(true);
     setCopyStatus('idle');
     setCopyFeedbackMsg('');
 
-    if (!isValidUrl || !sanitizedUrl) {
+    if (!isUnlocked || !isValidUrl || !sanitizedUrl) {
       setCopyStatus('error');
-      setCopyFeedbackMsg('Error: Master Vault URL is empty or invalid.');
+      setCopyFeedbackMsg('Access Locked: Valid mobile number or approved Order ID required.');
       setIsCopying(false);
+      if (onRequestUnlock) onRequestUnlock();
       return;
     }
 
@@ -208,28 +212,43 @@ export const MasterVaultCard: React.FC<MasterVaultCardProps> = ({
           <button
             type="button"
             onClick={handleLaunchMasterVault}
-            className="flex-1 py-4 px-6 rounded-2xl font-mono font-black text-xs sm:text-sm uppercase tracking-wider bg-gradient-to-r from-teal-500 via-emerald-400 to-teal-400 hover:from-teal-400 hover:to-emerald-300 text-black flex items-center justify-center gap-2.5 shadow-xl shadow-teal-500/20 transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
-            title="Launch Google Drive Master Vault in a new tab"
-            aria-label="Launch Google Drive Master Vault"
+            className={`flex-1 py-4 px-6 rounded-2xl font-mono font-black text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2.5 shadow-xl transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer ${
+              isUnlocked
+                ? 'bg-gradient-to-r from-teal-500 via-emerald-400 to-teal-400 hover:from-teal-400 hover:to-emerald-300 text-black shadow-teal-500/20'
+                : 'bg-zinc-800 hover:bg-zinc-700 text-amber-300 border border-amber-500/30'
+            }`}
+            title={isUnlocked ? 'Launch Google Drive Master Vault in a new tab' : 'Access Locked: Valid mobile number or Order ID required'}
+            aria-label={isUnlocked ? 'Launch Google Drive Master Vault' : 'Access Locked'}
           >
-            <Folder size={18} className="shrink-0" />
-            <span className="truncate">LAUNCH GOOGLE DRIVE MASTER VAULT</span>
-            <ExternalLink size={16} className="shrink-0" />
+            {isUnlocked ? (
+              <>
+                <Folder size={18} className="shrink-0" />
+                <span className="truncate">LAUNCH GOOGLE DRIVE MASTER VAULT</span>
+                <ExternalLink size={16} className="shrink-0" />
+              </>
+            ) : (
+              <>
+                <Lock size={18} className="shrink-0 text-amber-400" />
+                <span className="truncate">LOCKED • VERIFY MOBILE / ORDER ID</span>
+              </>
+            )}
           </button>
 
           {/* Action B: COPY MASTER LINK */}
           <button
             type="button"
             onClick={handleCopyMasterLink}
-            disabled={isCopying}
-            className={`py-4 px-5 rounded-2xl font-mono text-xs font-bold border transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0 ${
-              copyStatus === 'success'
+            disabled={!isUnlocked || isCopying}
+            className={`py-4 px-5 rounded-2xl font-mono text-xs font-bold border transition-all flex items-center justify-center gap-2 shrink-0 ${
+              !isUnlocked
+                ? 'opacity-40 border-white/5 bg-transparent text-zinc-500 cursor-not-allowed'
+                : copyStatus === 'success'
                 ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
                 : copyStatus === 'error'
                 ? 'bg-red-500/20 border-red-500/40 text-red-300'
-                : 'bg-white/5 hover:bg-white/10 border-white/15 text-zinc-200'
+                : 'bg-white/5 hover:bg-white/10 border-white/15 text-zinc-200 cursor-pointer'
             }`}
-            title="Copy Master Vault Link to Clipboard"
+            title={!isUnlocked ? 'Locked: Verification required' : 'Copy Master Vault Link to Clipboard'}
             aria-label="Copy Master Link"
           >
             {copyStatus === 'success' ? (
@@ -240,7 +259,7 @@ export const MasterVaultCard: React.FC<MasterVaultCardProps> = ({
             ) : (
               <>
                 <Copy size={16} className="shrink-0" />
-                <span>COPY MASTER LINK</span>
+                <span>{isUnlocked ? 'COPY MASTER LINK' : 'LOCKED'}</span>
               </>
             )}
           </button>
@@ -278,20 +297,26 @@ export const MasterVaultCard: React.FC<MasterVaultCardProps> = ({
             <span className="flex items-center gap-1.5 text-zinc-300">
               <ShieldCheck size={14} className="text-teal-400" />
               <span>Direct Link:</span>
-              <a
-                href={sanitizedUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-teal-300 hover:text-teal-200 underline truncate max-w-[280px] sm:max-w-md inline-block align-bottom"
-                title={sanitizedUrl}
-              >
-                {sanitizedUrl}
-              </a>
+              {isUnlocked && sanitizedUrl ? (
+                <a
+                  href={sanitizedUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-teal-300 hover:text-teal-200 underline truncate max-w-[280px] sm:max-w-md inline-block align-bottom"
+                  title={sanitizedUrl}
+                >
+                  {sanitizedUrl}
+                </a>
+              ) : (
+                <span className="text-amber-400 font-mono">🔒 Locked — Requires Verified 10-digit Mobile or Order ID</span>
+              )}
             </span>
 
-            <span className="text-[10px] text-zinc-500">
-              Format: {isFileFormat ? 'Google Drive File (/file/d/)' : isFolderFormat ? 'Google Drive Folder (/folders/)' : 'Cloud Repository'}
-            </span>
+            {isUnlocked && (
+              <span className="text-[10px] text-zinc-500">
+                Format: {isFileFormat ? 'Google Drive File (/file/d/)' : isFolderFormat ? 'Google Drive Folder (/folders/)' : 'Cloud Repository'}
+              </span>
+            )}
           </div>
 
           <div className="p-3 rounded-xl bg-black/40 border border-white/5 flex items-start gap-2.5 text-[10.5px] text-zinc-400 font-mono leading-relaxed">

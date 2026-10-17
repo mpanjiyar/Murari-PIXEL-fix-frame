@@ -211,5 +211,32 @@
     "createdAt": "2026-10-16T15:27:57.733Z",
     "readAt": "2026-10-16T15:28:02.543Z",
     "resolvedAt": "2026-10-16T15:28:02.543Z"
+  },
+  {
+    "id": "NOTIF-MVCIVXTD-A296",
+    "type": "SYSTEM_WARNING",
+    "severity": "WARNING",
+    "title": "Duplicate UTR Submission Attempted",
+    "message": "Attempted replay of already approved UTR 998877665544 on order RP-20261017-B51AB5 by Test Customer (123).",
+    "relatedOrderId": "RP-20261017-B51AB5",
+    "utrReference": "998877665544",
+    "createdAt": "2026-10-17T14:59:39.889Z",
+    "readAt": null,
+    "resolvedAt": null
+  },
+  {
+    "id": "NOTIF-MVCIXKLK-670B",
+    "type": "MANUAL_VERIFICATION_REQUEST",
+    "severity": "INFO",
+    "title": "New Manual UPI Payment Verification Request",
+    "message": "Murari, order RP-20261017-33201A from Rohan Sharma (9876543210) has submitted UTR 883920194821 for ₹199. Please verify BharatPe statement and approve.",
+    "relatedOrderId": "RP-20261017-33201A",
+    "customerName": "Rohan Sharma",
+    "customerPhone": "9876543210",
+    "amount": 199,
+    "utrReference": "883920194821",
+    "createdAt": "2026-10-17T15:00:56.073Z",
+    "readAt": "2026-10-17T15:01:09.236Z",
+    "resolvedAt": "2026-10-17T15:01:09.236Z"
   }
 ]

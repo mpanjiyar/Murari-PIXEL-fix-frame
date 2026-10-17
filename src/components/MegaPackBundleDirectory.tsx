@@ -28,6 +28,7 @@ interface MegaPackBundleDirectoryProps {
   onCopyLink?: (text: string, label: string) => void;
   copiedLabel?: string | null;
   currentTheme?: string;
+  onRequestUnlock?: () => void;
 }
 
 export const MegaPackBundleDirectory: React.FC<MegaPackBundleDirectoryProps> = ({
@@ -38,17 +39,18 @@ export const MegaPackBundleDirectory: React.FC<MegaPackBundleDirectoryProps> = (
   onCopyLink,
   copiedLabel,
   currentTheme = 'dark',
+  onRequestUnlock,
 }) => {
-  // Use real-time authoritative registry
+  // Access is strictly gated: only buyers with valid approved orderId / token have unlocked access
+  const isApprovedAccess = Boolean(downloadToken && orderId);
   const {
     resources,
     masterDriveLink: liveMasterDriveLink,
     isLoading,
     refreshResources,
-  } = useMegaPackRegistry(propMasterDriveLink);
+  } = useMegaPackRegistry(propMasterDriveLink, { token: downloadToken, orderId });
 
-  const TARGET_MEGA_REELS_VAULT_URL = 'https://drive.google.com/drive/folders/1jkXdin8dyQ99mYKxC2JOczG8e7EHlF3C?usp=sharing';
-  const effectiveMasterDriveLink = propMasterDriveLink || liveMasterDriveLink || TARGET_MEGA_REELS_VAULT_URL;
+  const effectiveMasterDriveLink = isApprovedAccess ? (propMasterDriveLink || liveMasterDriveLink || '') : '';
 
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -109,10 +111,11 @@ export const MegaPackBundleDirectory: React.FC<MegaPackBundleDirectoryProps> = (
       {/* 1. SECTION 2 & 5: PREMIUM MASTER VAULT HERO CARD */}
       <MasterVaultCard
         masterDriveLink={effectiveMasterDriveLink}
-        isUnlocked={true}
+        isUnlocked={isApprovedAccess}
         customerName={customerName}
         orderId={orderId}
         currentTheme={currentTheme}
+        onRequestUnlock={onRequestUnlock}
       />
 
       {/* 2. NAVIGATION, SEARCH & FILTER CONTROL BAR */}
@@ -344,6 +347,7 @@ export const MegaPackBundleDirectory: React.FC<MegaPackBundleDirectoryProps> = (
                 fallbackMasterUrl={effectiveMasterDriveLink}
                 onCopy={handleCardCopy}
                 isCopied={copiedLabel === resource.title}
+                onRequestUnlock={onRequestUnlock}
               />
             ))}
           </div>

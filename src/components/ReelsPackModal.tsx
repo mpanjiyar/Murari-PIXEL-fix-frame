@@ -34,6 +34,7 @@ import { db } from '../firebase';
 import { doc, setDoc, onSnapshot } from 'firebase/firestore';
 import { ReelPurchaseOrder, ReelOrderStatus } from '../types';
 import { MegaPackBundleDirectory } from './MegaPackBundleDirectory';
+import { submitPaymentReferenceWithRetry } from '../utils/retryWithBackoff';
 
 interface ReelsPackModalProps {
   isOpen: boolean;
@@ -158,7 +159,7 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
     headline: '150K+ MEGA PACK OF REELS & SHORTS',
     subtitle: 'Take your content creation to the next level with a massive collection of short-form videos for your creative projects.',
     badgeText: 'DURGA PUJA SPECIAL OFFER',
-    masterDriveLink: 'https://drive.google.com/drive/folders/1jkXdin8dyQ99mYKxC2JOczG8e7EHlF3C?usp=sharing',
+    masterDriveLink: '',
     customQrUrl: '',
     supportEmail: 'Mpanjiyar100@gmail.com',
     supportPhone: '+91 86388 75231',
@@ -171,6 +172,7 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
   const [utrNumber, setUtrNumber] = useState('');
 
   // Order lifecycle states
+  // Order lifecycle states (strictly empty until verified and approved by admin)
   const [orderId, setOrderId] = useState<string>(() => {
     return localStorage.getItem('last_reels_order_id') || '';
   });
@@ -178,13 +180,15 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
   const [statusMessage, setStatusMessage] = useState<string>('');
   const [rejectionReason, setRejectionReason] = useState<string>('');
   const [downloadToken, setDownloadToken] = useState<string | null>(null);
-  const [masterDriveUrl, setMasterDriveUrl] = useState<string>(storeConfig.masterDriveLink);
+  // Security gate: Google Drive Master Link starts strictly empty, only populated if order status is explicitly APPROVED
+  const [masterDriveUrl, setMasterDriveUrl] = useState<string>('');
 
   // UI state
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState('');
   const [copiedUpi, setCopiedUpi] = useState(false);
   const [copiedLinkType, setCopiedLinkType] = useState<string | null>(null);
   const [isSubmittingUtr, setIsSubmittingUtr] = useState(false);
+  const [submissionStatusText, setSubmissionStatusText] = useState<string>('');
   const [submitErrorMessage, setSubmitErrorMessage] = useState('');
 
   // Track order lookup state
@@ -202,16 +206,13 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
 
   const isLight = currentTheme === 'light';
 
-  // Fetch live store config on load
+  // Fetch live store config on load (Branding, UPI, Price ONLY — never reveals Master Drive link to unverified users)
   useEffect(() => {
     fetch('/api/reels/config')
       .then(res => res.json())
       .then(data => {
         if (data.success && data.config) {
           setStoreConfig(prev => ({ ...prev, ...data.config }));
-          if (data.config.masterDriveLink) {
-            setMasterDriveUrl(data.config.masterDriveLink);
-          }
         }
       })
       .catch(() => {});
@@ -223,10 +224,10 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
     }
   }, [initialTab]);
 
-  // If there's an existing order in session/localStorage, check its current status
+  // If there's an existing order in session/localStorage, strictly check its current verification status
   useEffect(() => {
-    if (orderId) {
-      fetch(`/api/reels/order-status/${orderId}`)
+    if (orderId && orderId.trim()) {
+      fetch(`/api/reels/order-status/${encodeURIComponent(orderId.trim())}`)
         .then(res => res.json())
         .then(data => {
           if (data.success && data.order) {
@@ -235,15 +236,30 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
             if (data.order.customerPhone) setCustomerPhone(data.order.customerPhone);
             if (data.order.utrReference) setUtrNumber(data.order.utrReference);
             if (data.order.rejectionReason) setRejectionReason(data.order.rejectionReason);
-            if (data.order.downloadToken) {
+
+            // Access gate: ONLY unlock Google Drive link if status is explicitly APPROVED
+            if (data.order.status === 'APPROVED' && data.order.downloadToken && data.links?.masterGoogleDrive) {
               setDownloadToken(data.order.downloadToken);
-            }
-            if (data.links?.masterGoogleDrive) {
               setMasterDriveUrl(data.links.masterGoogleDrive);
+            } else {
+              setDownloadToken(null);
+              setMasterDriveUrl('');
             }
+          } else {
+            setOrderStatus('PENDING_PAYMENT');
+            setDownloadToken(null);
+            setMasterDriveUrl('');
           }
         })
-        .catch(() => {});
+        .catch(() => {
+          setOrderStatus('PENDING_PAYMENT');
+          setDownloadToken(null);
+          setMasterDriveUrl('');
+        });
+    } else {
+      setOrderStatus('PENDING_PAYMENT');
+      setDownloadToken(null);
+      setMasterDriveUrl('');
     }
   }, [orderId]);
 
@@ -420,72 +436,51 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
     }
 
     setIsSubmittingUtr(true);
+    setSubmitErrorMessage('');
+    setSubmissionStatusText('Submitting payment details for verification...');
 
     try {
-      let serverData: any = null;
-      let serverError: string | null = null;
+      const activeOrderId = orderId && orderId.startsWith('RP-') ? orderId : `RP-${Date.now().toString(36).toUpperCase()}-${Math.floor(Math.random() * 900 + 100)}`;
+      if (!orderId) {
+        setOrderId(activeOrderId);
+      }
 
       const submitPayload = {
-        orderId: orderId || undefined,
+        orderId: activeOrderId,
         utrReference: cleanUtr,
         customerName: customerName.trim(),
         customerPhone: customerPhone.trim(),
       };
 
-      const attemptFetch = async () => {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000);
-        try {
-          const res = await fetch('/api/reels/submit-payment-reference', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(submitPayload),
-            signal: controller.signal,
-          });
-          return res;
-        } finally {
-          clearTimeout(timeoutId);
-        }
-      };
-
-      let res: Response | null = null;
-      try {
-        res = await attemptFetch();
-      } catch (firstErr) {
-        console.warn('First fetch attempt encountered network issue, retrying...', firstErr);
-        await new Promise((r) => setTimeout(r, 600));
-        try {
-          res = await attemptFetch();
-        } catch (retryErr) {
-          console.warn('Backend fetch retry failed, checking Firestore fallback:', retryErr);
-        }
-      }
-
-      if (res) {
-        const text = await res.text();
-        try {
-          serverData = JSON.parse(text);
-        } catch {
-          if (!res.ok) {
-            serverError = `Server returned status ${res.status}`;
+      const result = await submitPaymentReferenceWithRetry(submitPayload, {
+        maxRetries: 4,
+        initialDelayMs: 800,
+        backoffFactor: 2,
+        maxDelayMs: 5000,
+        timeoutMs: 9000,
+        onAttemptStart: (attempt, max) => {
+          if (attempt > 1) {
+            setSubmissionStatusText(`Reconnecting to server (attempt ${attempt}/${max})...`);
+          } else {
+            setSubmissionStatusText('Submitting payment reference...');
           }
-        }
-
-        if (!res.ok) {
-          serverError = serverData?.error || serverData?.message || `Server returned error (${res.status})`;
-        }
-      }
+        },
+        onRetry: (attempt, max, delayMs, reason) => {
+          const secs = (delayMs / 1000).toFixed(1);
+          setSubmissionStatusText(`Network issue (${reason}). Retrying in ${secs}s (attempt ${attempt + 1}/${max})...`);
+        },
+      });
 
       // If backend responded successfully
-      if (serverData && serverData.success) {
-        const assignedId = serverData.order?.id || orderId;
+      if (result.success && result.order) {
+        const assignedId = result.order?.id || activeOrderId;
         setOrderId(assignedId);
         try {
           localStorage.setItem('last_reels_order_id', assignedId);
         } catch {}
-        setOrderStatus(serverData.order?.status || 'PENDING_ADMIN_REVIEW');
+        setOrderStatus(result.order?.status || 'PENDING_ADMIN_REVIEW');
         setStatusMessage(
-          serverData.message ||
+          result.message ||
             'Your payment details have been submitted successfully. Your order is awaiting administrator verification. You will receive download access on this website after approval.'
         );
 
@@ -504,7 +499,7 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
                 currency: 'INR',
                 customerName: customerName.trim(),
                 customerPhone: customerPhone.trim(),
-                status: serverData.order?.status || 'PENDING_ADMIN_REVIEW',
+                status: result.order?.status || 'PENDING_ADMIN_REVIEW',
                 utrReference: cleanUtr,
                 submittedAt: nowIso,
                 updatedAt: nowIso,
@@ -516,10 +511,10 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
           }
         }
 
-        if (serverData.order?.status === 'APPROVED' && serverData.order?.downloadToken) {
-          setDownloadToken(serverData.order.downloadToken);
-          if (serverData.links?.masterGoogleDrive) {
-            setMasterDriveUrl(serverData.links.masterGoogleDrive);
+        if (result.order?.status === 'APPROVED' && result.order?.downloadToken) {
+          setDownloadToken(result.order.downloadToken);
+          if (result.links?.masterGoogleDrive) {
+            setMasterDriveUrl(result.links.masterGoogleDrive);
           }
           if (triggerToast) triggerToast('🎉 Payment Verified! Download access approved.', 'success');
         } else {
@@ -528,17 +523,17 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
         return;
       }
 
-      // If backend returned a clear validation or conflict error (e.g. duplicate UTR)
-      if (serverError) {
-        setSubmitErrorMessage(serverError);
-        if (triggerToast) triggerToast(serverError, 'error');
+      // If backend returned a clear validation or conflict error (e.g. duplicate UTR or invalid input)
+      if (result.error && !result.error.toLowerCase().includes('network') && !result.error.toLowerCase().includes('timeout') && !result.error.toLowerCase().includes('failed to fetch')) {
+        setSubmitErrorMessage(result.error);
+        if (triggerToast) triggerToast(result.error, 'error');
         return;
       }
 
-      // If backend was unreachable due to network/server failure, use client Firestore persistence
+      // If backend was unreachable after all exponential backoff retries, use client Firestore persistence
       if (db) {
         try {
-          const fallbackId = orderId && orderId.startsWith('RP-') ? orderId : `RP-${Date.now().toString(36).toUpperCase()}-${Math.floor(Math.random() * 900 + 100)}`;
+          const fallbackId = activeOrderId;
           const nowIso = new Date().toISOString();
 
           await setDoc(
@@ -601,14 +596,18 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
         }
       }
 
-      setSubmitErrorMessage('Unable to connect to server. Please check your internet connection and tap Submit again.');
-      if (triggerToast) triggerToast('Connection issue. Please retry submission.', 'error');
+      setSubmitErrorMessage(
+        result.error ||
+          'Network connection interrupted after 4 retry attempts. Please check your internet connection and tap Submit again.'
+      );
+      if (triggerToast) triggerToast('Connection issue after retries. Please retry.', 'error');
     } catch (finalErr: any) {
       console.error('Submission fatal error:', finalErr);
       setSubmitErrorMessage(finalErr?.message || 'Unable to connect to server. Please check your network and retry.');
       if (triggerToast) triggerToast('Connection issue. Please retry submission.', 'error');
     } finally {
       setIsSubmittingUtr(false);
+      setSubmissionStatusText('');
     }
   };
 
@@ -1087,6 +1086,12 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
                           <span>{submitErrorMessage}</span>
                         </div>
                       )}
+                      {submissionStatusText && isSubmittingUtr && (
+                        <div className="p-3 rounded-xl bg-amber-500/15 border border-amber-500/40 text-amber-300 text-xs font-mono flex items-center gap-2 animate-pulse">
+                          <RefreshCw size={14} className="animate-spin text-amber-400 shrink-0" />
+                          <span>{submissionStatusText}</span>
+                        </div>
+                      )}
                     </div>
 
                     <button
@@ -1097,7 +1102,7 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
                       {isSubmittingUtr ? (
                         <>
                           <RefreshCw size={15} className="animate-spin text-black" />
-                          <span>Submitting for Verification...</span>
+                          <span>{submissionStatusText || 'Submitting for Verification...'}</span>
                         </>
                       ) : (
                         <>

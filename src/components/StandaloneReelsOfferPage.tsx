@@ -44,6 +44,7 @@ import { AdminNotificationsPanel } from './AdminNotificationsPanel';
 import { AdminPurchaseManager } from './AdminPurchaseManager';
 import { MegaPackBundleDirectory } from './MegaPackBundleDirectory';
 import { AdminCornerTrigger } from './AdminCornerTrigger';
+import { submitPaymentReferenceWithRetry } from '../utils/retryWithBackoff';
 
 interface StandaloneReelsOfferPageProps {
   currentTheme?: 'light' | 'normal' | 'mono';
@@ -197,7 +198,7 @@ export function StandaloneReelsOfferPage({
     headline: '150K+ MEGA PACK OF REELS & SHORTS',
     subtitle: 'Take your content creation to the next level with a massive collection of short-form videos for your creative projects.',
     badgeText: 'DURGA PUJA SPECIAL OFFER',
-    masterDriveLink: 'https://drive.google.com/drive/folders/1jkXdin8dyQ99mYKxC2JOczG8e7EHlF3C?usp=sharing',
+    masterDriveLink: '',
     customQrUrl: '',
     supportEmail: 'Mpanjiyar100@gmail.com',
     supportPhone: '+91 86388 75231',
@@ -214,6 +215,7 @@ export function StandaloneReelsOfferPage({
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState('');
   const [orderStatus, setOrderStatus] = useState<'checkout' | 'submitting' | 'pending_approval' | 'approved' | 'rejected' | 'error'>('checkout');
   const [errorMessage, setErrorMessage] = useState('');
+  const [submissionProgress, setSubmissionProgress] = useState('');
   const [rejectionReason, setRejectionReason] = useState('');
   const [unlockedDriveLink, setUnlockedDriveLink] = useState('');
   const [downloadToken, setDownloadToken] = useState('');
@@ -457,13 +459,12 @@ export function StandaloneReelsOfferPage({
     }
 
     setOrderStatus('submitting');
+    setErrorMessage('');
+    setSubmissionProgress('Submitting payment details for verification...');
 
     try {
       const activeOrderId = orderId || `RP-${Date.now().toString(36).toUpperCase()}-${Math.floor(Math.random() * 900 + 100)}`;
       if (!orderId) setOrderId(activeOrderId);
-
-      let serverData: any = null;
-      let serverError: string | null = null;
 
       const submitPayload = {
         orderId: activeOrderId,
@@ -472,52 +473,27 @@ export function StandaloneReelsOfferPage({
         customerPhone: cleanPhone,
       };
 
-      const attemptFetch = async () => {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000);
-        try {
-          const res = await fetch('/api/reels/submit-payment-reference', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(submitPayload),
-            signal: controller.signal,
-          });
-          return res;
-        } finally {
-          clearTimeout(timeoutId);
-        }
-      };
-
-      let res: Response | null = null;
-      try {
-        res = await attemptFetch();
-      } catch (firstErr) {
-        console.warn('First fetch attempt encountered issue, retrying...', firstErr);
-        await new Promise((r) => setTimeout(r, 600));
-        try {
-          res = await attemptFetch();
-        } catch (retryErr) {
-          console.warn('Backend fetch retry failed, checking Firestore fallback:', retryErr);
-        }
-      }
-
-      if (res) {
-        const text = await res.text();
-        try {
-          serverData = JSON.parse(text);
-        } catch {
-          if (!res.ok) {
-            serverError = `Server returned status ${res.status}`;
+      const result = await submitPaymentReferenceWithRetry(submitPayload, {
+        maxRetries: 4,
+        initialDelayMs: 800,
+        backoffFactor: 2,
+        maxDelayMs: 5000,
+        timeoutMs: 9000,
+        onAttemptStart: (attempt, max) => {
+          if (attempt > 1) {
+            setSubmissionProgress(`Reconnecting to server (attempt ${attempt}/${max})...`);
+          } else {
+            setSubmissionProgress('Submitting payment reference...');
           }
-        }
+        },
+        onRetry: (attempt, max, delayMs, reason) => {
+          const secs = (delayMs / 1000).toFixed(1);
+          setSubmissionProgress(`Network issue (${reason}). Retrying in ${secs}s (attempt ${attempt + 1}/${max})...`);
+        },
+      });
 
-        if (!res.ok) {
-          serverError = serverData?.error || serverData?.message || `Server returned error (${res.status})`;
-        }
-      }
-
-      if (serverData && serverData.success) {
-        const assignedId = serverData.order?.id || activeOrderId;
+      if (result.success && result.order) {
+        const assignedId = result.order?.id || activeOrderId;
         setOrderId(assignedId);
         setSubmittedUtr(cleanUtr);
         setSubmittedTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
@@ -537,7 +513,7 @@ export function StandaloneReelsOfferPage({
                 currency: 'INR',
                 customerName: customerName.trim(),
                 customerPhone: cleanPhone,
-                status: serverData.order?.status || 'PENDING_ADMIN_REVIEW',
+                status: result.order?.status || 'PENDING_ADMIN_REVIEW',
                 utrReference: cleanUtr,
                 submittedAt: nowIso,
                 updatedAt: nowIso,
@@ -549,10 +525,10 @@ export function StandaloneReelsOfferPage({
           }
         }
 
-        if (serverData.order?.status === 'APPROVED') {
+        if (result.order?.status === 'APPROVED') {
           setOrderStatus('approved');
-          setUnlockedDriveLink(serverData.links?.masterGoogleDrive || config.masterDriveLink);
-          setDownloadToken(serverData.order.downloadToken || '');
+          setUnlockedDriveLink(result.links?.masterGoogleDrive || '');
+          setDownloadToken(result.order.downloadToken || '');
           showToast('🎉 Order already approved! Access granted.', 'success');
         } else {
           setOrderStatus('pending_approval');
@@ -561,14 +537,14 @@ export function StandaloneReelsOfferPage({
         return;
       }
 
-      if (serverError) {
+      if (result.error && !result.error.toLowerCase().includes('network') && !result.error.toLowerCase().includes('timeout') && !result.error.toLowerCase().includes('failed to fetch')) {
         setOrderStatus('error');
-        setErrorMessage(serverError);
-        showToast(serverError, 'error');
+        setErrorMessage(result.error);
+        showToast(result.error, 'error');
         return;
       }
 
-      // If backend was unreachable, persist directly to Firestore
+      // If backend was unreachable after all retries, persist directly to Firestore
       if (db) {
         try {
           const nowIso = new Date().toISOString();
@@ -628,11 +604,13 @@ export function StandaloneReelsOfferPage({
       }
 
       setOrderStatus('error');
-      setErrorMessage('Unable to connect to server. Please check your internet connection and tap Submit again.');
-      showToast('Connection issue. Please retry submission.', 'error');
+      setErrorMessage(result.error || 'Network connection interrupted after 4 retry attempts. Please check your internet connection and tap Submit again.');
+      showToast('Connection issue after retries. Please retry submission.', 'error');
     } catch (finalErr: any) {
       setOrderStatus('error');
       setErrorMessage(finalErr?.message || 'Unable to connect to server. Please check your network and retry.');
+    } finally {
+      setSubmissionProgress('');
     }
   };
 
@@ -641,8 +619,12 @@ export function StandaloneReelsOfferPage({
     e.preventDefault();
     setLookupError('');
     const cleanQ = lookupQuery.trim();
-    if (!cleanQ) {
-      setLookupError('Please enter your 10-digit Phone Number or Order ID.');
+    const digitsOnly = cleanQ.replace(/[^\d]/g, '');
+    const isPhoneQuery = digitsOnly.length >= 10;
+    const isOrderQuery = cleanQ.toUpperCase().startsWith('RP-') || cleanQ.length >= 6;
+
+    if (!cleanQ || (!isPhoneQuery && !isOrderQuery)) {
+      setLookupError('Please enter a valid 10-digit registered Phone Number or Order ID (e.g. RP-...). Without a valid mobile number or order ID, access cannot be granted.');
       return;
     }
 
@@ -661,7 +643,7 @@ export function StandaloneReelsOfferPage({
         setSubmittedUtr(data.order.utrReference || '');
         if (data.order.status === 'APPROVED') {
           setOrderStatus('approved');
-          setUnlockedDriveLink(data.links?.masterGoogleDrive || config.masterDriveLink);
+          setUnlockedDriveLink(data.links?.masterGoogleDrive || '');
           setDownloadToken(data.order.downloadToken || '');
           showToast('Verified purchase found! Google Drive unlocked.', 'success');
         } else if (data.order.status === 'REJECTED') {
@@ -674,7 +656,7 @@ export function StandaloneReelsOfferPage({
         setIsCheckoutOpen(true);
         setIsLookupOpen(false);
       } else {
-        setLookupError(data.error || 'No matching order found for this number or ID.');
+        setLookupError(data.error || 'No matching order found. Without a valid mobile number or approved Order ID, access cannot be granted.');
       }
     } catch {
       setLookupError('Network error looking up order. Please try again.');
@@ -1373,7 +1355,7 @@ export function StandaloneReelsOfferPage({
 
                   {/* Render the full interactive Clickable Bundle Directory with 53 cards */}
                   <MegaPackBundleDirectory
-                    masterDriveLink={unlockedDriveLink || config.masterDriveLink}
+                    masterDriveLink={unlockedDriveLink}
                     downloadToken={downloadToken}
                     customerName={customerName}
                     orderId={orderId}
@@ -1668,6 +1650,13 @@ export function StandaloneReelsOfferPage({
                           {errorMessage}
                         </div>
                       )}
+
+                      {submissionProgress && orderStatus === 'submitting' && (
+                        <div className="p-3 rounded-xl bg-amber-500/15 border border-amber-500/40 text-amber-300 text-xs font-mono flex items-center gap-2 animate-pulse">
+                          <RefreshCw size={14} className="animate-spin text-amber-400 shrink-0" />
+                          <span>{submissionProgress}</span>
+                        </div>
+                      )}
                     </div>
 
                     <div className="space-y-2 pt-2">
@@ -1679,7 +1668,7 @@ export function StandaloneReelsOfferPage({
                         {orderStatus === 'submitting' ? (
                           <>
                             <RefreshCw size={15} className="animate-spin text-black" />
-                            <span>Submitting for Verification...</span>
+                            <span>{submissionProgress || 'Submitting for Verification...'}</span>
                           </>
                         ) : (
                           <>

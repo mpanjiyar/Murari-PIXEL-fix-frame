@@ -187,10 +187,6 @@ export const DurgaPujaOfferPopup: React.FC<DurgaPujaOfferPopupProps> = ({
   };
 
   const handlePrimaryAction = () => {
-    if (config.primaryButtonLink && config.primaryButtonLink.trim()) {
-      window.open(config.primaryButtonLink.trim(), '_blank', 'noopener,noreferrer');
-      return;
-    }
     handleClose();
     onUnlockPack();
   };
@@ -420,26 +416,20 @@ export const DurgaPujaOfferPopup: React.FC<DurgaPujaOfferPopupProps> = ({
 
                   <div className="text-right hidden sm:block">
                     <span className="text-[9px] uppercase font-mono text-slate-400 block font-bold">
-                      Delivery
+                      Delivery Access
                     </span>
-                    {config.masterVaultLink ? (
-                      <a
-                        href={config.masterVaultLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-[11px] font-bold text-zinc-300 hover:text-amber-400 flex items-center gap-1 justify-end transition-colors cursor-pointer"
-                        title="Open Google Drive Master Vault"
-                      >
-                        <FolderLock size={12} className="text-amber-400" />
-                        <span>{config.deliveryNote || 'Google Drive Master Vault'}</span>
-                        <ExternalLink size={10} className="text-amber-500/70" />
-                      </a>
-                    ) : (
-                      <span className="text-[11px] font-bold text-zinc-300 flex items-center gap-1 justify-end">
-                        <FolderLock size={12} className="text-amber-400" />
-                        {config.deliveryNote || 'Google Drive Master Vault'}
+                    <button
+                      type="button"
+                      onClick={handlePrimaryAction}
+                      className="text-[11px] font-bold text-amber-400 hover:text-amber-300 flex items-center gap-1 justify-end transition-colors cursor-pointer"
+                      title="Access strictly requires mobile number verification and admin approval"
+                    >
+                      <FolderLock size={12} className="text-amber-400" />
+                      <span>Google Drive Master Vault</span>
+                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-mono">
+                        Locked
                       </span>
-                    )}
+                    </button>
                   </div>
                 </div>
 

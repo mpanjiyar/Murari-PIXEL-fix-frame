@@ -12,26 +12,42 @@ export interface UseMegaPackRegistryReturn {
   setMasterDriveLinkLocally: (url: string) => void;
 }
 
-export function useMegaPackRegistry(initialMasterDriveLink?: string): UseMegaPackRegistryReturn {
-  const [resources, setResources] = useState<MegaPackResource[]>(INITIAL_MEGAPACK_RESOURCES);
-  const [masterDriveLink, setMasterDriveLink] = useState<string>(
-    initialMasterDriveLink || 'https://drive.google.com/drive/folders/1jkXdin8dyQ99mYKxC2JOczG8e7EHlF3C?usp=sharing'
+export function useMegaPackRegistry(
+  initialMasterDriveLink?: string,
+  authCredentials?: { token?: string; orderId?: string; phone?: string }
+): UseMegaPackRegistryReturn {
+  // Access is strictly locked by default until verified through valid mobile number or order ID
+  const [resources, setResources] = useState<MegaPackResource[]>(() =>
+    INITIAL_MEGAPACK_RESOURCES.map(r => ({
+      ...r,
+      destinationUrl: null,
+      isLocked: true,
+    }))
   );
+  const [masterDriveLink, setMasterDriveLink] = useState<string>(initialMasterDriveLink || '');
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
   const eventSourceRef = useRef<EventSource | null>(null);
 
-  // Fetch from REST API
+  // Fetch from REST API with optional credentials
   const refreshResources = useCallback(async () => {
     try {
       setIsLoading(true);
-      const res = await fetch('/api/reels/resources');
+      const params = new URLSearchParams();
+      if (authCredentials?.token) params.set('token', authCredentials.token);
+      if (authCredentials?.orderId) params.set('orderId', authCredentials.orderId);
+      if (authCredentials?.phone) params.set('phone', authCredentials.phone);
+
+      const queryStr = params.toString();
+      const res = await fetch(`/api/reels/resources${queryStr ? '?' + queryStr : ''}`);
       const data = await res.json();
       if (data.success && Array.isArray(data.resources)) {
         setResources(data.resources);
         if (data.masterDriveLink) {
           setMasterDriveLink(data.masterDriveLink);
+        } else if (!initialMasterDriveLink) {
+          setMasterDriveLink('');
         }
       }
       setError(null);
@@ -41,7 +57,7 @@ export function useMegaPackRegistry(initialMasterDriveLink?: string): UseMegaPac
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [authCredentials?.token, authCredentials?.orderId, authCredentials?.phone, initialMasterDriveLink]);
 
   // Update local state when admin performs changes
   const updateResourceLocally = useCallback((updated: MegaPackResource) => {
@@ -59,7 +75,13 @@ export function useMegaPackRegistry(initialMasterDriveLink?: string): UseMegaPac
     refreshResources();
 
     try {
-      const es = new EventSource('/api/reels/events');
+      const sseParams = new URLSearchParams();
+      if (authCredentials?.token) sseParams.set('token', authCredentials.token);
+      if (authCredentials?.orderId) sseParams.set('orderId', authCredentials.orderId);
+      if (authCredentials?.phone) sseParams.set('phone', authCredentials.phone);
+      const sseQuery = sseParams.toString();
+
+      const es = new EventSource(`/api/reels/events${sseQuery ? '?' + sseQuery : ''}`);
       eventSourceRef.current = es;
 
       es.onmessage = (event) => {
