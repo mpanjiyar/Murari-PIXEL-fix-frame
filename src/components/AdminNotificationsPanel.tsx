@@ -15,12 +15,19 @@ import {
   Clock,
   User,
   Phone,
-  Tag
+  Tag,
+  Bug,
+  Copy,
+  ChevronDown,
+  ChevronUp,
+  Terminal,
+  Sparkles
 } from 'lucide-react';
 import { db } from '../firebase';
 import { collection, doc, setDoc, onSnapshot } from 'firebase/firestore';
 import { AdminAlertNotification, AdminNotificationType, AdminNotificationSeverity } from '../types';
 import { fetchWithRetry } from '../utils/retryWithBackoff';
+import { triggerTestClientError } from '../services/clientErrorLogger';
 
 interface AdminNotificationsPanelProps {
   currentTheme?: 'light' | 'normal' | 'dark' | 'mono';
@@ -40,8 +47,28 @@ export const AdminNotificationsPanel: React.FC<AdminNotificationsPanelProps> = (
   const [typeFilter, setTypeFilter] = useState<'ALL' | AdminNotificationType>('ALL');
   const [severityFilter, setSeverityFilter] = useState<'ALL' | AdminNotificationSeverity>('ALL');
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+  const [expandedErrorId, setExpandedErrorId] = useState<string | null>(null);
+  const [isSimulatingError, setIsSimulatingError] = useState<boolean>(false);
 
   const isLight = currentTheme === 'light';
+
+  // Simulate a test client runtime error and log to Firestore
+  const handleSimulateTestError = async () => {
+    setIsSimulatingError(true);
+    try {
+      const notif = await triggerTestClientError();
+      if (notif) {
+        if (triggerToast) {
+          triggerToast(`Simulated client error logged to Firestore (${notif.id})`, 'success');
+        }
+        fetchNotifications(true);
+      }
+    } catch (err) {
+      if (triggerToast) triggerToast('Failed to log simulated error', 'error');
+    } finally {
+      setIsSimulatingError(false);
+    }
+  };
 
   // Fetch notifications
   const fetchNotifications = async (quiet = false) => {
@@ -172,6 +199,34 @@ export const AdminNotificationsPanel: React.FC<AdminNotificationsPanelProps> = (
   // Quick Approve directly from notification
   const handleQuickApprove = async (orderId: string, notifId: string) => {
     setActionLoadingId(notifId);
+    const nowIso = new Date().toISOString();
+    const generatedToken = crypto.randomUUID ? crypto.randomUUID().replace(/-/g, '') : Date.now().toString(36) + Math.random().toString(36).slice(2);
+
+    // Direct Firestore update so customer screen immediately unlocks
+    if (db && orderId) {
+      try {
+        await setDoc(
+          doc(db, 'reels_orders', orderId),
+          {
+            status: 'APPROVED',
+            verificationSource: 'manual_admin',
+            approvedAt: nowIso,
+            reviewedByAdminId: 'Murari Panjiyar (Mpanjiyar100@gmail.com)',
+            downloadToken: generatedToken,
+            masterDriveLink: 'https://drive.google.com/drive/folders/1jkXdin8dyQ99mYKxC2JOczG8e7EHlF3C?usp=sharing',
+            links: {
+              masterGoogleDrive: 'https://drive.google.com/drive/folders/1jkXdin8dyQ99mYKxC2JOczG8e7EHlF3C?usp=sharing',
+              directTokenDownload: `/api/reels/download/${generatedToken}?category=all`,
+            },
+            updatedAt: nowIso,
+          },
+          { merge: true }
+        );
+      } catch (fsErr) {
+        console.warn('Quick approve firestore write note:', fsErr);
+      }
+    }
+
     try {
       const { res } = await fetchWithRetry(
         '/api/reels/admin/verify-order',

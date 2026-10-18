@@ -158,6 +158,7 @@ export type ReelOrderStatus =
   | 'PENDING_PAYMENT'
   | 'PENDING_ADMIN_REVIEW'
   | 'APPROVED'
+  | 'approved'
   | 'REJECTED'
   | 'PAYMENT_FAILED'
   | 'REFUNDED'
@@ -191,6 +192,11 @@ export interface ReelPurchaseOrder {
   downloadToken?: string;
   downloadExpiresAt?: number;
   downloadCount: number;
+  masterDriveLink?: string;
+  links?: {
+    masterGoogleDrive?: string;
+    directTokenDownload?: string;
+  } | null;
   createdAt: string;
   updatedAt: string;
   auditLogs: {
@@ -201,7 +207,12 @@ export interface ReelPurchaseOrder {
   }[];
 }
 
-export type AdminNotificationType = 'MANUAL_VERIFICATION_REQUEST' | 'FAILED_WEBHOOK' | 'SYSTEM_WARNING';
+export type AdminNotificationType =
+  | 'MANUAL_VERIFICATION_REQUEST'
+  | 'FAILED_WEBHOOK'
+  | 'SYSTEM_WARNING'
+  | 'CLIENT_RUNTIME_ERROR'
+  | 'UNHANDLED_PROMISE_REJECTION';
 export type AdminNotificationSeverity = 'INFO' | 'WARNING' | 'ERROR' | 'CRITICAL';
 
 export interface AdminAlertNotification {
@@ -219,6 +230,15 @@ export interface AdminAlertNotification {
   readAt?: string | null;
   resolvedAt?: string | null;
   eventFingerprint?: string;
+  // Client-Side Runtime Monitoring Metadata
+  url?: string;
+  errorName?: string;
+  stack?: string;
+  componentStack?: string;
+  userAgent?: string;
+  screen?: string;
+  errorCount?: number;
+  lastOccurredAt?: string;
 }
 
 export type ResourceAvailabilityStatus =

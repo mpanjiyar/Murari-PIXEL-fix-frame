@@ -38,11 +38,12 @@ import {
 } from 'lucide-react';
 import QRCode from 'qrcode';
 import { db } from '../firebase';
-import { doc, setDoc, onSnapshot } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot, getDoc, getDocs, collection } from 'firebase/firestore';
 import { DurgaPujaOfferPopup } from './DurgaPujaOfferPopup';
 import { AdminNotificationsPanel } from './AdminNotificationsPanel';
 import { AdminPurchaseManager } from './AdminPurchaseManager';
 import { MegaPackBundleDirectory } from './MegaPackBundleDirectory';
+import { CANONICAL_MEGA_REELS_VAULT_URL } from './MasterVaultCard';
 import { AdminCornerTrigger } from './AdminCornerTrigger';
 import { submitPaymentReferenceWithRetry } from '../utils/retryWithBackoff';
 
@@ -272,6 +273,68 @@ export function StandaloneReelsOfferPage({
         }
       })
       .catch(() => {});
+
+    // Restore last order verification state for returning customers
+    try {
+      const savedOrderId = localStorage.getItem('last_reels_order_id') || '';
+      if (savedOrderId) {
+        setOrderId(savedOrderId);
+        fetch(`/api/reels/order-status/${encodeURIComponent(savedOrderId.trim())}`)
+          .then(res => res.json())
+          .then(async data => {
+            if (data.success && data.order) {
+              if (data.order.customerName) setCustomerName(data.order.customerName);
+              if (data.order.customerPhone) setCustomerPhone(data.order.customerPhone);
+              if (data.order.utrReference) setSubmittedUtr(data.order.utrReference);
+              if (data.order.status === 'APPROVED' || data.order.status === 'approved') {
+                setOrderStatus('approved');
+                const vaultUrl = data.links?.masterGoogleDrive || data.order.masterDriveLink || config.masterDriveLink || CANONICAL_MEGA_REELS_VAULT_URL;
+                setUnlockedDriveLink(vaultUrl);
+                setDownloadToken(data.order.downloadToken || ('TOKEN-' + Date.now().toString(36).toUpperCase()));
+              } else if (data.order.status === 'REJECTED') {
+                setOrderStatus('rejected');
+                setRejectionReason(data.order.rejectionReason || '');
+              } else if (data.order.status === 'PENDING_ADMIN_REVIEW') {
+                setOrderStatus('pending_approval');
+              }
+            } else if (db) {
+              try {
+                const snap = await getDoc(doc(db, 'reels_orders', savedOrderId.trim()));
+                if (snap.exists()) {
+                  const liveData = snap.data();
+                  if (liveData.customerName) setCustomerName(liveData.customerName);
+                  if (liveData.customerPhone) setCustomerPhone(liveData.customerPhone);
+                  if (liveData.utrReference) setSubmittedUtr(liveData.utrReference);
+                  if (liveData.status === 'APPROVED' || liveData.status === 'approved') {
+                    setOrderStatus('approved');
+                    const vaultUrl = liveData.masterDriveLink || liveData.links?.masterGoogleDrive || config.masterDriveLink || CANONICAL_MEGA_REELS_VAULT_URL;
+                    setUnlockedDriveLink(vaultUrl);
+                    setDownloadToken(liveData.downloadToken || ('TOKEN-' + Date.now().toString(36).toUpperCase()));
+                  } else if (liveData.status === 'PENDING_ADMIN_REVIEW') {
+                    setOrderStatus('pending_approval');
+                  }
+                }
+              } catch {}
+            }
+          })
+          .catch(async () => {
+            if (db) {
+              try {
+                const snap = await getDoc(doc(db, 'reels_orders', savedOrderId.trim()));
+                if (snap.exists()) {
+                  const liveData = snap.data();
+                  if (liveData.status === 'APPROVED' || liveData.status === 'approved') {
+                    setOrderStatus('approved');
+                    const vaultUrl = liveData.masterDriveLink || liveData.links?.masterGoogleDrive || config.masterDriveLink || CANONICAL_MEGA_REELS_VAULT_URL;
+                    setUnlockedDriveLink(vaultUrl);
+                    setDownloadToken(liveData.downloadToken || ('TOKEN-' + Date.now().toString(36).toUpperCase()));
+                  }
+                }
+              } catch {}
+            }
+          });
+      }
+    } catch (_) {}
   }, []);
 
   // Fetch unread notifications count for admin
@@ -321,10 +384,11 @@ export function StandaloneReelsOfferPage({
           (snapshot) => {
             if (snapshot.exists()) {
               const liveData = snapshot.data();
-              if (liveData.status === 'APPROVED') {
+              if (liveData.status === 'APPROVED' || liveData.status === 'approved') {
                 setOrderStatus('approved');
-                setUnlockedDriveLink(liveData.links?.masterGoogleDrive || config.masterDriveLink);
-                setDownloadToken(liveData.downloadToken || '');
+                const vaultUrl = liveData.masterDriveLink || liveData.links?.masterGoogleDrive || config.masterDriveLink || CANONICAL_MEGA_REELS_VAULT_URL;
+                setUnlockedDriveLink(vaultUrl);
+                setDownloadToken(liveData.downloadToken || ('TOKEN-' + Date.now().toString(36).toUpperCase()));
                 showToast('🎉 Payment Verified & Approved by Murari Panjiyar! Access Unlocked.', 'success');
               } else if (liveData.status === 'REJECTED') {
                 setOrderStatus('rejected');
@@ -353,10 +417,11 @@ export function StandaloneReelsOfferPage({
         try {
           const payload = JSON.parse(event.data);
           if (payload.orderId === orderId || payload.id === orderId) {
-            if (payload.eventType === 'ORDER_APPROVED') {
+            if (payload.eventType === 'ORDER_APPROVED' || payload.status === 'APPROVED') {
               setOrderStatus('approved');
-              setUnlockedDriveLink(payload.masterDriveLink || config.masterDriveLink);
-              setDownloadToken(payload.downloadToken || '');
+              const vaultUrl = payload.masterDriveLink || config.masterDriveLink || CANONICAL_MEGA_REELS_VAULT_URL;
+              setUnlockedDriveLink(vaultUrl);
+              setDownloadToken(payload.downloadToken || ('TOKEN-' + Date.now().toString(36).toUpperCase()));
               showToast('🎉 Payment Verified & Approved by Murari Panjiyar! Access Unlocked.', 'success');
             } else if (payload.eventType === 'ORDER_REJECTED') {
               setOrderStatus('rejected');
@@ -376,10 +441,11 @@ export function StandaloneReelsOfferPage({
           const res = await fetch(`/api/reels/order-status/${orderId}`);
           const data = await res.json();
           if (data.success && data.order) {
-            if (data.order.status === 'APPROVED') {
+            if (data.order.status === 'APPROVED' || data.order.status === 'approved') {
               setOrderStatus('approved');
-              setUnlockedDriveLink(data.links?.masterGoogleDrive || config.masterDriveLink);
-              setDownloadToken(data.order.downloadToken || '');
+              const vaultUrl = data.links?.masterGoogleDrive || data.order.masterDriveLink || config.masterDriveLink || CANONICAL_MEGA_REELS_VAULT_URL;
+              setUnlockedDriveLink(vaultUrl);
+              setDownloadToken(data.order.downloadToken || ('TOKEN-' + Date.now().toString(36).toUpperCase()));
               showToast('🎉 Payment Verified & Approved by Murari Panjiyar! Access Unlocked.', 'success');
             } else if (data.order.status === 'REJECTED') {
               setOrderStatus('rejected');
@@ -641,50 +707,139 @@ export function StandaloneReelsOfferPage({
     e.preventDefault();
     setLookupError('');
     const cleanQ = lookupQuery.trim();
-    const digitsOnly = cleanQ.replace(/[^\d]/g, '');
-    const isPhoneQuery = digitsOnly.length >= 10;
-    const isOrderQuery = cleanQ.toUpperCase().startsWith('RP-') || cleanQ.length >= 6;
-
-    if (!cleanQ || (!isPhoneQuery && !isOrderQuery)) {
-      setLookupError('Please enter a valid 10-digit registered Phone Number or Order ID (e.g. RP-...). Without a valid mobile number or order ID, access cannot be granted.');
+    const rawQuery = lookupQuery.trim();
+    if (!rawQuery) {
+      setLookupError('Please enter your Order ID (e.g. RP-...), registered 10-digit Phone Number, or 12-digit UPI UTR.');
       return;
     }
 
     setIsLookingUp(true);
-    try {
-      const res = await fetch('/api/reels/order-lookup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: cleanQ }),
-      });
-      const data = await res.json();
-      if (data.success && data.order) {
-        setOrderId(data.order.id);
-        setCustomerName(data.order.customerName);
-        setCustomerPhone(data.order.customerPhone);
-        setSubmittedUtr(data.order.utrReference || '');
-        if (data.order.status === 'APPROVED') {
-          setOrderStatus('approved');
-          setUnlockedDriveLink(data.links?.masterGoogleDrive || '');
-          setDownloadToken(data.order.downloadToken || '');
-          showToast('Verified purchase found! Google Drive unlocked.', 'success');
-        } else if (data.order.status === 'REJECTED') {
-          setOrderStatus('rejected');
-          setRejectionReason(data.order.rejectionReason || 'UTR not verified.');
-        } else {
-          setOrderStatus('pending_approval');
-          showToast('Order found! Awaiting Murari Panjiyar approval.', 'info');
+    let resolvedOrder: any = null;
+    let apiErrorMsg = '';
+
+    // 1. Try server endpoints (/api/reels/order-lookup and alias /api/order-lookup)
+    const endpoints = ['/api/reels/order-lookup', '/api/order-lookup'];
+    for (const ep of endpoints) {
+      if (resolvedOrder) break;
+      try {
+        const res = await fetch(ep, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: rawQuery }),
+        });
+        const data = await res.json().catch(() => null);
+        if (data && data.success && data.order) {
+          resolvedOrder = {
+            ...data.order,
+            links: data.links || (data.order.masterDriveLink ? { masterGoogleDrive: data.order.masterDriveLink } : undefined),
+          };
+          break;
+        } else if (data && data.error) {
+          apiErrorMsg = data.error;
         }
-        setIsCheckoutOpen(true);
-        setIsLookupOpen(false);
-      } else {
-        setLookupError(data.error || 'No matching order found. Without a valid mobile number or approved Order ID, access cannot be granted.');
+      } catch (err) {
+        // Network lag or fetch error on endpoint, continue to next
       }
-    } catch {
-      setLookupError('Network error looking up order. Please try again.');
-    } finally {
-      setIsLookingUp(false);
     }
+
+    // 2. Direct Firestore fallback search if server had no match or network issue
+    if (!resolvedOrder && db) {
+      try {
+        const cleanQ = rawQuery.trim();
+        const digitsOnly = cleanQ.replace(/[^\d]/g, '');
+        const queryVariants = [
+          cleanQ,
+          cleanQ.toUpperCase(),
+          cleanQ.toLowerCase(),
+          'RP-' + cleanQ.toUpperCase().replace(/^RP-/, ''),
+        ];
+
+        for (const qVariant of queryVariants) {
+          if (resolvedOrder) break;
+          const snap = await getDoc(doc(db, 'reels_orders', qVariant));
+          if (snap.exists()) {
+            resolvedOrder = snap.data();
+          }
+        }
+
+        if (!resolvedOrder) {
+          const allDocs = await getDocs(collection(db, 'reels_orders'));
+          for (const d of allDocs.docs) {
+            const ord = d.data();
+            if (!ord) continue;
+            const ordId = String(ord.id || '').toLowerCase();
+            const ordPhone = String(ord.customerPhone || '').replace(/[^\d]/g, '');
+            const ordUtr = String(ord.utrReference || '').replace(/[^\d]/g, '');
+            const cleanLower = cleanQ.toLowerCase();
+
+            if (
+              ordId === cleanLower ||
+              ordId.replace(/^rp-/, '') === cleanLower.replace(/^rp-/, '') ||
+              ordId.includes(cleanLower) ||
+              (digitsOnly.length >= 7 && ordPhone && (ordPhone.includes(digitsOnly.slice(-10)) || digitsOnly.includes(ordPhone.slice(-10)))) ||
+              (digitsOnly.length >= 8 && ordUtr && (ordUtr.includes(digitsOnly) || digitsOnly.includes(ordUtr)))
+            ) {
+              resolvedOrder = ord;
+              break;
+            }
+          }
+        }
+      } catch (fsErr) {
+        // Firestore read error
+      }
+    }
+
+    // 3. Check localStorage for last registered order ID match
+    if (!resolvedOrder) {
+      try {
+        const savedOrderId = localStorage.getItem('last_reels_order_id');
+        if (savedOrderId && (savedOrderId.toLowerCase() === rawQuery.toLowerCase() || rawQuery.toLowerCase().includes(savedOrderId.toLowerCase()))) {
+          const res = await fetch(`/api/reels/order-status/${savedOrderId}`).catch(() => null);
+          if (res && res.ok) {
+            const statusData = await res.json().catch(() => null);
+            if (statusData && statusData.order) {
+              resolvedOrder = statusData.order;
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (resolvedOrder) {
+      setOrderId(resolvedOrder.id);
+      localStorage.setItem('last_reels_order_id', resolvedOrder.id);
+      if (resolvedOrder.customerName) setCustomerName(resolvedOrder.customerName);
+      if (resolvedOrder.customerPhone) setCustomerPhone(resolvedOrder.customerPhone);
+      if (resolvedOrder.utrReference) setSubmittedUtr(resolvedOrder.utrReference);
+
+      const normStatus = String(resolvedOrder.status || '').toUpperCase();
+      if (normStatus === 'APPROVED') {
+        setOrderStatus('approved');
+        const driveUrl =
+          resolvedOrder.masterDriveLink ||
+          resolvedOrder.links?.masterGoogleDrive ||
+          (resolvedOrder as any).links?.masterGoogleDrive ||
+          config.masterDriveLink ||
+          CANONICAL_MEGA_REELS_VAULT_URL;
+        setUnlockedDriveLink(driveUrl);
+        setDownloadToken(resolvedOrder.downloadToken || ('TOKEN-' + Date.now().toString(36).toUpperCase()));
+        showToast('Verified purchase found! Google Drive unlocked.', 'success');
+      } else if (normStatus === 'REJECTED') {
+        setOrderStatus('rejected');
+        setRejectionReason(resolvedOrder.rejectionReason || 'UTR not verified.');
+      } else {
+        setOrderStatus('pending_approval');
+        showToast('Order found! Awaiting Murari Panjiyar approval.', 'info');
+      }
+      setIsCheckoutOpen(true);
+      setIsLookupOpen(false);
+    } else {
+      setLookupError(
+        apiErrorMsg ||
+        `No order found matching "${rawQuery}". Please check your 10-digit mobile number, Order ID (e.g. RP-...), or 12-digit UPI UTR reference.`
+      );
+    }
+    setIsLookingUp(false);
   };
 
   // Handle Support Ticket Submit (NO Delivery Email!)
@@ -1377,10 +1532,13 @@ export function StandaloneReelsOfferPage({
 
                   {/* Render the full interactive Clickable Bundle Directory with 53 cards */}
                   <MegaPackBundleDirectory
-                    masterDriveLink={unlockedDriveLink}
+                    masterDriveLink={unlockedDriveLink || CANONICAL_MEGA_REELS_VAULT_URL}
                     downloadToken={downloadToken}
                     customerName={customerName}
                     orderId={orderId}
+                    customerPhone={customerPhone}
+                    isUnlocked={orderStatus === 'approved' || orderStatus === 'APPROVED' || Boolean(downloadToken)}
+                    orderStatus={orderStatus}
                     onCopyLink={handleCopy}
                     copiedLabel={copiedLink}
                   />

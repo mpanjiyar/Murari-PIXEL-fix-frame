@@ -35,9 +35,10 @@ export const ResourceRegistryCard: React.FC<ResourceRegistryCardProps> = ({
   const [localCopied, setLocalCopied] = useState<boolean>(false);
   const [lockNotice, setLockNotice] = useState<string | null>(null);
 
-  // Strict access check: Without verified authorization, destinationUrl is locked and cannot be accessed
-  const isLocked = Boolean(resource.isLocked || !resource.destinationUrl || resource.destinationUrl.trim() === '');
-  const destinationUrl = !isLocked && resource.destinationUrl ? resource.destinationUrl.trim() : '';
+  // Strict access check: Without verified authorization, destinationUrl is locked
+  const rawUrl = (resource.destinationUrl && resource.destinationUrl.trim()) || (fallbackMasterUrl && fallbackMasterUrl.trim()) || '';
+  const isLocked = Boolean(resource.isLocked === true || (!rawUrl));
+  const destinationUrl = !isLocked ? rawUrl : '';
 
   const handleOpen = useCallback(() => {
     if (isLocked) {

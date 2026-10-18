@@ -95,6 +95,8 @@ export function useMegaPackRegistry(
             if (payload.masterDriveLink) {
               setMasterDriveLink(payload.masterDriveLink);
             }
+          } else if (payload.eventType === 'ORDER_APPROVED') {
+            refreshResources();
           } else if (payload.eventType === 'RESOURCE_UPDATED' && payload.resource) {
             updateResourceLocally(payload.resource);
           } else if (payload.eventType === 'CONFIG_UPDATED' && payload.config) {

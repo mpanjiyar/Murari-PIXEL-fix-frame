@@ -21,6 +21,33 @@ import {
 } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 
+// Prevent Leaflet 404 image load errors on bundlers without requiring external assets
+try {
+  delete (L.Icon.Default.prototype as any)._getIconUrl;
+  L.Icon.Default.mergeOptions({
+    iconRetinaUrl: '',
+    iconUrl: '',
+    shadowUrl: '',
+  });
+} catch (_) {}
+
+/**
+ * Calculates straight-line distance in kilometers using the Haversine formula
+ */
+export function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371; // Earth's mean radius in km
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c * 10) / 10;
+}
+
 export interface LocalityInfo {
   status: 'fully_covered' | 'extended_coverage' | 'photography_only' | 'not_covered';
   name: string;
@@ -430,9 +457,9 @@ export default function CoverageMap({
 
   const tileConfig = {
     streets: {
-      url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-      attribution: '&copy; OpenStreetMap &copy; CARTO',
-      subdomains: ['a', 'b', 'c', 'd'],
+      url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+      attribution: '&copy; OpenStreetMap contributors',
+      subdomains: [],
     },
     dark: {
       url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
@@ -442,7 +469,7 @@ export default function CoverageMap({
     satellite: {
       url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
       attribution: 'Tiles &copy; Esri',
-      subdomains: ['a', 'b', 'c', 'd'],
+      subdomains: [],
     },
   }[mapStyle];
 
@@ -450,8 +477,25 @@ export default function CoverageMap({
 
   return (
     <div className="space-y-4 w-full" id="dispatch-coverage-widget">
-      {/* 1. TOP BAR: SEARCH & LOCALITY CHIPS (Responsive, No Overlap) */}
+      {/* 1. TOP BAR: SEARCH & LOCALITY CHIPS & NO-API-KEY VERIFICATION */}
       <div className="space-y-2.5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] font-mono">
+          <div className="flex items-center gap-2 text-emerald-400">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span className="font-bold">Live Coverage Engine: Active</span>
+            <span className="text-zinc-500 hidden md:inline">• Zero API Key Required</span>
+          </div>
+          <a
+            href="https://www.google.com/maps/search/?api=1&query=26.1445,91.7362"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[#FF5500] hover:underline font-bold flex items-center gap-1 self-start sm:self-auto cursor-pointer"
+          >
+            <span>Open in Google Maps</span>
+            <ArrowRight size={12} />
+          </a>
+        </div>
+
         <form onSubmit={handleCheckCoverage} className="relative w-full">
           <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" />
           <LagFreeInput
@@ -534,6 +578,11 @@ export default function CoverageMap({
                     Zero Dispatch Surcharge
                   </span>
                 )}
+                {checkedResult.coords && (
+                  <span className="text-[10px] text-zinc-400 font-mono">
+                    ({calculateDistanceKm(GUWAHATI_CENTER[0], GUWAHATI_CENTER[1], checkedResult.coords[0], checkedResult.coords[1])} km from Dispur HQ)
+                  </span>
+                )}
               </div>
               <p className="text-zinc-300 text-[11px] leading-relaxed">
                 {checkedResult.desc}
@@ -541,11 +590,22 @@ export default function CoverageMap({
             </div>
           </div>
 
-          <div className="flex items-center gap-2 self-start sm:self-auto shrink-0 pt-1 sm:pt-0">
+          <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto shrink-0 pt-1 sm:pt-0">
             {checkedResult.eta && (
               <span className="text-[10.5px] font-bold px-2 py-1 rounded-lg bg-black/50 border border-white/10 text-amber-300">
                 ⚡ ETA: {checkedResult.eta}
               </span>
+            )}
+            {checkedResult.coords && (
+              <a
+                href={`https://www.google.com/maps/dir/?api=1&origin=${GUWAHATI_CENTER[0]},${GUWAHATI_CENTER[1]}&destination=${checkedResult.coords[0]},${checkedResult.coords[1]}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-2.5 py-1 rounded-lg bg-black/60 hover:bg-black/80 border border-white/20 text-zinc-300 hover:text-white text-[10.5px] font-bold flex items-center gap-1 cursor-pointer transition-colors"
+              >
+                <span>Google Maps</span>
+                <ArrowRight size={10} />
+              </a>
             )}
             {onSelectLocality && (
               <button
@@ -651,6 +711,7 @@ export default function CoverageMap({
             {DISPATCH_NODES.map(node => {
               const isCentral = node.type === 'central_hub';
               const color = isCentral ? '#FF5500' : node.type === 'extended_node' ? '#38bdf8' : '#fbbf24';
+              const distFromHq = calculateDistanceKm(GUWAHATI_CENTER[0], GUWAHATI_CENTER[1], node.coords[0], node.coords[1]);
 
               return (
                 <Marker
@@ -659,7 +720,7 @@ export default function CoverageMap({
                   icon={createMapMarkerIcon(color, node.name, isCentral)}
                 >
                   <Popup autoPan={true} autoPanPadding={[20, 20]}>
-                    <div className="p-1 text-xs font-sans text-slate-900 space-y-2 min-w-[200px] max-w-[240px]">
+                    <div className="p-1 text-xs font-sans text-slate-900 space-y-2 min-w-[210px] max-w-[250px]">
                       <div className="flex items-center justify-between border-b pb-1.5 gap-2">
                         <strong className="font-black text-sm text-[#FF5500] truncate">
                           {node.name}
@@ -673,20 +734,37 @@ export default function CoverageMap({
                         {node.desc}
                       </p>
 
-                      <div className="pt-1 flex items-center justify-between text-[11px] font-mono font-bold text-slate-800 border-t border-slate-100">
-                        <span>ETA:</span>
-                        <span className="text-emerald-700 font-black">{node.eta}</span>
+                      <div className="pt-1 space-y-1 text-[11px] font-mono border-t border-slate-100">
+                        <div className="flex items-center justify-between font-bold text-slate-800">
+                          <span>ETA:</span>
+                          <span className="text-emerald-700 font-black">{node.eta}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-slate-500 text-[10px]">
+                          <span>Distance:</span>
+                          <span className="font-bold text-slate-700">{distFromHq} KM from Dispur Hub</span>
+                        </div>
                       </div>
 
-                      {onSelectLocality && (
-                        <button
-                          type="button"
-                          onClick={() => onSelectLocality(node.name)}
-                          className="w-full mt-1 py-1.5 px-2 bg-[#FF5500] hover:bg-orange-600 text-white rounded-lg text-[10.5px] font-bold text-center cursor-pointer transition-colors"
+                      <div className="pt-1 space-y-1">
+                        {onSelectLocality && (
+                          <button
+                            type="button"
+                            onClick={() => onSelectLocality(node.name)}
+                            className="w-full py-1.5 px-2 bg-[#FF5500] hover:bg-orange-600 text-white rounded-lg text-[10.5px] font-bold text-center cursor-pointer transition-colors"
+                          >
+                            Select for Doorstep Booking
+                          </button>
+                        )}
+                        <a
+                          href={`https://www.google.com/maps/dir/?api=1&origin=${GUWAHATI_CENTER[0]},${GUWAHATI_CENTER[1]}&destination=${node.coords[0]},${node.coords[1]}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="w-full py-1 px-2 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-800 rounded-lg text-[10px] font-mono font-bold flex items-center justify-center gap-1 cursor-pointer transition-colors"
                         >
-                          Select for Doorstep Booking
-                        </button>
-                      )}
+                          <span>Open Directions in Google Maps</span>
+                          <ArrowRight size={10} />
+                        </a>
+                      </div>
                     </div>
                   </Popup>
                 </Marker>

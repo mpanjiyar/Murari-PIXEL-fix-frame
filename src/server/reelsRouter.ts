@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { db } from '../firebase';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, getDocs, collection, query, where } from 'firebase/firestore';
 import {
   ReelPurchaseOrder,
   ReelOrderStatus,
@@ -325,6 +325,147 @@ const processedWebhooks = new Set<string>();
 // Payment webhook secret key
 const PAYMENT_WEBHOOK_SECRET = process.env.PAYMENT_WEBHOOK_SECRET || process.env.WEBHOOK_SECRET || 'durga_puja_reels_secret_2026';
 
+// Synchronize all orders from Firestore into memory cache
+export async function syncAllOrdersFromFirestore(): Promise<void> {
+  try {
+    if (!db) return;
+    const snap = await getDocs(collection(db, 'reels_orders'));
+    let updatedCount = 0;
+    snap.forEach(docSnap => {
+      const data = docSnap.data() as ReelPurchaseOrder;
+      if (data && data.id) {
+        const normalized: ReelPurchaseOrder = {
+          ...data,
+          status: normalizeStatus(data.status),
+          masterDriveLink: data.status === 'APPROVED' ? (data.masterDriveLink || storeConfig.masterDriveLink) : undefined,
+        };
+        const existing = ordersCache.get(normalized.id);
+        if (!existing || new Date(normalized.updatedAt || 0).getTime() >= new Date(existing.updatedAt || 0).getTime() || normalized.status === 'APPROVED') {
+          ordersCache.set(normalized.id, normalized);
+          updatedCount++;
+        }
+      }
+    });
+    if (updatedCount > 0) {
+      persistOrders();
+      console.log(`[Reels Store] Synchronized ${updatedCount} orders from Firestore. Total cached: ${ordersCache.size}`);
+    }
+  } catch (err) {
+    console.warn('[Reels Store] Warning syncing orders from Firestore:', err);
+  }
+}
+
+// Synchronize all notifications from Firestore into memory cache
+export async function syncAllNotificationsFromFirestore(): Promise<void> {
+  try {
+    if (!db) return;
+    const snap = await getDocs(collection(db, 'admin_notifications'));
+    let count = 0;
+    snap.forEach(docSnap => {
+      const data = docSnap.data() as AdminAlertNotification;
+      if (data && data.id) {
+        notificationsCache.set(String(data.id), data);
+        count++;
+      }
+    });
+    if (count > 0) {
+      persistNotifications();
+      console.log(`[Reels Store] Synchronized ${count} notifications from Firestore.`);
+    }
+  } catch (err) {
+    console.warn('[Reels Store] Warning syncing notifications from Firestore:', err);
+  }
+}
+
+// Initial async fetch from Firestore & background periodic sync every 25 seconds
+syncAllOrdersFromFirestore().catch(() => {});
+syncAllNotificationsFromFirestore().catch(() => {});
+setInterval(() => {
+  syncAllOrdersFromFirestore().catch(() => {});
+}, 25000);
+
+// Helper to look up an order with Firestore fallback if not in cache or if not approved
+export async function getOrderWithFirestoreFallback(orderId: string): Promise<ReelPurchaseOrder | undefined> {
+  const cleanId = String(orderId || '').trim();
+  let order = ordersCache.get(cleanId);
+  if (!order || order.status !== 'APPROVED') {
+    if (db) {
+      try {
+        const snap = await getDoc(doc(db, 'reels_orders', cleanId));
+        if (snap.exists()) {
+          const fsOrder = snap.data() as ReelPurchaseOrder;
+          order = {
+            ...fsOrder,
+            status: normalizeStatus(fsOrder.status),
+            masterDriveLink: fsOrder.status === 'APPROVED' ? (fsOrder.masterDriveLink || storeConfig.masterDriveLink) : undefined,
+          };
+          ordersCache.set(cleanId, order);
+          persistOrders();
+        }
+      } catch (err) {
+        console.warn(`[Reels Store] Firestore fallback get error for ${cleanId}:`, err);
+      }
+    }
+  }
+  return order;
+}
+
+// Helper: Check if a request has verified authorization via approved order or phone with Firestore fallback
+export async function checkOrderAuthorizationAsync(orderId?: string, phone?: string, token?: string): Promise<boolean> {
+  if (token) {
+    for (const order of ordersCache.values()) {
+      if (order.downloadToken === token && order.status === 'APPROVED') {
+        return true;
+      }
+    }
+    if (db) {
+      try {
+        const q = query(collection(db, 'reels_orders'), where('downloadToken', '==', token));
+        const snap = await getDocs(q);
+        for (const d of snap.docs) {
+          const ord = d.data() as ReelPurchaseOrder;
+          ordersCache.set(ord.id, ord);
+          if (ord.status === 'APPROVED') return true;
+        }
+      } catch {}
+    }
+  }
+  if (orderId || phone) {
+    const rawPhone = String(phone || '').replace(/[^\d]/g, '');
+    for (const order of ordersCache.values()) {
+      const matchId = orderId && order.id.toLowerCase() === String(orderId).toLowerCase();
+      const matchPhone = rawPhone.length >= 10 && order.customerPhone.replace(/[^\d]/g, '').includes(rawPhone.slice(-10));
+      if ((matchId || matchPhone) && order.status === 'APPROVED') {
+        return true;
+      }
+    }
+    if (db) {
+      try {
+        if (orderId) {
+          const snap = await getDoc(doc(db, 'reels_orders', String(orderId).trim()));
+          if (snap.exists()) {
+            const ord = snap.data() as ReelPurchaseOrder;
+            ordersCache.set(ord.id, ord);
+            if (ord.status === 'APPROVED') return true;
+          }
+        }
+        if (rawPhone.length >= 10) {
+          const allDocs = await getDocs(collection(db, 'reels_orders'));
+          for (const d of allDocs.docs) {
+            const ord = d.data() as ReelPurchaseOrder;
+            ordersCache.set(ord.id, ord);
+            if (ord.customerPhone.replace(/[^\d]/g, '').includes(rawPhone.slice(-10)) && ord.status === 'APPROVED') {
+              return true;
+            }
+          }
+        }
+      } catch {}
+    }
+  }
+  return false;
+}
+
+
 // Synchronize order state to Firestore
 export async function syncOrderToFirestore(order: ReelPurchaseOrder | any): Promise<void> {
   try {
@@ -356,6 +497,11 @@ export async function syncOrderToFirestore(order: ReelPurchaseOrder | any): Prom
       downloadToken: order.downloadToken || null,
       downloadExpiresAt: order.downloadExpiresAt || null,
       downloadCount: typeof order.downloadCount === 'number' ? order.downloadCount : 0,
+      masterDriveLink: order.status === 'APPROVED' ? (storeConfig.masterDriveLink || 'https://drive.google.com/drive/folders/1jkXdin8dyQ99mYKxC2JOczG8e7EHlF3C?usp=sharing') : null,
+      links: order.status === 'APPROVED' ? {
+        masterGoogleDrive: storeConfig.masterDriveLink || 'https://drive.google.com/drive/folders/1jkXdin8dyQ99mYKxC2JOczG8e7EHlF3C?usp=sharing',
+        directTokenDownload: `/api/reels/download/${order.downloadToken || ''}?category=all`,
+      } : null,
       createdAt: order.createdAt || nowIso,
       updatedAt: order.updatedAt || nowIso,
       auditLogs: Array.isArray(order.auditLogs) ? order.auditLogs : [],
@@ -540,14 +686,14 @@ export function checkOrderAuthorization(orderId?: string, phone?: string, token?
 // Strictly gated: Master Drive Link and destination URLs
 // are ONLY provided if client is admin or has verified approved order
 // ==========================================
-reelsRouter.get('/events', (req: Request, res: Response) => {
+reelsRouter.get('/events', async (req: Request, res: Response) => {
   const clientId = 'SSE-' + Date.now().toString(36) + '-' + crypto.randomBytes(4).toString('hex');
   const isAdmin = req.query.isAdmin === 'true' || req.headers['x-admin-key'] === 'mpanjiyar-admin-secret-2026';
   const orderId = typeof req.query.orderId === 'string' ? req.query.orderId : undefined;
   const phone = typeof req.query.phone === 'string' ? req.query.phone : undefined;
   const token = typeof req.query.token === 'string' ? req.query.token : undefined;
 
-  const isAuthorized = isAdmin || checkOrderAuthorization(orderId, phone, token);
+  const isAuthorized = isAdmin || (await checkOrderAuthorizationAsync(orderId, phone, token));
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache, no-transform');
@@ -762,20 +908,31 @@ reelsRouter.post('/create-order', async (req: Request, res: Response) => {
 // 2. PUBLIC: Check Order Status by Order ID
 // Returns download access ONLY IF order is APPROVED by Murari
 // ==========================================
-reelsRouter.get('/order-status/:orderId', (req: Request, res: Response) => {
+reelsRouter.get('/order-status/:orderId', async (req: Request, res: Response) => {
   try {
     const { orderId } = req.params;
     if (!orderId) {
       return res.status(400).json({ success: false, error: 'Order ID is required.' });
     }
 
-    const order = ordersCache.get(orderId);
+    const order = await getOrderWithFirestoreFallback(orderId);
     if (!order) {
       return res.status(404).json({ success: false, error: 'Order not found.' });
     }
 
     // STRICT CHECK: Download access is ONLY unlocked if order is APPROVED
     const isApproved = order.status === 'APPROVED';
+
+    // Ensure approved order has a valid downloadToken
+    if (isApproved && !order.downloadToken) {
+      order.downloadToken = crypto.randomBytes(32).toString('hex');
+      order.downloadExpiresAt = Date.now() + 86400000 * 7;
+      ordersCache.set(order.id, order);
+      persistOrders();
+      syncOrderToFirestore(order).catch(() => {});
+    }
+
+    const approvedDriveLink = order.masterDriveLink || storeConfig.masterDriveLink;
 
     return res.json({
       success: true,
@@ -795,6 +952,7 @@ reelsRouter.get('/order-status/:orderId', (req: Request, res: Response) => {
         // Only reveal downloadToken if explicitly APPROVED by admin Murari
         downloadToken: isApproved ? order.downloadToken : undefined,
         downloadExpiresAt: isApproved ? order.downloadExpiresAt : undefined,
+        masterDriveLink: isApproved ? approvedDriveLink : undefined,
       },
       approvalNotice:
         order.status === 'APPROVED'
@@ -804,9 +962,9 @@ reelsRouter.get('/order-status/:orderId', (req: Request, res: Response) => {
           : order.status === 'REJECTED'
           ? `Verification failed: ${order.rejectionReason || 'UTR could not be reconciled. Please contact Murari Panjiyar.'}`
           : 'Please complete UPI payment and enter your 12-digit UTR to request administrator verification.',
-      links: isApproved && order.downloadToken ? {
-        masterGoogleDrive: storeConfig.masterDriveLink,
-        directTokenDownload: `/api/reels/download/${order.downloadToken}?category=all`,
+      links: isApproved ? {
+        masterGoogleDrive: approvedDriveLink,
+        directTokenDownload: order.downloadToken ? `/api/reels/download/${order.downloadToken}?category=all` : undefined,
       } : undefined,
     });
   } catch (err: any) {
@@ -819,36 +977,123 @@ reelsRouter.get('/order-status/:orderId', (req: Request, res: Response) => {
 // 2B. PUBLIC: Order Lookup by Phone or Order ID
 // Allows customers to track their approval status easily
 // ==========================================
-reelsRouter.post('/order-lookup', (req: Request, res: Response) => {
+reelsRouter.post('/order-lookup', async (req: Request, res: Response) => {
   try {
-    const { query } = req.body || {};
-    const cleanQuery = String(query || '').trim();
+    const { query: searchQuery } = req.body || {};
+    const cleanQuery = String(searchQuery || '').trim();
 
     const digitsOnly = cleanQuery.replace(/[^\d]/g, '');
     const isPhoneQuery = digitsOnly.length >= 10;
     const isOrderQuery = cleanQuery.toUpperCase().startsWith('RP-') || cleanQuery.length >= 6;
 
-    if (!isPhoneQuery && !isOrderQuery) {
+    if (!cleanQuery || cleanQuery.length < 3) {
       return res.status(400).json({
         success: false,
-        error: 'Please enter a valid 10-digit registered mobile phone number or your Order ID (e.g. RP-...).',
+        error: 'Please enter a valid 10-digit registered mobile phone number, Order ID (e.g. RP-...), or 12-digit UPI UTR reference.',
       });
     }
 
-    // Search by order ID or phone
+    // Search by order ID, phone, or 12-digit UTR reference
     const matches: ReelPurchaseOrder[] = [];
+    const lowerQ = cleanQuery.toLowerCase();
+    const strippedQ = lowerQ.replace(/^rp-/, '').replace(/[\s-]+/g, '');
+
     for (const order of ordersCache.values()) {
-      if (order.id.toLowerCase() === cleanQuery.toLowerCase()) {
+      const orderIdLower = String(order.id || '').toLowerCase();
+      const orderIdStripped = orderIdLower.replace(/^rp-/, '').replace(/[\s-]+/g, '');
+      const orderPhoneDigits = String(order.customerPhone || '').replace(/[^\d]/g, '');
+      const orderUtrDigits = String(order.utrReference || '').replace(/[^\d]/g, '');
+      const orderNameLower = String(order.customerName || '').toLowerCase();
+
+      // 1. Direct ID match or stripped match
+      if (orderIdLower === lowerQ || orderIdStripped === strippedQ || orderIdLower.includes(lowerQ)) {
         matches.push(order);
-      } else if (isPhoneQuery && order.customerPhone.replace(/[^\d]/g, '').includes(digitsOnly.slice(-10))) {
+        continue;
+      }
+
+      // 2. Phone match
+      if (digitsOnly.length >= 7 && orderPhoneDigits && (orderPhoneDigits.includes(digitsOnly.slice(-10)) || digitsOnly.includes(orderPhoneDigits.slice(-10)))) {
         matches.push(order);
+        continue;
+      }
+
+      // 3. UTR reference match (critical for customers tracking by payment receipt reference!)
+      if (digitsOnly.length >= 8 && orderUtrDigits && (orderUtrDigits.includes(digitsOnly) || digitsOnly.includes(orderUtrDigits))) {
+        matches.push(order);
+        continue;
+      }
+
+      // 4. Name match (if at least 3 letters)
+      if (lowerQ.length >= 3 && !isPhoneQuery && orderNameLower.includes(lowerQ)) {
+        matches.push(order);
+      }
+    }
+
+    // Fallback to Firestore search
+    if (matches.length === 0 && db) {
+      try {
+        const queryVariants = [
+          cleanQuery,
+          cleanQuery.toUpperCase(),
+          cleanQuery.toLowerCase(),
+          'RP-' + cleanQuery.toUpperCase().replace(/^RP-/, ''),
+        ];
+
+        for (const qVariant of queryVariants) {
+          if (matches.length > 0) break;
+          const snap = await getDoc(doc(db, 'reels_orders', qVariant));
+          if (snap.exists()) {
+            const ord = snap.data() as ReelPurchaseOrder;
+            const normalized = {
+              ...ord,
+              status: normalizeStatus(ord.status),
+              masterDriveLink: ord.status === 'APPROVED' ? (ord.masterDriveLink || storeConfig.masterDriveLink) : undefined,
+            };
+            ordersCache.set(normalized.id, normalized);
+            matches.push(normalized);
+          }
+        }
+
+        if (matches.length === 0) {
+          const allDocs = await getDocs(collection(db, 'reels_orders'));
+          allDocs.forEach(d => {
+            const ord = d.data() as ReelPurchaseOrder;
+            if (!ord || !ord.id) return;
+            const normalized = {
+              ...ord,
+              status: normalizeStatus(ord.status),
+              masterDriveLink: ord.status === 'APPROVED' ? (ord.masterDriveLink || storeConfig.masterDriveLink) : undefined,
+            };
+            ordersCache.set(normalized.id, normalized);
+
+            const oIdLower = String(normalized.id || '').toLowerCase();
+            const oIdStripped = oIdLower.replace(/^rp-/, '').replace(/[\s-]+/g, '');
+            const oPhone = String(normalized.customerPhone || '').replace(/[^\d]/g, '');
+            const oUtr = String(normalized.utrReference || '').replace(/[^\d]/g, '');
+
+            if (
+              oIdLower === lowerQ ||
+              oIdStripped === strippedQ ||
+              oIdLower.includes(lowerQ) ||
+              (digitsOnly.length >= 7 && oPhone && (oPhone.includes(digitsOnly.slice(-10)) || digitsOnly.includes(oPhone.slice(-10)))) ||
+              (digitsOnly.length >= 8 && oUtr && (oUtr.includes(digitsOnly) || digitsOnly.includes(oUtr)))
+            ) {
+              matches.push(normalized);
+            }
+          });
+        }
+        if (matches.length > 0) {
+          persistOrders();
+        }
+      } catch (e) {
+        console.warn('Firestore fallback on order-lookup error:', e);
       }
     }
 
     if (matches.length === 0) {
       return res.status(404).json({
         success: false,
-        error: 'No order found matching your inquiry. Without a valid registered mobile number or approved Order ID, access cannot be granted.',
+        error: `No order found matching "${cleanQuery}". Please check your 10-digit mobile number, Order ID (e.g. RP-...), or 12-digit UPI UTR reference.`,
       });
     }
 
@@ -856,6 +1101,17 @@ reelsRouter.post('/order-lookup', (req: Request, res: Response) => {
     matches.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     const order = matches[0];
     const isApproved = order.status === 'APPROVED';
+
+    // Ensure approved order has a valid downloadToken
+    if (isApproved && !order.downloadToken) {
+      order.downloadToken = crypto.randomBytes(32).toString('hex');
+      order.downloadExpiresAt = Date.now() + 86400000 * 7;
+      ordersCache.set(order.id, order);
+      persistOrders();
+      syncOrderToFirestore(order).catch(() => {});
+    }
+
+    const approvedDriveLink = order.masterDriveLink || storeConfig.masterDriveLink;
 
     return res.json({
       success: true,
@@ -871,10 +1127,11 @@ reelsRouter.post('/order-lookup', (req: Request, res: Response) => {
         approvedAt: order.approvedAt || null,
         rejectionReason: order.status === 'REJECTED' ? order.rejectionReason : undefined,
         downloadToken: isApproved ? order.downloadToken : undefined,
+        masterDriveLink: isApproved ? approvedDriveLink : undefined,
       },
-      links: isApproved && order.downloadToken ? {
-        masterGoogleDrive: storeConfig.masterDriveLink,
-        directTokenDownload: `/api/reels/download/${order.downloadToken}?category=all`,
+      links: isApproved ? {
+        masterGoogleDrive: approvedDriveLink,
+        directTokenDownload: order.downloadToken ? `/api/reels/download/${order.downloadToken}?category=all` : undefined,
       } : undefined,
     });
   } catch (err: any) {
@@ -1153,12 +1410,53 @@ reelsRouter.post('/admin/notifications/mark-all-read', (_req: Request, res: Resp
   }
 });
 
+// Real-Time Client Runtime Error Reception & Broadcast
+reelsRouter.post('/admin/log-client-error', async (req: Request, res: Response) => {
+  try {
+    const { notification } = req.body || {};
+    if (!notification || !notification.id) {
+      return res.status(400).json({ success: false, error: 'Invalid notification payload' });
+    }
+
+    const normalizedNotif: AdminAlertNotification = {
+      id: String(notification.id),
+      type: notification.type || 'CLIENT_RUNTIME_ERROR',
+      severity: notification.severity || 'ERROR',
+      title: notification.title || 'Client Runtime Error',
+      message: notification.message || 'Client exception detected',
+      createdAt: notification.createdAt || new Date().toISOString(),
+      url: notification.url,
+      errorName: notification.errorName,
+      stack: notification.stack,
+      componentStack: notification.componentStack,
+      userAgent: notification.userAgent,
+      screen: notification.screen,
+      eventFingerprint: notification.eventFingerprint,
+    };
+
+    notificationsCache.set(normalizedNotif.id, normalizedNotif);
+    persistNotifications();
+    syncNotificationToFirestore(normalizedNotif).catch(() => {});
+
+    broadcastSSE(
+      { eventType: 'NEW_NOTIFICATION', notification: normalizedNotif },
+      c => c.isAdmin
+    );
+
+    return res.json({ success: true, loggedId: normalizedNotif.id });
+  } catch (err: any) {
+    console.warn('[Reels Store] Error logging client error:', err);
+    return res.status(500).json({ success: false, error: 'Error processing client error log' });
+  }
+});
+
 // ==========================================
 // 5. ADMIN: List All Purchases & Summary KPI Stats
 // Verified Revenue ONLY counts APPROVED purchases!
 // ==========================================
-reelsRouter.get('/admin/orders', (_req: Request, res: Response) => {
+reelsRouter.get('/admin/orders', async (_req: Request, res: Response) => {
   try {
+    await syncAllOrdersFromFirestore();
     const orders = Array.from(ordersCache.values()).sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
@@ -1209,7 +1507,7 @@ reelsRouter.post('/admin/verify-order', async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: 'Order ID is required.' });
     }
 
-    const order = ordersCache.get(orderId);
+    const order = await getOrderWithFirestoreFallback(orderId);
     if (!order) {
       return res.status(404).json({ success: false, error: 'Order not found.' });
     }
@@ -1632,7 +1930,7 @@ const CATEGORY_DOWNLOAD_MANIFEST: Record<string, {
   },
 };
 
-reelsRouter.get('/download/:token/:category?', (req: Request, res: Response) => {
+reelsRouter.get('/download/:token/:category?', async (req: Request, res: Response) => {
   try {
     const { token, category } = req.params;
     if (!token || typeof token !== 'string' || token.length < 16) {
@@ -1647,6 +1945,24 @@ reelsRouter.get('/download/:token/:category?', (req: Request, res: Response) => 
       if (order.downloadToken === token) {
         matchingOrder = order;
         break;
+      }
+    }
+
+    if (!matchingOrder && db) {
+      try {
+        const q = query(collection(db, 'reels_orders'), where('downloadToken', '==', token));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          const ord = snap.docs[0].data() as ReelPurchaseOrder;
+          matchingOrder = {
+            ...ord,
+            status: normalizeStatus(ord.status),
+          };
+          ordersCache.set(matchingOrder.id, matchingOrder);
+          persistOrders();
+        }
+      } catch (e) {
+        console.warn('Firestore fallback on download token error:', e);
       }
     }
 
@@ -2087,31 +2403,14 @@ async function checkUrlAccessibility(targetUrl: string): Promise<{
 }
 
 // Public: Get all active resources (gated: download links strictly require verified token, order ID, or mobile number)
-reelsRouter.get('/resources', (req: Request, res: Response) => {
+reelsRouter.get('/resources', async (req: Request, res: Response) => {
   const { token, orderId, phone } = req.query as Record<string, string>;
   const isAdmin = req.headers['x-admin-key'] === 'mpanjiyar-admin-secret-2026' || req.query.isAdmin === 'true';
 
   let isAuthorized = isAdmin;
 
-  if (!isAuthorized && token) {
-    for (const order of ordersCache.values()) {
-      if (order.downloadToken === token && order.status === 'APPROVED') {
-        isAuthorized = true;
-        break;
-      }
-    }
-  }
-
-  if (!isAuthorized && (orderId || phone)) {
-    const rawPhone = String(phone || '').replace(/[^\d]/g, '');
-    for (const order of ordersCache.values()) {
-      const matchId = orderId && order.id.toLowerCase() === orderId.toLowerCase();
-      const matchPhone = rawPhone.length >= 10 && order.customerPhone.replace(/[^\d]/g, '').includes(rawPhone.slice(-10));
-      if ((matchId || matchPhone) && order.status === 'APPROVED') {
-        isAuthorized = true;
-        break;
-      }
-    }
+  if (!isAuthorized) {
+    isAuthorized = await checkOrderAuthorizationAsync(orderId, phone, token);
   }
 
   const activeResources = Array.from(resourcesCache.values())

@@ -270,6 +270,11 @@ export const AdminPurchaseManager: React.FC<AdminPurchaseManagerProps> = ({
               approvedAt: nowIso,
               reviewedByAdminId: 'Murari Panjiyar (Mpanjiyar100@gmail.com)',
               downloadToken,
+              masterDriveLink: 'https://drive.google.com/drive/folders/1jkXdin8dyQ99mYKxC2JOczG8e7EHlF3C?usp=sharing',
+              links: {
+                masterGoogleDrive: 'https://drive.google.com/drive/folders/1jkXdin8dyQ99mYKxC2JOczG8e7EHlF3C?usp=sharing',
+                directTokenDownload: `/api/reels/download/${downloadToken}?category=all`,
+              },
               updatedAt: nowIso,
             },
             { merge: true }

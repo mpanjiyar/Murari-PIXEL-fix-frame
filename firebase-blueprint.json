@@ -223,7 +223,7 @@
     },
     "AdminNotification": {
       "title": "AdminNotification",
-      "description": "Administrative alerts for Murari Panjiyar regarding new manual payment requests, failed webhooks, and system warnings.",
+      "description": "Administrative alerts for Murari Panjiyar regarding new manual payment requests, failed webhooks, client runtime errors, and system warnings.",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -235,7 +235,15 @@
         "createdAt": { "type": "string" },
         "readAt": { "type": "string" },
         "resolvedAt": { "type": "string" },
-        "eventFingerprint": { "type": "string" }
+        "eventFingerprint": { "type": "string" },
+        "url": { "type": "string" },
+        "errorName": { "type": "string" },
+        "stack": { "type": "string" },
+        "componentStack": { "type": "string" },
+        "userAgent": { "type": "string" },
+        "screen": { "type": "string" },
+        "errorCount": { "type": "integer" },
+        "lastOccurredAt": { "type": "string" }
       },
       "required": ["id", "type", "severity", "title", "message", "createdAt"]
     }

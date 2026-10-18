@@ -16,15 +16,19 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MegaPackResource } from '../types';
-import { MasterVaultCard } from './MasterVaultCard';
+import { MasterVaultCard, CANONICAL_MEGA_REELS_VAULT_URL } from './MasterVaultCard';
 import { ResourceRegistryCard } from './ResourceRegistryCard';
 import { useMegaPackRegistry } from '../hooks/useMegaPackRegistry';
+import { INITIAL_MEGAPACK_RESOURCES } from '../data/initialMegaPackResources';
 
 interface MegaPackBundleDirectoryProps {
   masterDriveLink?: string;
   downloadToken?: string;
   customerName?: string;
   orderId?: string;
+  customerPhone?: string;
+  isUnlocked?: boolean;
+  orderStatus?: string;
   onCopyLink?: (text: string, label: string) => void;
   copiedLabel?: string | null;
   currentTheme?: string;
@@ -36,21 +40,36 @@ export const MegaPackBundleDirectory: React.FC<MegaPackBundleDirectoryProps> = (
   downloadToken,
   customerName,
   orderId,
+  customerPhone,
+  isUnlocked = false,
+  orderStatus,
   onCopyLink,
   copiedLabel,
   currentTheme = 'dark',
   onRequestUnlock,
 }) => {
-  // Access is strictly gated: only buyers with valid approved orderId / token have unlocked access
-  const isApprovedAccess = Boolean(downloadToken && orderId);
+  // Access is unlocked if orderStatus is APPROVED/approved, isUnlocked is true, or valid token/orderId provided
+  const isStatusApproved = Boolean(
+    orderStatus === 'APPROVED' || 
+    orderStatus === 'approved' || 
+    isUnlocked
+  );
+  const isApprovedAccess = Boolean(
+    isStatusApproved || 
+    (orderId && downloadToken) || 
+    isUnlocked
+  );
+
   const {
     resources,
     masterDriveLink: liveMasterDriveLink,
     isLoading,
     refreshResources,
-  } = useMegaPackRegistry(propMasterDriveLink, { token: downloadToken, orderId });
+  } = useMegaPackRegistry(propMasterDriveLink, { token: downloadToken, orderId, phone: customerPhone });
 
-  const effectiveMasterDriveLink = isApprovedAccess ? (propMasterDriveLink || liveMasterDriveLink || '') : '';
+  const effectiveMasterDriveLink = isApprovedAccess
+    ? (propMasterDriveLink?.trim() || liveMasterDriveLink?.trim() || CANONICAL_MEGA_REELS_VAULT_URL)
+    : '';
 
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -95,6 +114,20 @@ export const MegaPackBundleDirectory: React.FC<MegaPackBundleDirectoryProps> = (
 
     return result;
   }, [resources, activeCategory, searchQuery, sortBy]);
+
+  // When access is approved, ensure each card has its genuine destination URL and is unlocked
+  const displayResources = useMemo(() => {
+    return filteredResources.map(resource => {
+      if (!isApprovedAccess) return resource;
+      const canonical = INITIAL_MEGAPACK_RESOURCES.find(r => r.id === resource.id);
+      const destUrl = (resource.destinationUrl && resource.destinationUrl.trim()) || canonical?.destinationUrl || effectiveMasterDriveLink;
+      return {
+        ...resource,
+        destinationUrl: destUrl,
+        isLocked: false,
+      };
+    });
+  }, [filteredResources, isApprovedAccess, effectiveMasterDriveLink]);
 
   const handleCardCopy = (url: string, title: string) => {
     if (onCopyLink) {
@@ -330,7 +363,7 @@ export const MegaPackBundleDirectory: React.FC<MegaPackBundleDirectoryProps> = (
         <div className="space-y-3">
           <div className="flex items-center justify-between text-xs font-mono text-zinc-400 px-1">
             <span>
-              Showing <strong className="text-white">{filteredResources.length}</strong> of {resources.length} resources
+              Showing <strong className="text-white">{displayResources.length}</strong> of {resources.length} resources
             </span>
             {searchQuery && (
               <span className="text-teal-400">
@@ -340,7 +373,7 @@ export const MegaPackBundleDirectory: React.FC<MegaPackBundleDirectoryProps> = (
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
-            {filteredResources.map(resource => (
+            {displayResources.map(resource => (
               <ResourceRegistryCard
                 key={resource.id}
                 resource={resource}

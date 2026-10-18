@@ -39,8 +39,9 @@ export const MasterVaultCard: React.FC<MasterVaultCardProps> = ({
 
   const isLight = currentTheme === 'light';
 
-  // Strict authorization: Only populate destination if explicitly unlocked
-  const sanitizedUrl = isUnlocked && masterDriveLink && masterDriveLink.trim() ? masterDriveLink.trim() : '';
+  // Strict authorization: Populate destination if explicitly unlocked (using masterDriveLink or verified canonical vault URL)
+  const resolvedLink = (masterDriveLink && masterDriveLink.trim()) || (isUnlocked ? CANONICAL_MEGA_REELS_VAULT_URL : '');
+  const sanitizedUrl = isUnlocked ? resolvedLink : '';
   const isValidUrl = Boolean(isUnlocked && sanitizedUrl && (sanitizedUrl.startsWith('https://') || sanitizedUrl.startsWith('http://')));
   const isGoogleDrive = sanitizedUrl.includes('drive.google.com');
   const isFileFormat = sanitizedUrl.includes('/file/d/');
