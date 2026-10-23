@@ -10,28 +10,27 @@ import { bookingRouter } from "./src/server/bookingRouter";
 
 dotenv.config();
 
+// Prevent unhandled errors or rejections from terminating the Node server process
+process.on('unhandledRejection', (reason) => {
+  console.warn('[Server] Handled unhandledRejection:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('[Server] Handled uncaughtException:', err);
+});
+
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
-// Request logging middleware to log to console and file with response status code
+// Request logging middleware for API requests
 app.use((req, res, next) => {
-  const startTime = Date.now();
-  const logMsg = `[${new Date().toISOString()}] ${req.method} ${req.url}\n`;
-  console.log(logMsg.trim());
-  try {
-    fs.appendFileSync(path.join(process.cwd(), "server.log"), logMsg);
-  } catch (err) {
-    // Ignore log write errors
+  if (req.url.startsWith('/api')) {
+    const startTime = Date.now();
+    res.on('finish', () => {
+      const elapsed = Date.now() - startTime;
+      console.log(`[API] ${req.method} ${req.url} -> ${res.statusCode} (${elapsed}ms)`);
+    });
   }
-
-  res.on('finish', () => {
-    const elapsed = Date.now() - startTime;
-    const finishLog = `[${new Date().toISOString()}] ${req.method} ${req.url} -> ${res.statusCode} (${elapsed}ms)\n`;
-    try {
-      fs.appendFileSync(path.join(process.cwd(), "server.log"), finishLog);
-    } catch {}
-  });
-
   next();
 });
 
@@ -1999,7 +1998,11 @@ app.all('/api/*', (req, res) => {
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        hmr: false,
+        watch: null,
+      },
       appType: "spa",
     });
     app.use(vite.middlewares);
@@ -2018,8 +2021,20 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  const server = app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://0.0.0.0:${PORT}`);
+  });
+
+  server.on('error', (err: any) => {
+    if (err.code === 'EADDRINUSE') {
+      console.warn(`[Server] Port ${PORT} already occupied. Retrying in 1s...`);
+      setTimeout(() => {
+        server.close();
+        server.listen(PORT, "0.0.0.0");
+      }, 1000);
+    } else {
+      console.error('[Server] Fatal listener error:', err);
+    }
   });
 }
 
