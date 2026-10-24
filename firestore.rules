@@ -142,36 +142,24 @@ service cloud.firestore {
         && (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 100));
     }
 
-    // Collection: Vault Items (Pixel Fix Real-Time Sync)
+    // Collection: Vault Items (Protected — Server-Mediated via Authorized /api/vault/* Only)
     match /vault_items/{itemId} {
-      allow read: if true;
-      allow create: if isValidId(itemId) && isValidVaultItem(incoming());
-      allow update: if isValidId(itemId) && isValidVaultItem(incoming());
-      allow delete: if isValidId(itemId);
+      allow read, write: if false;
     }
 
-    // Collection: Vault Folders (Directories)
+    // Collection: Vault Folders (Directories — Server-Mediated)
     match /vault_folders/{folderId} {
-      allow read: if true;
-      allow create: if isValidId(folderId) && isValidVaultFolder(incoming());
-      allow update: if isValidId(folderId) && isValidVaultFolder(incoming());
-      allow delete: if isValidId(folderId);
+      allow read, write: if false;
     }
 
     // Collection: Vault Auto-Save Drafts
     match /vault_drafts/{draftId} {
-      allow read: if true;
-      allow create: if isValidId(draftId);
-      allow update: if isValidId(draftId);
-      allow delete: if isValidId(draftId);
+      allow read, write: if false;
     }
 
     // Collection: Vault Technical Links
     match /vault_links/{linkId} {
-      allow read: if true;
-      allow create: if isValidId(linkId);
-      allow update: if isValidId(linkId);
-      allow delete: if isValidId(linkId);
+      allow read, write: if false;
     }
 
     // Collection: Contact Messages
@@ -222,11 +210,16 @@ service cloud.firestore {
       allow delete: if isValidId(configId);
     }
 
-    // Collection: Reels Orders (150K Mega Reels & Shorts Pack & Durga Puja Offer)
+    // Collection: Reels Orders (150K Mega Reels & Shorts Pack & Puja Offer)
     match /reels_orders/{orderId} {
       allow read: if true;
-      allow create: if isValidId(orderId);
-      allow update: if isValidId(orderId);
+      allow create: if isValidId(orderId) 
+        && (!('status' in incoming()) || (incoming().status != 'APPROVED' && incoming().status != 'approved'));
+      allow update: if isValidId(orderId) && (
+        // Client updates cannot elevate order to APPROVED or tamper with Google Drive links
+        (!('status' in incoming()) || incoming().status == existing().status || existing().status == null || incoming().status == 'PENDING_ADMIN_REVIEW' || incoming().status == 'PENDING_PAYMENT') &&
+        (!('masterDriveLink' in incoming()) || incoming().masterDriveLink == existing().masterDriveLink)
+      );
       allow delete: if false; // Orders cannot be deleted to preserve digital entitlement & audit trail
     }
 

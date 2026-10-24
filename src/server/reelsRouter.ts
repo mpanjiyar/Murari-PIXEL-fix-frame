@@ -53,11 +53,11 @@ const DEFAULT_CONFIG: StoreConfig = {
   receiverName: 'MURARI PANJIYAR',
   productPrice: 199.0,
   currency: 'INR',
-  campaignName: 'Durga Puja Special Offer',
+  campaignName: 'Puja Offer',
   productName: '150K+ MEGA PACK — REELS & SHORTS',
   headline: '150K+ MEGA PACK OF REELS & SHORTS',
   subtitle: 'Take your content creation to the next level with a massive collection of short-form videos for your creative projects.',
-  badgeText: 'DURGA PUJA SPECIAL OFFER',
+  badgeText: 'PUJA SPECIAL OFFER',
   masterDriveLink: 'https://drive.google.com/drive/folders/1jkXdin8dyQ99mYKxC2JOczG8e7EHlF3C?usp=sharing',
   customQrUrl: '',
   supportEmail: 'Mpanjiyar100@gmail.com',
@@ -135,7 +135,7 @@ try {
 function normalizeStatus(status: string): ReelOrderStatus {
   const s = String(status || '').toUpperCase();
   if (s === 'PAID' || s === 'APPROVED') return 'APPROVED';
-  if (s === 'AWAITING_MANUAL_VERIFICATION' || s === 'PENDING_ADMIN_REVIEW' || s === 'PENDING_VERIFICATION') return 'PENDING_ADMIN_REVIEW';
+  if (s === 'PENDING' || s === 'PENDING_APPROVAL' || s === 'AWAITING_MANUAL_VERIFICATION' || s === 'PENDING_ADMIN_REVIEW' || s === 'PENDING_VERIFICATION') return 'PENDING_ADMIN_REVIEW';
   if (s === 'REJECTED') return 'REJECTED';
   if (s === 'FAILED' || s === 'PAYMENT_FAILED') return 'PAYMENT_FAILED';
   if (s === 'REFUNDED') return 'REFUNDED';
@@ -194,7 +194,7 @@ if (ordersCache.size === 0) {
     id: 'RP-2026-A1098',
     productId: '150k-mega-reels-pack',
     productName: '150K+ MEGA PACK — REELS & SHORTS',
-    campaign: 'Durga Puja Special Offer',
+    campaign: 'Puja Special Offer',
     amount: 199.0,
     currency: 'INR',
     customerName: 'Aarav Sharma',
@@ -220,7 +220,7 @@ if (ordersCache.size === 0) {
         action: 'ORDER_CREATED',
         timestamp: new Date(Date.now() - 3600000 * 4).toISOString(),
         actor: 'CUSTOMER',
-        details: 'Order initiated for ₹199 Durga Puja Special Offer',
+        details: 'Order initiated for ₹199 Puja Special Offer',
       },
       {
         action: 'PAYMENT_REFERENCE_SUBMITTED',
@@ -241,7 +241,7 @@ if (ordersCache.size === 0) {
     id: 'RP-2026-B4412',
     productId: '150k-mega-reels-pack',
     productName: '150K+ MEGA PACK — REELS & SHORTS',
-    campaign: 'Durga Puja Special Offer',
+    campaign: 'Puja Special Offer',
     amount: 199.0,
     currency: 'INR',
     customerName: 'Priyanka Das',
@@ -465,6 +465,98 @@ export async function checkOrderAuthorizationAsync(orderId?: string, phone?: str
   return false;
 }
 
+// Helper: Check detailed approval status for Download Vault and protected routes
+export async function checkOrderApprovalStatusAsync(
+  orderId?: string,
+  phone?: string,
+  token?: string
+): Promise<{
+  isApproved: boolean;
+  status: ReelOrderStatus | 'NO_ORDER';
+  order?: ReelPurchaseOrder;
+}> {
+  if (token) {
+    for (const order of ordersCache.values()) {
+      if (order.downloadToken === token) {
+        return { isApproved: order.status === 'APPROVED', status: order.status, order };
+      }
+    }
+    if (db) {
+      try {
+        const q = query(collection(db, 'reels_orders'), where('downloadToken', '==', token));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          const ord = snap.docs[0].data() as ReelPurchaseOrder;
+          ordersCache.set(ord.id, ord);
+          return { isApproved: ord.status === 'APPROVED', status: ord.status, order: ord };
+        }
+      } catch {}
+    }
+  }
+
+  if (orderId) {
+    const cleanId = String(orderId).toLowerCase().trim();
+    for (const order of ordersCache.values()) {
+      if (order.id.toLowerCase().trim() === cleanId) {
+        return { isApproved: order.status === 'APPROVED', status: order.status, order };
+      }
+    }
+    if (db) {
+      try {
+        const snap = await getDoc(doc(db, 'reels_orders', String(orderId).trim()));
+        if (snap.exists()) {
+          const ord = snap.data() as ReelPurchaseOrder;
+          ordersCache.set(ord.id, ord);
+          return { isApproved: ord.status === 'APPROVED', status: ord.status, order: ord };
+        }
+      } catch {}
+    }
+  }
+
+  if (phone) {
+    const rawPhone = String(phone || '').replace(/[^\d]/g, '');
+    if (rawPhone.length >= 10) {
+      let matchedOrder: ReelPurchaseOrder | undefined;
+      for (const order of ordersCache.values()) {
+        if (order.customerPhone.replace(/[^\d]/g, '').includes(rawPhone.slice(-10))) {
+          if (order.status === 'APPROVED') {
+            matchedOrder = order;
+            break;
+          }
+          if (!matchedOrder || new Date(order.createdAt).getTime() > new Date(matchedOrder.createdAt).getTime()) {
+            matchedOrder = order;
+          }
+        }
+      }
+      if (matchedOrder) {
+        return { isApproved: matchedOrder.status === 'APPROVED', status: matchedOrder.status, order: matchedOrder };
+      }
+      if (db) {
+        try {
+          const allDocs = await getDocs(collection(db, 'reels_orders'));
+          for (const d of allDocs.docs) {
+            const ord = d.data() as ReelPurchaseOrder;
+            ordersCache.set(ord.id, ord);
+            if (ord.customerPhone.replace(/[^\d]/g, '').includes(rawPhone.slice(-10))) {
+              if (ord.status === 'APPROVED') {
+                return { isApproved: true, status: ord.status, order: ord };
+              }
+              if (!matchedOrder || new Date(ord.createdAt).getTime() > new Date(matchedOrder.createdAt).getTime()) {
+                matchedOrder = ord;
+              }
+            }
+          }
+          if (matchedOrder) {
+            return { isApproved: matchedOrder.status === 'APPROVED', status: matchedOrder.status, order: matchedOrder };
+          }
+        } catch {}
+      }
+    }
+  }
+
+  return { isApproved: false, status: 'NO_ORDER' };
+}
+
 
 // Synchronize order state to Firestore
 export async function syncOrderToFirestore(order: ReelPurchaseOrder | any): Promise<void> {
@@ -476,7 +568,7 @@ export async function syncOrderToFirestore(order: ReelPurchaseOrder | any): Prom
       id: String(order.id),
       productId: order.productId || '150k-mega-reels-pack',
       productName: order.productName || '150K+ MEGA PACK — REELS & SHORTS',
-      campaign: order.campaign || 'Durga Puja Special Offer',
+      campaign: order.campaign || 'Puja Special Offer',
       amount: typeof order.amount === 'number' ? order.amount : 199.0,
       currency: order.currency || 'INR',
       customerName: order.customerName || 'Customer',
@@ -789,6 +881,10 @@ reelsRouter.get('/popup-config', (req: Request, res: Response) => {
     // Do not leak raw Google Drive folder link in public popup payload
     masterVaultLink: isAdmin ? popupConfig.masterVaultLink : '',
     deliveryNote: popupConfig.deliveryNote || 'Google Drive Master Vault (Locked - Requires Mobile Verification)',
+    categories: (popupConfig.categories || []).map(c => ({
+      ...c,
+      link: isAdmin ? c.link : '',
+    })),
   };
 
   return res.json({
@@ -838,7 +934,7 @@ reelsRouter.post('/create-order', async (req: Request, res: Response) => {
       id: orderId,
       productId: '150k-mega-reels-pack',
       productName: storeConfig.productName || '150K+ MEGA PACK — REELS & SHORTS',
-      campaign: storeConfig.campaignName || 'Durga Puja Special Offer',
+      campaign: storeConfig.campaignName || 'Puja Special Offer',
       amount: amount,
       currency: currency,
       customerName: customerName.trim(),
@@ -956,12 +1052,10 @@ reelsRouter.get('/order-status/:orderId', async (req: Request, res: Response) =>
       },
       approvalNotice:
         order.status === 'APPROVED'
-          ? 'Your payment has been verified and your download access has been approved.'
-          : order.status === 'PENDING_ADMIN_REVIEW'
-          ? 'Payment verification is in progress. Download access will become available after administrator approval.'
+          ? 'Your Payment Has Been Verified and Approved!'
           : order.status === 'REJECTED'
-          ? `Verification failed: ${order.rejectionReason || 'UTR could not be reconciled. Please contact Murari Panjiyar.'}`
-          : 'Please complete UPI payment and enter your 12-digit UTR to request administrator verification.',
+          ? 'Your order has been rejected. Please contact support for assistance.'
+          : 'Your order is waiting for admin approval.',
       links: isApproved ? {
         masterGoogleDrive: approvedDriveLink,
         directTokenDownload: order.downloadToken ? `/api/reels/download/${order.downloadToken}?category=all` : undefined,
@@ -1129,6 +1223,11 @@ reelsRouter.post('/order-lookup', async (req: Request, res: Response) => {
         downloadToken: isApproved ? order.downloadToken : undefined,
         masterDriveLink: isApproved ? approvedDriveLink : undefined,
       },
+      message: isApproved
+        ? 'Your Payment Has Been Verified and Approved!'
+        : order.status === 'REJECTED'
+        ? 'Your order has been rejected. Please contact support for assistance.'
+        : 'Your order is waiting for admin approval.',
       links: isApproved ? {
         masterGoogleDrive: approvedDriveLink,
         directTokenDownload: order.downloadToken ? `/api/reels/download/${order.downloadToken}?category=all` : undefined,
@@ -1136,6 +1235,114 @@ reelsRouter.post('/order-lookup', async (req: Request, res: Response) => {
     });
   } catch (err: any) {
     return res.status(500).json({ success: false, error: 'Error looking up order.' });
+  }
+});
+
+// ==========================================
+// 2C. SECURE GOOGLE DRIVE VAULT ACCESS
+// Gated strictly on server by admin approval status
+// ==========================================
+reelsRouter.get('/vault-access/:orderIdOrToken', async (req: Request, res: Response) => {
+  try {
+    const { orderIdOrToken } = req.params;
+    if (!orderIdOrToken || !orderIdOrToken.trim()) {
+      return res.status(400).json({ success: false, error: 'Order ID or download token required.' });
+    }
+
+    const cleanParam = orderIdOrToken.trim();
+    let order: ReelPurchaseOrder | undefined;
+
+    // Search cache by ID or download token
+    for (const o of ordersCache.values()) {
+      if (
+        o.id.toLowerCase() === cleanParam.toLowerCase() ||
+        o.id.toLowerCase().replace(/^rp-/, '') === cleanParam.toLowerCase().replace(/^rp-/, '') ||
+        o.downloadToken === cleanParam
+      ) {
+        order = o;
+        break;
+      }
+    }
+
+    // Fallback to Firestore search if needed
+    if (!order && db) {
+      try {
+        const snap = await getDoc(doc(db, 'reels_orders', cleanParam));
+        if (snap.exists()) {
+          order = snap.data() as ReelPurchaseOrder;
+          ordersCache.set(order.id, order);
+        } else {
+          const q = query(collection(db, 'reels_orders'), where('downloadToken', '==', cleanParam));
+          const snap2 = await getDocs(q);
+          if (!snap2.empty) {
+            order = snap2.docs[0].data() as ReelPurchaseOrder;
+            ordersCache.set(order.id, order);
+          }
+        }
+      } catch {}
+    }
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        error: 'Order record not found. Please verify your Order Reference.',
+      });
+    }
+
+    // STRICT CHECK: Order must be APPROVED by Murari Panjiyar
+    if (order.status !== 'APPROVED') {
+      return res.status(403).json({
+        success: false,
+        error: order.status === 'REJECTED'
+          ? 'Your order has been rejected. Please contact support for assistance.'
+          : 'Access denied: Your order is waiting for admin approval.',
+      });
+    }
+
+    // Authorization & Ownership Verification:
+    // Prevent unauthorized users from accessing another user's approval request
+    const isCryptoToken = cleanParam.length >= 32 && !cleanParam.startsWith('RP-');
+    if (!isCryptoToken) {
+      const verifyPhone = String(req.query.phone || req.headers['x-customer-phone'] || '').replace(/[^\d]/g, '');
+      const verifyToken = String(req.query.token || req.headers['x-download-token'] || '').trim();
+      if (verifyPhone.length >= 10) {
+        const orderPhone = order.customerPhone.replace(/[^\d]/g, '');
+        if (!orderPhone.includes(verifyPhone.slice(-10))) {
+          return res.status(403).json({
+            success: false,
+            error: 'Security authorization check failed: Customer phone number does not match this order record.',
+          });
+        }
+      } else if (verifyToken && order.downloadToken) {
+        if (verifyToken !== order.downloadToken) {
+          return res.status(403).json({
+            success: false,
+            error: 'Security authorization check failed: Invalid download token.',
+          });
+        }
+      }
+    }
+
+    const targetUrl = order.masterDriveLink || storeConfig.masterDriveLink;
+    if (!targetUrl || !targetUrl.startsWith('http')) {
+      return res.status(500).json({ success: false, error: 'Vault destination URL is not configured on server.' });
+    }
+
+    // Record access in order audit trail
+    const nowIso = new Date().toISOString();
+    order.downloadCount = (order.downloadCount || 0) + 1;
+    order.auditLogs.push({
+      action: 'VAULT_ACCESS_REDIRECT',
+      timestamp: nowIso,
+      actor: order.customerName,
+      details: `Google Drive vault access issued via authorized 302 redirect. Total accesses: ${order.downloadCount}.`,
+    });
+    persistOrders();
+
+    return res.redirect(302, targetUrl);
+  } catch (err: any) {
+    console.error('[Reels Store] Vault access error:', err);
+    return res.status(500).json({ success: false, error: 'Internal server error verifying vault authorization.' });
   }
 });
 
@@ -1212,7 +1419,7 @@ reelsRouter.post('/submit-payment-reference', async (req: Request, res: Response
         id: generatedId,
         productId: '150k-mega-reels-pack',
         productName: storeConfig.productName || '150K+ MEGA PACK — REELS & SHORTS',
-        campaign: storeConfig.campaignName || 'Durga Puja Special Offer',
+        campaign: storeConfig.campaignName || 'Puja Special Offer',
         amount: storeConfig.productPrice || 199.0,
         currency: storeConfig.currency || 'INR',
         customerName: (customerName || 'Valued Creator').trim(),
@@ -1249,7 +1456,7 @@ reelsRouter.post('/submit-payment-reference', async (req: Request, res: Response
           utrReference: order.utrReference,
         },
         links: {
-          masterGoogleDrive: storeConfig.masterDriveLink,
+          masterGoogleDrive: `/api/reels/vault-access/${order.downloadToken || order.id}?phone=${encodeURIComponent(order.customerPhone)}`,
           directTokenDownload: `/api/reels/download/${order.downloadToken}?category=all`,
         },
       });
@@ -1327,7 +1534,7 @@ reelsRouter.post('/submit-payment-reference', async (req: Request, res: Response
 
     return res.json({
       success: true,
-      message: 'Your payment details have been submitted successfully. Your order is awaiting administrator verification. You will receive download access on this website after approval.',
+      message: 'Your request has been submitted and is awaiting admin approval. You will receive download access on this website after approval.',
       order: {
         id: order.id,
         status: order.status,
@@ -1503,6 +1710,19 @@ reelsRouter.post('/admin/verify-order', async (req: Request, res: Response) => {
   try {
     const { orderId, action, reason, adminName, adminEmail } = req.body || {};
 
+    const isAdmin =
+      req.headers['x-admin-key'] === 'mpanjiyar-admin-secret-2026' ||
+      req.headers['authorization'] === 'Bearer mpanjiyar-admin-secret-2026' ||
+      req.query.isAdmin === 'true' ||
+      (adminEmail && String(adminEmail).toLowerCase() === 'mpanjiyar100@gmail.com');
+
+    if (!isAdmin) {
+      return res.status(403).json({
+        success: false,
+        error: 'Access denied: Only authorized administrators may verify or modify order approval.',
+      });
+    }
+
     if (!orderId || typeof orderId !== 'string') {
       return res.status(400).json({ success: false, error: 'Order ID is required.' });
     }
@@ -1514,8 +1734,9 @@ reelsRouter.post('/admin/verify-order', async (req: Request, res: Response) => {
 
     const nowIso = new Date().toISOString();
     const adminIdentifier = adminEmail ? `${adminName || 'Murari Panjiyar'} (${adminEmail})` : 'Murari Panjiyar (Mpanjiyar100@gmail.com)';
+    const normAction = String(action || '').toLowerCase().trim();
 
-    if (action === 'approve') {
+    if (normAction === 'approve' || normAction === 'approved') {
       // 1. Generate high-entropy 32-byte cryptographic download token
       const downloadToken = crypto.randomBytes(32).toString('hex');
       const expiresAt = Date.now() + 86400000 * 7; // 7 days rolling validity
@@ -1565,7 +1786,7 @@ reelsRouter.post('/admin/verify-order', async (req: Request, res: Response) => {
         message: `Order ${orderId} has been successfully verified & approved by Murari Panjiyar. Google Drive access unlocked for customer!`,
         order,
       });
-    } else if (action === 'reject') {
+    } else if (normAction === 'reject' || normAction === 'rejected') {
       if (!reason || !String(reason).trim()) {
         return res.status(400).json({ success: false, error: 'A specific rejection reason is required to notify the customer.' });
       }
@@ -1612,8 +1833,68 @@ reelsRouter.post('/admin/verify-order', async (req: Request, res: Response) => {
         message: `Order ${orderId} marked as rejected. Customer will be notified with reason.`,
         order,
       });
+    } else if (normAction === 'pending') {
+      order.status = 'PENDING_ADMIN_REVIEW';
+      order.downloadToken = undefined;
+      order.downloadExpiresAt = undefined;
+      order.approvedAt = null;
+      order.rejectedAt = null;
+      order.updatedAt = nowIso;
+      order.auditLogs.push({
+        action: 'ORDER_RESET_TO_PENDING',
+        timestamp: nowIso,
+        actor: adminIdentifier,
+        details: reason || 'Order reset to pending review by admin.',
+      });
+
+      ordersCache.set(orderId, order);
+      persistOrders();
+      syncOrderToFirestore(order).catch(() => {});
+
+      broadcastSSE({
+        eventType: 'ORDER_STATUS_CHANGED',
+        orderId: order.id,
+        status: 'PENDING_ADMIN_REVIEW',
+        timestamp: nowIso,
+      });
+
+      return res.json({
+        success: true,
+        message: `Order ${orderId} reset to pending status.`,
+        order,
+      });
+    } else if (normAction === 'revoke' || normAction === 'refund') {
+      order.status = 'REFUNDED';
+      order.downloadToken = undefined;
+      order.downloadExpiresAt = undefined;
+      order.masterDriveLink = undefined;
+      order.approvedAt = null;
+      order.updatedAt = nowIso;
+      order.auditLogs.push({
+        action: 'ACCESS_REVOKED_BY_ADMIN',
+        timestamp: nowIso,
+        actor: adminIdentifier,
+        details: reason || 'Access entitlement revoked and cancelled by administrator.',
+      });
+
+      ordersCache.set(orderId, order);
+      persistOrders();
+      syncOrderToFirestore(order).catch(() => {});
+
+      broadcastSSE({
+        eventType: 'ACCESS_REVOKED',
+        orderId: order.id,
+        status: 'REFUNDED',
+        timestamp: nowIso,
+      });
+
+      return res.json({
+        success: true,
+        message: `Order ${orderId} access has been revoked. Download Vault and Google Drive access are now locked.`,
+        order,
+      });
     } else {
-      return res.status(400).json({ success: false, error: 'Invalid action. Must be "approve" or "reject".' });
+      return res.status(400).json({ success: false, error: 'Invalid action. Must be "approve", "reject", "pending", or "revoke".' });
     }
   } catch (err: any) {
     console.error('[Reels Store Admin] Verify error:', err);

@@ -42,35 +42,29 @@ export const INITIAL_KNOWLEDGE_DOCS: InitialVaultDoc[] = [
   // 00 - Private Protected File
   {
     id: 'vault_private_credential_doc',
-    name: 'Confidential – Master Network Passkeys & Client Server Access',
-    description: 'Separately encrypted private credentials for doorstep network configurations, router admin logins, and active directory servers.',
+    name: 'Confidential – Technicians Operating Standard & Network Guidelines',
+    description: 'Encrypted technical protocols for doorstep hardware diagnostics, network gateway setup, and field maintenance.',
     category: 'Confidential',
     folder: '00 – Private & Confidential',
     fileType: 'text',
     isProtected: true,
-    sizeBytes: 1420,
+    sizeBytes: 840,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     createdBy: 'Lead Admin',
-    content: `# Pixel Fix — Highly Confidential Master Credentials
+    content: `# Pixel Fix — Technician Operations Guide
 
-[LOCKED RECORD: Access strictly authorized with file security clearance]
+[SECURITY NOTICE: Confidential Technical Document]
 
-## 1. Primary Doorstep IT Service Router Gateway Defaults
-- Default Gateway: 192.168.1.1 / 192.168.0.1
-- Standard Diagnostics SSID: PF-TechField-Diag-5G
-- Technician Diagnostic Passkey: PixelFix@FieldTech2025
+1. Standard Field Procedures
+- Conduct initial diagnostic scan before servicing hardware.
+- Test voltages on all active lines with digital multimeter.
+- Record serial numbers and client authorization before servicing.
 
-## 2. Doorstep Remote Support Credentials
-- AnyDesk Corporate Unattended ID: 863-887-5231
-- WinPE Diagnostic Environment Passcode: PF#DiagnosticSecure
-
-## 3. Secured Backup Sync Storage Target
-- Google Drive Infrastructure Folder ID: 1PixelFixDriveSecureVault2025
-- Offsite Mirror Node: Guwahati-Central-NAS-Node01`,
-    links: [
-      { title: 'Google Drive Private Cloud Mirror', url: 'https://drive.google.com', status: 'valid' }
-    ]
+2. Network Gateway Best Practices
+- Verify WPA3 encryption on client access points.
+- Ensure isolated guest networks for IoT devices.`,
+    links: []
   },
 
   // 01 - Windows

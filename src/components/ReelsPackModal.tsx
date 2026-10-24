@@ -34,7 +34,6 @@ import { db } from '../firebase';
 import { doc, setDoc, onSnapshot, getDoc, getDocs, collection } from 'firebase/firestore';
 import { ReelPurchaseOrder, ReelOrderStatus } from '../types';
 import { MegaPackBundleDirectory } from './MegaPackBundleDirectory';
-import { CANONICAL_MEGA_REELS_VAULT_URL } from './MasterVaultCard';
 import { submitPaymentReferenceWithRetry } from '../utils/retryWithBackoff';
 
 interface ReelsPackModalProps {
@@ -155,11 +154,11 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
     receiverName: 'MURARI PANJIYAR',
     productPrice: 199.0,
     currency: 'INR',
-    campaignName: 'Durga Puja Special Offer',
+    campaignName: 'Puja Special Offer',
     productName: '150K+ MEGA PACK — REELS & SHORTS',
     headline: '150K+ MEGA PACK OF REELS & SHORTS',
     subtitle: 'Take your content creation to the next level with a massive collection of short-form videos for your creative projects.',
-    badgeText: 'DURGA PUJA SPECIAL OFFER',
+    badgeText: 'PUJA SPECIAL OFFER',
     masterDriveLink: '',
     customQrUrl: '',
     supportEmail: 'Mpanjiyar100@gmail.com',
@@ -240,7 +239,7 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
 
             // Access gate: ONLY unlock Google Drive link if status is explicitly APPROVED
             if (data.order.status === 'APPROVED' || data.order.status === 'approved') {
-              const approvedUrl = data.links?.masterGoogleDrive || data.order.masterDriveLink || storeConfig.masterDriveLink || CANONICAL_MEGA_REELS_VAULT_URL;
+              const approvedUrl = data.links?.masterGoogleDrive || data.order.masterDriveLink || storeConfig.masterDriveLink || (orderId ? `/api/reels/vault-access/${orderId.trim()}` : '');
               setDownloadToken(data.order.downloadToken || ('TOKEN-' + Date.now().toString(36).toUpperCase()));
               setMasterDriveUrl(approvedUrl);
             } else {
@@ -259,7 +258,7 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
                   if (liveData.utrReference) setUtrNumber(liveData.utrReference);
                   setOrderStatus(liveData.status);
                   if (liveData.status === 'APPROVED' || liveData.status === 'approved') {
-                    const approvedUrl = liveData.masterDriveLink || (liveData as any).links?.masterGoogleDrive || storeConfig.masterDriveLink || CANONICAL_MEGA_REELS_VAULT_URL;
+                    const approvedUrl = liveData.masterDriveLink || (liveData as any).links?.masterGoogleDrive || storeConfig.masterDriveLink || (orderId ? `/api/reels/vault-access/${orderId.trim()}` : '');
                     setDownloadToken(liveData.downloadToken || ('TOKEN-' + Date.now().toString(36).toUpperCase()));
                     setMasterDriveUrl(approvedUrl);
                     return;
@@ -283,7 +282,7 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
                 if (liveData.utrReference) setUtrNumber(liveData.utrReference);
                 setOrderStatus(liveData.status);
                 if (liveData.status === 'APPROVED' || liveData.status === 'approved') {
-                  const approvedUrl = liveData.masterDriveLink || (liveData as any).links?.masterGoogleDrive || storeConfig.masterDriveLink || CANONICAL_MEGA_REELS_VAULT_URL;
+                  const approvedUrl = liveData.masterDriveLink || (liveData as any).links?.masterGoogleDrive || storeConfig.masterDriveLink || (orderId ? `/api/reels/vault-access/${orderId.trim()}` : '');
                   setDownloadToken(liveData.downloadToken || ('TOKEN-' + Date.now().toString(36).toUpperCase()));
                   setMasterDriveUrl(approvedUrl);
                   return;
@@ -317,11 +316,11 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
               const liveOrder = snapshot.data() as ReelPurchaseOrder;
               if (liveOrder.status === 'APPROVED' || liveOrder.status === 'approved') {
                 setOrderStatus('APPROVED');
-                const approvedUrl = liveOrder.masterDriveLink || (liveOrder as any).links?.masterGoogleDrive || storeConfig.masterDriveLink || CANONICAL_MEGA_REELS_VAULT_URL;
+                const approvedUrl = liveOrder.masterDriveLink || (liveOrder as any).links?.masterGoogleDrive || storeConfig.masterDriveLink || (orderId ? `/api/reels/vault-access/${orderId}` : '');
                 setDownloadToken(liveOrder.downloadToken || ('TOKEN-' + Date.now().toString(36).toUpperCase()));
                 setMasterDriveUrl(approvedUrl);
                 if (triggerToast) {
-                  triggerToast('🎉 Murari Panjiyar approved your payment! Master Google Drive unlocked.', 'success');
+                  triggerToast('Your Payment Has Been Verified and Approved!', 'success');
                 }
               } else if (liveOrder.status === 'REJECTED') {
                 setOrderStatus('REJECTED');
@@ -354,11 +353,11 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
           if (payload.orderId === orderId || payload.eventType === 'ORDER_APPROVED') {
             if (payload.status === 'APPROVED' || payload.eventType === 'ORDER_APPROVED') {
               setOrderStatus('APPROVED');
-              const approvedUrl = payload.masterDriveLink || storeConfig.masterDriveLink || CANONICAL_MEGA_REELS_VAULT_URL;
+              const approvedUrl = payload.masterDriveLink || storeConfig.masterDriveLink || (orderId ? `/api/reels/vault-access/${orderId}` : '');
               setDownloadToken(payload.downloadToken || ('TOKEN-' + Date.now().toString(36).toUpperCase()));
               setMasterDriveUrl(approvedUrl);
               if (triggerToast) {
-                triggerToast('🎉 Murari Panjiyar approved your payment! Google Drive download access unlocked.', 'success');
+                triggerToast('Your Payment Has Been Verified and Approved!', 'success');
               }
             } else if (payload.status === 'REJECTED' || payload.eventType === 'ORDER_REJECTED') {
               setOrderStatus('REJECTED');
@@ -383,11 +382,11 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
             if (data.success && data.order) {
               if (data.order.status === 'APPROVED' || data.order.status === 'approved') {
                 setOrderStatus('APPROVED');
-                const approvedUrl = data.links?.masterGoogleDrive || data.order.masterDriveLink || storeConfig.masterDriveLink || CANONICAL_MEGA_REELS_VAULT_URL;
+                const approvedUrl = data.links?.masterGoogleDrive || data.order.masterDriveLink || storeConfig.masterDriveLink || (orderId ? `/api/reels/vault-access/${orderId}` : '');
                 setDownloadToken(data.order.downloadToken || ('TOKEN-' + Date.now().toString(36).toUpperCase()));
                 setMasterDriveUrl(approvedUrl);
                 if (triggerToast) {
-                  triggerToast('🎉 Your payment has been approved! Master Drive is unlocked.', 'success');
+                  triggerToast('Your Payment Has Been Verified and Approved!', 'success');
                 }
               } else if (data.order.status === 'REJECTED') {
                 setOrderStatus('REJECTED');
@@ -444,7 +443,7 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
   const handleCopyShareLink = () => {
     const shareUrl = `${window.location.origin}${window.location.pathname}?offer=reels`;
     navigator.clipboard.writeText(shareUrl);
-    triggerToast('Copied standalone offer link! Anyone opening this sees ONLY the Durga Puja offer.', 'success');
+    triggerToast('Copied standalone offer link! Anyone opening this sees ONLY the Puja offer.', 'success');
   };
 
   // Submit UTR for Admin Verification (STRICT ADMIN APPROVAL BEFORE ACCESS)
@@ -536,7 +535,7 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
                 id: assignedId,
                 productId: '150k-mega-reels-pack',
                 productName: storeConfig.productName || '150K+ MEGA PACK — REELS & SHORTS',
-                campaign: storeConfig.campaignName || 'Durga Puja Special Offer',
+                campaign: storeConfig.campaignName || 'Puja Special Offer',
                 amount: storeConfig.productPrice || 199.0,
                 currency: 'INR',
                 customerName: customerName.trim(),
@@ -558,9 +557,9 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
           if (result.links?.masterGoogleDrive) {
             setMasterDriveUrl(result.links.masterGoogleDrive);
           }
-          if (triggerToast) triggerToast('🎉 Payment Verified! Download access approved.', 'success');
+          if (triggerToast) triggerToast('Your Payment Has Been Verified and Approved!', 'success');
         } else {
-          if (triggerToast) triggerToast('Payment submitted for verification. Murari Panjiyar has been notified.', 'info');
+          if (triggerToast) triggerToast('Your payment is awaiting admin verification and approval.', 'info');
         }
         return;
       }
@@ -605,7 +604,7 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
               id: fallbackId,
               productId: '150k-mega-reels-pack',
               productName: storeConfig.productName || '150K+ MEGA PACK — REELS & SHORTS',
-              campaign: storeConfig.campaignName || 'Durga Puja Special Offer',
+              campaign: storeConfig.campaignName || 'Puja Special Offer',
               amount: storeConfig.productPrice || 199.0,
               currency: 'INR',
               customerName: customerName.trim(),
@@ -809,14 +808,16 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
           resolvedOrder.links?.masterGoogleDrive ||
           (resolvedOrder as any).links?.masterGoogleDrive ||
           storeConfig.masterDriveLink ||
-          CANONICAL_MEGA_REELS_VAULT_URL;
+          (resolvedOrder.id ? `/api/reels/vault-access/${resolvedOrder.id}` : '');
         setMasterDriveUrl(driveUrl);
         if (!resolvedOrder.downloadToken) {
           setDownloadToken('TOKEN-' + Date.now().toString(36).toUpperCase());
         }
-        triggerToast('Order verified! Master Google Drive Vault unlocked.', 'success');
-      } else if (normStatus === 'PENDING_ADMIN_REVIEW') {
-        triggerToast('Order located: Currently awaiting Murari Panjiyar approval.', 'info');
+        triggerToast('Your Payment Has Been Verified and Approved!', 'success');
+      } else if (normStatus === 'PENDING_ADMIN_REVIEW' || normStatus === 'PENDING_PAYMENT') {
+        triggerToast('Your order is waiting for admin approval.', 'info');
+      } else if (normStatus === 'REJECTED') {
+        triggerToast('Your order has been rejected. Please contact support for assistance.', 'error');
       }
     } else {
       setLookupError(
@@ -991,16 +992,32 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
 
                   {/* Complete 53 Resource Clickable Directory & Master Google Drive Access */}
                   <MegaPackBundleDirectory
-                    masterDriveLink={masterDriveUrl || CANONICAL_MEGA_REELS_VAULT_URL}
+                    masterDriveLink={masterDriveUrl || (orderId ? `/api/reels/vault-access/${orderId}` : '')}
                     downloadToken={downloadToken}
                     customerName={customerName}
                     orderId={orderId}
                     customerPhone={customerPhone}
-                    isUnlocked={orderStatus === 'APPROVED' || orderStatus === 'approved' || Boolean(downloadToken)}
+                    isUnlocked={orderStatus === 'APPROVED' || orderStatus === 'approved'}
                     orderStatus={orderStatus}
                     onCopyLink={handleCopyLink}
                     copiedLabel={copiedLinkType}
                   />
+
+                  <div className="pt-2 text-center">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOrderId('');
+                        setUtrNumber('');
+                        setOrderStatus('PENDING_PAYMENT');
+                        setDownloadToken(null);
+                        setMasterDriveUrl('');
+                      }}
+                      className="text-xs font-mono text-zinc-400 hover:text-white underline cursor-pointer"
+                    >
+                      Unlock another pack / Place new order →
+                    </button>
+                  </div>
                 </div>
               ) : orderStatus === 'PENDING_ADMIN_REVIEW' ? (
                 /* STATE B: AWAITING ADMIN APPROVAL — LOCKED */
@@ -1017,10 +1034,10 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
                         ⏳ Awaiting Administrator Verification
                       </span>
                       <h3 className="text-lg sm:text-xl font-black mt-2 text-white">
-                        Your Payment Details Have Been Submitted Successfully
+                        Your payment is awaiting admin verification and approval.
                       </h3>
                       <p className={`text-xs sm:text-sm max-w-lg mx-auto leading-relaxed ${isLight ? 'text-slate-700' : 'text-zinc-300'}`}>
-                        Your order is awaiting administrator verification. You will receive download access on this website after approval by Murari Panjiyar.
+                        Your request has been submitted and is awaiting admin approval. You will receive download access on this website after approval by Murari Panjiyar.
                       </p>
                     </div>
 
@@ -1063,9 +1080,9 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
                             .then(d => {
                               if (d.success && d.order?.status === 'APPROVED') {
                                 setOrderStatus('APPROVED');
-                                triggerToast('Order approved! Download access unlocked.', 'success');
+                                triggerToast('Your Payment Has Been Verified and Approved!', 'success');
                               } else {
-                                triggerToast('Verification in progress. Murari Panjiyar has been notified.', 'info');
+                                triggerToast('Verification in progress. Your order is waiting for admin approval.', 'info');
                               }
                             });
                         }}
@@ -1083,6 +1100,18 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
                         className={`py-2 px-3 rounded-xl text-xs font-mono text-zinc-400 hover:text-white transition-colors cursor-pointer`}
                       >
                         Need to edit UTR or phone?
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOrderId('');
+                          setUtrNumber('');
+                          setOrderStatus('PENDING_PAYMENT');
+                        }}
+                        className={`py-2 px-3 rounded-xl text-xs font-mono text-amber-400 hover:underline transition-colors cursor-pointer`}
+                      >
+                        Place Another Order
                       </button>
                     </div>
                   </div>
@@ -1367,9 +1396,19 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
                   )}
 
                   {String(lookupResult.status || '').toUpperCase() === 'APPROVED' ? (
-                    <div className="pt-2 space-y-2">
+                    <div className="pt-2 space-y-3">
+                      <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs text-center space-y-1">
+                        <p className="font-bold flex items-center justify-center gap-1.5">
+                          <CheckCircle2 size={15} />
+                          <span>Your Payment Has Been Verified and Approved!</span>
+                        </p>
+                        <p className="text-[11px] text-zinc-300">
+                          Your digital access to the 150K+ Master Google Drive Vault has been unlocked.
+                        </p>
+                      </div>
+
                       <a
-                        href={lookupResult.masterDriveLink || masterDriveUrl || storeConfig.masterDriveLink || CANONICAL_MEGA_REELS_VAULT_URL}
+                        href={lookupResult.masterDriveLink || masterDriveUrl || storeConfig.masterDriveLink || (lookupResult.id ? `/api/reels/vault-access/${lookupResult.id}` : '')}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="w-full py-3 rounded-xl font-bold uppercase bg-emerald-500 text-black flex items-center justify-center gap-2 hover:bg-emerald-400 cursor-pointer shadow-lg shadow-emerald-500/20 transition-transform active:scale-[0.99]"
@@ -1387,16 +1426,30 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
                         Explore Video Folders &amp; Asset Categories →
                       </button>
                     </div>
-                  ) : String(lookupResult.status || '').toUpperCase() === 'PENDING_ADMIN_REVIEW' || String(lookupResult.status || '').toUpperCase() === 'PENDING_VERIFICATION' ? (
+                  ) : String(lookupResult.status || '').toUpperCase() === 'PROCESSING' ? (
+                    <div className="p-3.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-300 text-xs text-center space-y-1">
+                      <p className="font-bold">Processing</p>
+                      <p className="text-[11px] text-zinc-300">
+                        Your order is being processed.
+                      </p>
+                    </div>
+                  ) : String(lookupResult.status || '').toUpperCase() === 'DELIVERED' ? (
+                    <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs text-center space-y-1">
+                      <p className="font-bold">Delivered</p>
+                      <p className="text-[11px] text-zinc-300">
+                        Your pack has been delivered.
+                      </p>
+                    </div>
+                  ) : String(lookupResult.status || '').toUpperCase() === 'PENDING_ADMIN_REVIEW' || String(lookupResult.status || '').toUpperCase() === 'PENDING_VERIFICATION' || String(lookupResult.status || '').toUpperCase() === 'PENDING_PAYMENT' || String(lookupResult.status || '').toUpperCase() === 'PENDING_APPROVAL' ? (
                     <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs text-center space-y-1">
-                      <p className="font-bold">⏳ Payment Verification In Progress</p>
+                      <p className="font-bold">Your order is waiting for admin approval.</p>
                       <p className="text-[11px] text-zinc-300">
                         Administrator Murari Panjiyar is reconciling your 12-digit UTR in BharatPe. Once approved, your Google Drive link will appear here automatically.
                       </p>
                     </div>
                   ) : (
                     <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs space-y-2">
-                      <p className="font-bold">⚠️ Order Not Approved</p>
+                      <p className="font-bold">Your order has been rejected. Please contact support for assistance.</p>
                       <p className="text-[11px] text-zinc-300">
                         Reason: {lookupResult.rejectionReason || 'UTR could not be matched against current BharatPe statement.'}
                       </p>

@@ -177,12 +177,8 @@ export const DurgaPujaOfferPopup: React.FC<DurgaPujaOfferPopupProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, handleClose, isAdminModalOpen]);
 
-  // Re-open from floating launcher or navigate directly if custom link configured
+  // Re-open from floating launcher - opens offer popup
   const handleReopen = () => {
-    if (config.floatingBadgeLink && config.floatingBadgeLink.trim()) {
-      window.open(config.floatingBadgeLink.trim(), '_blank', 'noopener,noreferrer');
-      return;
-    }
     setIsOpen(true);
   };
 
@@ -192,10 +188,6 @@ export const DurgaPujaOfferPopup: React.FC<DurgaPujaOfferPopupProps> = ({
   };
 
   const handleSecondaryAction = () => {
-    if (config.secondaryButtonLink && config.secondaryButtonLink.trim()) {
-      window.open(config.secondaryButtonLink.trim(), '_blank', 'noopener,noreferrer');
-      return;
-    }
     handleClose();
     if (onExploreCategories) {
       onExploreCategories();
@@ -259,20 +251,8 @@ export const DurgaPujaOfferPopup: React.FC<DurgaPujaOfferPopupProps> = ({
               {/* Top Festivity Glow Stripe */}
               <div className={`h-1.5 w-full bg-gradient-to-r ${activeGradient} shrink-0`} />
 
-              {/* Header Actions: Admin Inline Edit (ONLY for logged in admin from main admin page) & Close Button */}
+              {/* Header Actions: Close Button */}
               <div className="absolute top-3 right-3 sm:top-4 sm:right-4 z-20 flex items-center gap-2">
-                {effectiveIsAdmin && (
-                  <button
-                    type="button"
-                    onClick={() => setIsAdminModalOpen(true)}
-                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-mono font-bold uppercase tracking-wider bg-black/85 hover:bg-[#FF5500] text-amber-300 hover:text-white border border-amber-500/40 hover:border-white/40 transition-all cursor-pointer shadow-md backdrop-blur-md"
-                    title="Admin: Edit every detail of this section (link, text, logo, prices, chips)"
-                  >
-                    <Sliders size={12} className="animate-spin-slow" />
-                    <span>Admin Edit</span>
-                  </button>
-                )}
-
                 <button
                   type="button"
                   onClick={handleClose}
@@ -317,7 +297,7 @@ export const DurgaPujaOfferPopup: React.FC<DurgaPujaOfferPopupProps> = ({
                     ) : (
                       <Sparkles size={13} className="text-amber-400 fill-amber-400/30 animate-pulse" />
                     )}
-                    <span>{config.badgeText || '🎉 DURGA PUJA SPECIAL OFFER'}</span>
+                    <span>{config.badgeText || '🎉 PUJA SPECIAL OFFER'}</span>
                   </div>
 
                   {config.discountBadge && (
@@ -354,32 +334,30 @@ export const DurgaPujaOfferPopup: React.FC<DurgaPujaOfferPopupProps> = ({
                   </p>
                 </div>
 
-                {/* Categories Grid Highlights - Each category pill supports custom link */}
+                {/* Categories Grid Highlights - Click directs to Unlock Pack workflow (Payment & Admin Approval Required) */}
                 {config.categories && config.categories.length > 0 && (
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 sm:gap-2 pt-1 text-[10px] sm:text-xs font-mono">
-                    {config.categories.map((cat, i) => {
-                      const isClickable = Boolean(cat.link && cat.link.trim());
-                      return (
-                        <div
-                          key={cat.id || i}
-                          onClick={isClickable ? () => window.open(cat.link!.trim(), '_blank', 'noopener,noreferrer') : undefined}
-                          className={`p-2 rounded-xl border flex flex-col justify-between transition-all select-none ${
-                            isClickable ? 'cursor-pointer hover:border-amber-500 hover:scale-[1.02] shadow-sm' : ''
-                          } ${
-                            isLight
-                              ? 'bg-slate-50 border-slate-200/90 text-slate-800'
-                              : 'bg-zinc-900/60 border-white/5 text-zinc-300'
-                          }`}
-                          title={isClickable ? `Open ${cat.label} link` : undefined}
-                        >
-                          <div className="flex items-center justify-between gap-1">
-                            <span className="font-semibold line-clamp-1">{cat.label}</span>
-                            {isClickable && <ExternalLink size={10} className="text-amber-500 shrink-0" />}
-                          </div>
-                          <span className="text-[9px] text-amber-500 font-bold">{cat.count}</span>
+                    {config.categories.map((cat, i) => (
+                      <div
+                        key={cat.id || i}
+                        onClick={handlePrimaryAction}
+                        className={`p-2 rounded-xl border flex flex-col justify-between transition-all select-none cursor-pointer hover:border-amber-500 hover:scale-[1.02] shadow-sm ${
+                          isLight
+                            ? 'bg-slate-50 border-slate-200/90 text-slate-800'
+                            : 'bg-zinc-900/60 border-white/5 text-zinc-300'
+                        }`}
+                        title={`Click to unlock ${cat.label} (Payment & Admin Approval required)`}
+                      >
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="font-semibold line-clamp-1">{cat.label}</span>
+                          <FolderLock size={10} className="text-amber-500 shrink-0" />
                         </div>
-                      );
-                    })}
+                        <div className="flex items-center justify-between text-[9px] mt-1">
+                          <span className="text-amber-500 font-bold">{cat.count}</span>
+                          <span className="text-[8.5px] uppercase font-bold text-slate-400">Locked</span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
 
@@ -441,11 +419,7 @@ export const DurgaPujaOfferPopup: React.FC<DurgaPujaOfferPopupProps> = ({
                     className="flex-1 py-3 px-5 rounded-xl sm:rounded-2xl font-mono font-black text-xs sm:text-sm tracking-wider uppercase text-black bg-gradient-to-r from-amber-400 via-orange-400 to-amber-500 hover:from-amber-300 hover:to-orange-400 active:scale-[0.98] transition-all shadow-[0_4px_20px_rgba(245,158,11,0.35)] flex items-center justify-center gap-2 cursor-pointer"
                   >
                     <span>{config.primaryButtonText || 'UNLOCK YOUR PACK'}</span>
-                    {config.primaryButtonLink ? (
-                      <ExternalLink size={15} className="stroke-[2.5]" />
-                    ) : (
-                      <ArrowRight size={16} className="stroke-[3]" />
-                    )}
+                    <ArrowRight size={16} className="stroke-[3]" />
                   </button>
 
                   <button
@@ -516,8 +490,8 @@ export const DurgaPujaOfferPopup: React.FC<DurgaPujaOfferPopupProps> = ({
                 e.preventDefault();
                 setIsAdminModalOpen(true);
               }}
-              aria-label="Reopen Durga Puja Offer"
-              title={effectiveIsAdmin ? "Reopen Offer · Double-click for Admin Edit" : "Reopen Durga Puja Offer"}
+              aria-label="Reopen Puja Offer"
+              title={effectiveIsAdmin ? "Reopen Offer · Double-click for Admin Edit" : "Reopen Puja Offer"}
               className={`group relative flex items-center gap-2 py-2 px-3 sm:py-2.5 sm:px-4 rounded-full border shadow-[0_4px_25px_rgba(245,158,11,0.35)] backdrop-blur-md transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer text-left ${
                 isLight
                   ? 'bg-white/95 hover:bg-slate-50 border-amber-400 text-slate-900'
@@ -540,7 +514,7 @@ export const DurgaPujaOfferPopup: React.FC<DurgaPujaOfferPopupProps> = ({
 
               <div className="flex flex-col">
                 <span className="text-[10px] sm:text-xs font-mono font-black tracking-wider uppercase text-amber-500 flex items-center gap-1">
-                  <span>{config.floatingBadgeTitle || '🎉 DURGA PUJA OFFER'}</span>
+                  <span>{config.floatingBadgeTitle || '🎉 PUJA OFFER'}</span>
                 </span>
                 <span className={`text-[8.5px] sm:text-[9.5px] font-mono ${isLight ? 'text-slate-600' : 'text-zinc-300'}`}>
                   {config.floatingBadgeSubtext || `150K+ Reels Pack · ₹${config.offerPrice}`}

@@ -2,6 +2,7 @@ import express from "express";
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
+import { checkOrderApprovalStatusAsync } from "./server/reelsRouter";
 
 export interface VaultItem {
   id: string;
@@ -208,38 +209,116 @@ function broadcastVaultEvent(eventType: string, data: any) {
   }
 }
 
-// Authentication middleware for vault endpoints
-const requireVaultAuth: express.RequestHandler = (req, res, next) => {
-  // Allow if x-admin-key matches Admin password or standard token
-  const authHeader = req.headers.authorization;
-  const adminKey = req.headers["x-admin-key"];
-  const tokenQuery = req.query.token as string;
+// Comprehensive Vault Access Verification (Strict Payment & Admin Approval Enforcement)
+export async function verifyVaultAccess(req: express.Request): Promise<{
+  isAuthorized: boolean;
+  isAdmin: boolean;
+  status: 'approved' | 'pending_approval' | 'payment_required' | 'rejected';
+  message: string;
+  orderId?: string;
+  customerName?: string;
+}> {
+  // 1. Check Administrator bypass (Master Admin credentials)
+  const adminKey = (req.headers["x-admin-key"] as string) || (req.query.adminKey as string);
+  const isAdmin = Boolean(
+    adminKey &&
+    (adminKey === "mpanjiyar-admin-secret-2026" ||
+      adminKey === "pixel2025" ||
+      adminKey === "Dispur123@" ||
+      adminKey === process.env.ADMIN_KEY)
+  );
 
-  let token = "";
-  if (authHeader && authHeader.startsWith("Bearer ")) {
-    token = authHeader.substring(7).trim();
-  } else if (tokenQuery) {
-    token = tokenQuery.trim();
+  if (isAdmin) {
+    return {
+      isAuthorized: true,
+      isAdmin: true,
+      status: 'approved',
+      message: 'Administrator authorization granted.'
+    };
   }
 
-  // Check token
-  if (token && activeTokens.has(token)) {
-    const session = activeTokens.get(token)!;
+  // 2. Check active cryptographically secure session token
+  const authHeader = req.headers.authorization;
+  const tokenQuery = req.query.token as string;
+  let sessionToken = "";
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    sessionToken = authHeader.substring(7).trim();
+  } else if (tokenQuery) {
+    sessionToken = tokenQuery.trim();
+  }
+
+  if (sessionToken && activeTokens.has(sessionToken)) {
+    const session = activeTokens.get(sessionToken)!;
     if (Date.now() < session.expiresAt) {
-      return next();
+      return {
+        isAuthorized: true,
+        isAdmin: false,
+        status: 'approved',
+        message: 'Active Vault session authorized.'
+      };
     } else {
-      activeTokens.delete(token);
+      activeTokens.delete(sessionToken);
     }
   }
 
-  // Check admin key bypass
-  if (adminKey && (adminKey === "pixel2025" || adminKey === "Dispur123@" || adminKey === process.env.ADMIN_KEY)) {
+  // 3. Check verified order entitlement / download token / customer phone
+  const orderId = (req.headers["x-order-id"] as string) || (req.query.orderId as string);
+  const downloadToken = (req.headers["x-download-token"] as string) || sessionToken || (req.query.downloadToken as string);
+  const customerPhone = (req.headers["x-customer-phone"] as string) || (req.query.phone as string);
+
+  if (orderId || downloadToken || customerPhone) {
+    const check = await checkOrderApprovalStatusAsync(orderId, customerPhone, downloadToken);
+    if (check.isApproved) {
+      return {
+        isAuthorized: true,
+        isAdmin: false,
+        status: 'approved',
+        message: 'Your Payment Has Been Verified and Approved! Download Vault access granted.',
+        orderId: check.order?.id,
+        customerName: check.order?.customerName
+      };
+    } else if (check.status === 'PENDING_ADMIN_REVIEW' || check.status === 'PENDING_PAYMENT') {
+      return {
+        isAuthorized: false,
+        isAdmin: false,
+        status: 'pending_approval',
+        message: 'Payment Pending Approval: Your request has been submitted and is awaiting admin approval by Murari Panjiyar.',
+        orderId: check.order?.id,
+        customerName: check.order?.customerName
+      };
+    } else if (check.status === 'REJECTED' || check.status === 'REFUNDED') {
+      return {
+        isAuthorized: false,
+        isAdmin: false,
+        status: 'rejected',
+        message: 'Access denied: Payment verification rejected or access revoked.',
+        orderId: check.order?.id
+      };
+    }
+  }
+
+  return {
+    isAuthorized: false,
+    isAdmin: false,
+    status: 'payment_required',
+    message: 'Access denied: Verified payment and explicit administrator approval required to access Download Vault.'
+  };
+}
+
+// Authentication middleware for vault endpoints
+const requireVaultAuth: express.RequestHandler = async (req, res, next) => {
+  const auth = await verifyVaultAccess(req);
+  if (auth.isAuthorized) {
+    (req as any).vaultAuth = auth;
     return next();
   }
 
-  res.status(401).json({
+  const httpStatus = auth.status === 'payment_required' || auth.status === 'pending_approval' ? 403 : 401;
+  return res.status(httpStatus).json({
     success: false,
-    error: "Unauthorized: Invalid or expired Vault access token."
+    error: auth.message,
+    status: auth.status,
+    orderId: auth.orderId
   });
 };
 
@@ -411,6 +490,24 @@ export function registerVaultRoutes(app: any) {
       }
     }
     return res.status(401).json({ valid: false, error: "Session expired or invalid." });
+  });
+
+  // 1c. Check Real-Time Authorization & Payment Approval Status
+  app.get("/api/vault/access-status", async (req, res) => {
+    try {
+      const auth = await verifyVaultAccess(req);
+      return res.json({
+        success: true,
+        isApproved: auth.isAuthorized,
+        isAdmin: auth.isAdmin,
+        status: auth.status,
+        message: auth.message,
+        orderId: auth.orderId,
+        customerName: auth.customerName
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: "Status check failed." });
+    }
   });
 
   // 2. Lock / Revoke Token Route

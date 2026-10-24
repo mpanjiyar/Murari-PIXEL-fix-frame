@@ -213,9 +213,9 @@ export const AdminNotificationsPanel: React.FC<AdminNotificationsPanelProps> = (
             approvedAt: nowIso,
             reviewedByAdminId: 'Murari Panjiyar (Mpanjiyar100@gmail.com)',
             downloadToken: generatedToken,
-            masterDriveLink: 'https://drive.google.com/drive/folders/1jkXdin8dyQ99mYKxC2JOczG8e7EHlF3C?usp=sharing',
+            masterDriveLink: `/api/reels/vault-access/${orderId}`,
             links: {
-              masterGoogleDrive: 'https://drive.google.com/drive/folders/1jkXdin8dyQ99mYKxC2JOczG8e7EHlF3C?usp=sharing',
+              masterGoogleDrive: `/api/reels/vault-access/${orderId}`,
               directTokenDownload: `/api/reels/download/${generatedToken}?category=all`,
             },
             updatedAt: nowIso,
@@ -232,7 +232,10 @@ export const AdminNotificationsPanel: React.FC<AdminNotificationsPanelProps> = (
         '/api/reels/admin/verify-order',
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'x-admin-key': 'mpanjiyar-admin-secret-2026',
+          },
           body: JSON.stringify({
             orderId,
             action: 'approve',

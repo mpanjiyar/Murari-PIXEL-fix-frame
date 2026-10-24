@@ -21,7 +21,8 @@ interface MasterVaultCardProps {
   onRequestUnlock?: () => void;
 }
 
-export const CANONICAL_MEGA_REELS_VAULT_URL = 'https://drive.google.com/drive/folders/1jkXdin8dyQ99mYKxC2JOczG8e7EHlF3C?usp=sharing';
+// Google Drive access is strictly gated on the server; no hardcoded URLs in client bundle
+export const CANONICAL_MEGA_REELS_VAULT_URL = '';
 
 export const MasterVaultCard: React.FC<MasterVaultCardProps> = ({
   masterDriveLink,
@@ -39,11 +40,13 @@ export const MasterVaultCard: React.FC<MasterVaultCardProps> = ({
 
   const isLight = currentTheme === 'light';
 
-  // Strict authorization: Populate destination if explicitly unlocked (using masterDriveLink or verified canonical vault URL)
-  const resolvedLink = (masterDriveLink && masterDriveLink.trim()) || (isUnlocked ? CANONICAL_MEGA_REELS_VAULT_URL : '');
+  // Strict authorization: Only populate destination if explicitly unlocked by server
+  const resolvedLink = isUnlocked
+    ? ((masterDriveLink && masterDriveLink.trim()) || (orderId ? `/api/reels/vault-access/${orderId}` : ''))
+    : '';
   const sanitizedUrl = isUnlocked ? resolvedLink : '';
-  const isValidUrl = Boolean(isUnlocked && sanitizedUrl && (sanitizedUrl.startsWith('https://') || sanitizedUrl.startsWith('http://')));
-  const isGoogleDrive = sanitizedUrl.includes('drive.google.com');
+  const isValidUrl = Boolean(isUnlocked && sanitizedUrl && (sanitizedUrl.startsWith('https://') || sanitizedUrl.startsWith('http://') || sanitizedUrl.startsWith('/api/')));
+  const isGoogleDrive = sanitizedUrl.includes('drive.google.com') || sanitizedUrl.includes('/vault-access');
   const isFileFormat = sanitizedUrl.includes('/file/d/');
   const isFolderFormat = sanitizedUrl.includes('/folders/');
 

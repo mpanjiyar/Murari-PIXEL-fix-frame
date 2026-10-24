@@ -120,6 +120,9 @@ interface PixelFixVaultProps {
   isFullScreenPage?: boolean;
   onBackToWebsite?: () => void;
   isEmbeddedTab?: boolean;
+  orderId?: string;
+  customerPhone?: string;
+  onOpenPujaOffer?: () => void;
 }
 
 export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
@@ -129,16 +132,33 @@ export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
   currentTheme = 'dark',
   isFullScreenPage = true,
   onBackToWebsite,
-  isEmbeddedTab = false
+  isEmbeddedTab = false,
+  orderId,
+  customerPhone,
+  onOpenPujaOffer
 }) => {
   // Session Token State - recognize master keys including Dispur123@
   const isAuthorizedAdmin = Boolean(
     adminKey && (
+      adminKey === 'mpanjiyar-admin-secret-2026' ||
       adminKey === 'pixel2025' ||
       adminKey === 'AdminSecret2025' ||
       adminKey === 'Dispur123@'
     )
   );
+
+  const [activeOrderId, setActiveOrderId] = useState<string>(() => {
+    return orderId || localStorage.getItem('last_reels_order_id') || '';
+  });
+
+  const [vaultAccessStatus, setVaultAccessStatus] = useState<'checking' | 'approved' | 'pending_approval' | 'payment_required' | 'rejected'>(() => {
+    if (isAuthorizedAdmin) return 'approved';
+    return 'checking';
+  });
+  const [statusDetailMessage, setStatusDetailMessage] = useState<string>('');
+  const [lookupInput, setLookupInput] = useState<string>('');
+  const [isCheckingStatus, setIsCheckingStatus] = useState<boolean>(false);
+  const [showAdminPasscodeInput, setShowAdminPasscodeInput] = useState<boolean>(false);
 
   const [token, setToken] = useState<string | null>(() => {
     if (isAuthorizedAdmin) {
@@ -147,44 +167,18 @@ export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
     return sessionStorage.getItem('pixelfix_vault_token') || null;
   });
 
-  // User Permissions: Admin has full write access; Authorized users have view/download/edit
-  const canEditAndUpload = Boolean(token || isAuthorizedAdmin);
-
-  // Auto-sync token if adminKey becomes available, or verify stored session token
-  useEffect(() => {
-    if (isAuthorizedAdmin && !token) {
-      setToken('admin_master_token');
-      return;
-    }
-
-    const storedToken = sessionStorage.getItem('pixelfix_vault_token');
-    if (storedToken && storedToken !== 'admin_master_token') {
-      fetch('/api/vault/verify-token', {
-        headers: { Authorization: `Bearer ${storedToken}` }
-      })
-        .then((res) => {
-          if (!res.ok) {
-            sessionStorage.removeItem('pixelfix_vault_token');
-            setToken(null);
-            // Keep knowledge base accessible in read-only mode - DO NOT wipe items!
-          }
-        })
-        .catch(() => {
-          // If network failed, stay in current mode safely
-        });
-    }
-  }, [isAuthorizedAdmin, token]);
-
-  // Auth States
-  const [passwordInput, setPasswordInput] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [passwordInput, setPasswordInput] = useState<string>('');
   const [authError, setAuthError] = useState<string | null>(null);
+  const [isAuthenticating, setIsAuthenticating] = useState<boolean>(false);
+  const [showPassword, setShowPassword] = useState<boolean>(false);
 
-  // Real-Time Data States (Fully accessible in Knowledge Base mode, write-protected)
-  const [items, setItems] = useState<VaultItem[]>(INITIAL_KNOWLEDGE_DOCS);
+  // User Permissions: Admin has full write access; Authorized users have view/download/edit
+  const canEditAndUpload = Boolean((token || isAuthorizedAdmin) && vaultAccessStatus === 'approved');
+
+  // Real-Time Data States (Empty by default until authorized - zero leaks!)
+  const [items, setItems] = useState<VaultItem[]>([]);
   const [folders, setFolders] = useState<VaultFolder[]>(KNOWLEDGE_BASE_FOLDERS);
-  const [technicalLinks, setTechnicalLinks] = useState<VaultLinkItem[]>(INITIAL_TECHNICAL_LINKS);
+  const [technicalLinks, setTechnicalLinks] = useState<VaultLinkItem[]>([]);
   const [syncStatus, setSyncStatus] = useState<'connected' | 'connecting' | 'offline' | 'syncing'>('connected');
   const [lastSyncTime, setLastSyncTime] = useState<string>('Just now');
 
@@ -275,8 +269,91 @@ export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
     if (adminKey) {
       headers['x-admin-key'] = adminKey;
     }
+    const currentOrderId = activeOrderId || localStorage.getItem('last_reels_order_id') || '';
+    if (currentOrderId) {
+      headers['x-order-id'] = currentOrderId;
+    }
+    if (customerPhone) {
+      headers['x-customer-phone'] = customerPhone;
+    }
     return headers;
-  }, [token, adminKey]);
+  }, [token, adminKey, activeOrderId, customerPhone]);
+
+  // Check Real-Time Authorization and Payment Approval Status
+  const checkAccessStatus = useCallback(async (customQuery?: string) => {
+    if (isAuthorizedAdmin) {
+      setVaultAccessStatus('approved');
+      return;
+    }
+    setIsCheckingStatus(true);
+    const targetQuery = customQuery !== undefined ? customQuery.trim() : (activeOrderId || localStorage.getItem('last_reels_order_id') || '');
+    try {
+      const res = await fetch(`/api/vault/access-status?orderId=${encodeURIComponent(targetQuery)}&phone=${encodeURIComponent(customerPhone || targetQuery)}`, {
+        headers: getAuthHeaders()
+      });
+      const data = await res.json();
+      if (data.isApproved) {
+        setVaultAccessStatus('approved');
+        if (targetQuery && targetQuery.startsWith('RP-')) setActiveOrderId(targetQuery);
+        showToast('Your Payment Has Been Verified and Approved!');
+      } else if (data.status === 'pending_approval') {
+        setVaultAccessStatus('pending_approval');
+        setStatusDetailMessage(data.message || 'Payment Pending Approval: Your request has been submitted and is awaiting admin approval by Murari Panjiyar.');
+        if (targetQuery && targetQuery.startsWith('RP-')) setActiveOrderId(targetQuery);
+      } else if (data.status === 'rejected') {
+        setVaultAccessStatus('rejected');
+        setStatusDetailMessage(data.message || 'Payment verification was not confirmed or access was revoked.');
+      } else {
+        setVaultAccessStatus('payment_required');
+        setStatusDetailMessage(data.message || 'Access denied: Verified payment and explicit administrator approval required.');
+      }
+    } catch {
+      if (!targetQuery) {
+        setVaultAccessStatus('payment_required');
+      }
+    } finally {
+      setIsCheckingStatus(false);
+    }
+  }, [isAuthorizedAdmin, activeOrderId, customerPhone, getAuthHeaders]);
+
+  useEffect(() => {
+    checkAccessStatus();
+  }, [checkAccessStatus]);
+
+  // Fetch Vault Items only when authorization is confirmed
+  useEffect(() => {
+    if (vaultAccessStatus !== 'approved' && !isAuthorizedAdmin && !token) {
+      setItems([]);
+      setTechnicalLinks([]);
+      return;
+    }
+
+    const loadAuthorizedItems = async () => {
+      setSyncStatus('connecting');
+      try {
+        const res = await fetch('/api/vault/items', {
+          headers: getAuthHeaders()
+        });
+        const data = await res.json();
+        if (data.success && Array.isArray(data.items)) {
+          setItems(data.items);
+          setTechnicalLinks(INITIAL_TECHNICAL_LINKS);
+          setSyncStatus('connected');
+          setLastSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+        } else {
+          setItems([]);
+          if (data.status === 'payment_required' || data.status === 'pending_approval') {
+            setVaultAccessStatus(data.status);
+          }
+        }
+      } catch (err) {
+        console.warn('Authorized vault items load notice:', err);
+        setSyncStatus('offline');
+      }
+    };
+
+    loadAuthorizedItems();
+  }, [vaultAccessStatus, isAuthorizedAdmin, token, getAuthHeaders]);
 
   // Robust Server Auth with Automatic Retries & Timeout
   const handleAuthenticate = async (e?: React.FormEvent, bypassPassword?: string) => {
@@ -393,103 +470,85 @@ export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
     showToast('Vault locked securely.');
   };
 
-  // REAL-TIME FIRESTORE SYNCHRONIZATION
+  // REAL-TIME SYNCHRONIZATION (Active strictly when authorized)
   useEffect(() => {
-    setSyncStatus('connecting');
+    if (vaultAccessStatus !== 'approved' && !isAuthorizedAdmin && !token) {
+      setSyncStatus('offline');
+      return;
+    }
 
-    // 1. Listen to Vault Items in real-time
-    const unsubscribeItems = onSnapshot(
-      collection(db, 'vault_items'),
-      (snapshot) => {
-        setSyncStatus('connected');
-        setLastSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-
-        if (!snapshot.empty) {
-          const loadedItems: VaultItem[] = [];
-          snapshot.forEach((docSnap) => {
-            const data = docSnap.data() as VaultItem;
-            loadedItems.push({
-              ...data,
-              id: docSnap.id
-            });
-          });
-          loadedItems.sort((a, b) => new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime());
-          setItems(loadedItems);
-        } else {
-          // Seed with initial technical documents if empty
-          INITIAL_KNOWLEDGE_DOCS.forEach(async (initItem) => {
-            try {
-              await setDoc(doc(db, 'vault_items', initItem.id), initItem);
-            } catch {
-              // fallback
+    setSyncStatus('connected');
+    let eventSource: EventSource | null = null;
+    try {
+      eventSource = new EventSource('/api/vault/events');
+      eventSource.addEventListener('vault_update', () => {
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(adminKey ? { 'x-admin-key': adminKey } : {}),
+          ...(activeOrderId ? { 'x-order-id': activeOrderId } : {})
+        };
+        fetch('/api/vault/items', { headers })
+          .then(r => r.json())
+          .then(data => {
+            if (data.success && Array.isArray(data.items)) {
+              setItems(data.items);
+              setLastSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
             }
-          });
-          setItems(INITIAL_KNOWLEDGE_DOCS);
-        }
-      },
-      (error) => {
-        console.warn('[Vault Realtime] Items sync:', error.message);
-        setSyncStatus('offline');
+          })
+          .catch(() => {});
+      });
+    } catch {}
+
+  }, [vaultAccessStatus, isAuthorizedAdmin, token, adminKey, activeOrderId]);
+
+  // Real-time listener for order approval in PixelFixVault
+  useEffect(() => {
+    if (!activeOrderId || isAuthorizedAdmin || vaultAccessStatus === 'approved') return;
+
+    let fsUnsub: (() => void) | null = null;
+    try {
+      if (db) {
+        fsUnsub = onSnapshot(doc(db, 'reels_orders', activeOrderId), (snap) => {
+          if (snap.exists()) {
+            const data = snap.data();
+            const statusUpper = String(data?.status || '').toUpperCase();
+            if (statusUpper === 'APPROVED') {
+              setVaultAccessStatus('approved');
+              showToast('Your Payment Has Been Verified and Approved!');
+            } else if (statusUpper === 'REFUNDED' || statusUpper === 'REJECTED') {
+              setVaultAccessStatus('rejected');
+              setStatusDetailMessage(data?.rejectionReason || 'Access revoked by administrator.');
+            }
+          }
+        });
       }
-    );
+    } catch {}
 
-    // 2. Listen to Vault Folders in real-time
-    const unsubscribeFolders = onSnapshot(
-      collection(db, 'vault_folders'),
-      (snapshot) => {
-        if (!snapshot.empty) {
-          const loadedFolders: VaultFolder[] = [];
-          snapshot.forEach((docSnap) => {
-            const data = docSnap.data() as VaultFolder;
-            loadedFolders.push({
-              ...data,
-              id: docSnap.id
-            });
-          });
-          setFolders(loadedFolders);
-        } else {
-          KNOWLEDGE_BASE_FOLDERS.forEach(async (f) => {
-            try {
-              await setDoc(doc(db, 'vault_folders', f.id), f);
-            } catch {
-              // silent
+    let sse: EventSource | null = null;
+    try {
+      sse = new EventSource(`/api/reels/events?orderId=${encodeURIComponent(activeOrderId)}`);
+      sse.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data);
+          if (payload.orderId === activeOrderId || payload.id === activeOrderId) {
+            if (payload.eventType === 'ORDER_APPROVED' || payload.status === 'APPROVED') {
+              setVaultAccessStatus('approved');
+              showToast('Your Payment Has Been Verified and Approved!');
+            } else if (payload.eventType === 'ACCESS_REVOKED' || payload.status === 'REFUNDED') {
+              setVaultAccessStatus('rejected');
+              setStatusDetailMessage('Access revoked by administrator.');
             }
-          });
-          setFolders(KNOWLEDGE_BASE_FOLDERS);
-        }
-      },
-      () => {}
-    );
-
-    // 3. Listen to Technical Links in real-time
-    const unsubscribeLinks = onSnapshot(
-      collection(db, 'vault_links'),
-      (snapshot) => {
-        if (!snapshot.empty) {
-          const loadedLinks: VaultLinkItem[] = [];
-          snapshot.forEach((docSnap) => {
-            loadedLinks.push({ ...docSnap.data(), id: docSnap.id } as VaultLinkItem);
-          });
-          loadedLinks.sort((a, b) => (a.order || 0) - (b.order || 0));
-          setTechnicalLinks(loadedLinks);
-        } else {
-          INITIAL_TECHNICAL_LINKS.forEach(async (l) => {
-            try {
-              await setDoc(doc(db, 'vault_links', l.id), l);
-            } catch {}
-          });
-          setTechnicalLinks(INITIAL_TECHNICAL_LINKS);
-        }
-      },
-      () => {}
-    );
+          }
+        } catch {}
+      };
+    } catch {}
 
     return () => {
-      unsubscribeItems();
-      unsubscribeFolders();
-      unsubscribeLinks();
+      if (fsUnsub) fsUnsub();
+      if (sse) sse.close();
     };
-  }, [token, adminKey]);
+  }, [activeOrderId, isAuthorizedAdmin, vaultAccessStatus, showToast]);
 
   // AUTO-SAVE DRAFTS PROTECTION (Every 10 Seconds)
   useEffect(() => {
@@ -1316,91 +1375,228 @@ export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
           </div>
         </header>
 
-        {/* WORKSPACE BODY OR LOCKED PASSCODE GATE */}
-        {!token && !isAuthorizedAdmin ? (
+        {/* WORKSPACE BODY OR LOCKED ACCESS STATE */}
+        {vaultAccessStatus !== 'approved' && !isAuthorizedAdmin && !token ? (
           <div className="flex-1 flex items-center justify-center p-4 sm:p-6 md:p-10 bg-[#090a12]/95 overflow-y-auto min-h-[500px]">
-            <div className="w-full max-w-md bg-[#11121d] border border-white/10 rounded-2xl sm:rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl relative text-left">
-              <div className="text-center space-y-3">
-                <div className="relative w-16 h-16 mx-auto flex items-center justify-center">
-                  <div className="absolute inset-0 rounded-2xl bg-[#FF5500]/20 blur-md animate-pulse" />
-                  <div className="relative w-16 h-16 rounded-2xl bg-gradient-to-tr from-[#FF5500]/25 to-orange-500/10 border border-[#FF5500]/40 flex items-center justify-center text-[#FF5500] shadow-lg shadow-[#FF5500]/25">
-                    <Lock size={30} />
+            {vaultAccessStatus === 'pending_approval' ? (
+              /* STATE 1: PAYMENT PENDING APPROVAL */
+              <div className="w-full max-w-lg bg-[#11121d] border border-amber-500/40 rounded-2xl sm:rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl relative text-left">
+                <div className="text-center space-y-3">
+                  <div className="relative w-16 h-16 mx-auto flex items-center justify-center">
+                    <div className="absolute inset-0 rounded-2xl bg-amber-500/20 blur-md animate-pulse" />
+                    <div className="relative w-16 h-16 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shadow-lg shadow-amber-500/20">
+                      <Clock size={32} className="animate-pulse" />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <span className="inline-block px-3 py-1 rounded-full text-[10px] font-mono font-black uppercase bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                      ⏳ Payment Pending Approval
+                    </span>
+                    <h2 className="text-lg sm:text-xl font-black uppercase tracking-tight text-white font-mono">
+                      Payment Verification In Progress
+                    </h2>
+                    <p className="text-xs text-slate-300 font-mono leading-relaxed max-w-md mx-auto">
+                      Your payment request has been submitted and is awaiting administrator verification by Murari Panjiyar. The Download Vault will unlock automatically once approved.
+                    </p>
                   </div>
                 </div>
 
-                <div className="space-y-1.5">
-                  <h2 className="text-lg sm:text-xl font-black uppercase tracking-tight text-white font-mono">
-                    Pixel Fix Protected Vault
-                  </h2>
-                  <p className="text-xs text-slate-400 font-mono leading-relaxed">
-                    Access restricted. Master security passcode required to unlock and browse technical documentation, SOPs, and system utilities.
-                  </p>
+                {/* Order Summary Box */}
+                {activeOrderId && (
+                  <div className="p-4 rounded-2xl bg-black/60 border border-white/10 space-y-2 text-xs font-mono">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400">Order Reference:</span>
+                      <span className="font-bold text-amber-400 select-all">{activeOrderId}</span>
+                    </div>
+                    <div className="flex items-center justify-between border-t border-white/5 pt-1.5">
+                      <span className="text-slate-400">Status:</span>
+                      <span className="font-bold text-amber-300">PENDING_ADMIN_REVIEW</span>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex flex-col sm:flex-row items-center gap-3">
+                  <button
+                    type="button"
+                    disabled={isCheckingStatus}
+                    onClick={() => checkAccessStatus()}
+                    className="flex-1 w-full py-3 px-4 rounded-xl font-mono font-bold text-xs uppercase bg-amber-500 hover:bg-amber-400 text-black flex items-center justify-center gap-2 cursor-pointer transition-all disabled:opacity-50"
+                  >
+                    <RefreshCw size={14} className={isCheckingStatus ? 'animate-spin' : ''} />
+                    <span>{isCheckingStatus ? 'Checking Status...' : 'Check Status Now'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={onBackToWebsite || onClose}
+                    className="w-full sm:w-auto py-3 px-5 rounded-xl font-mono text-xs font-bold border border-white/10 hover:bg-white/5 text-slate-300 transition-colors cursor-pointer"
+                  >
+                    Back to Home
+                  </button>
                 </div>
               </div>
+            ) : vaultAccessStatus === 'rejected' ? (
+              /* STATE 2: REJECTED OR REVOKED */
+              <div className="w-full max-w-lg bg-[#11121d] border border-rose-500/40 rounded-2xl sm:rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl relative text-left">
+                <div className="text-center space-y-3">
+                  <div className="w-16 h-16 rounded-2xl bg-rose-500/20 border border-rose-500/40 text-rose-400 flex items-center justify-center mx-auto shadow-lg shadow-rose-500/20">
+                    <AlertCircle size={32} />
+                  </div>
 
-              {authError && (
-                <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs font-mono flex items-start gap-2">
-                  <AlertCircle size={15} className="shrink-0 mt-0.5 text-rose-400" />
-                  <span>{authError}</span>
+                  <div className="space-y-1.5">
+                    <span className="inline-block px-3 py-1 rounded-full text-[10px] font-mono font-black uppercase bg-rose-500/20 text-rose-400 border border-rose-500/30">
+                      Payment Verification Unsuccessful
+                    </span>
+                    <h2 className="text-lg sm:text-xl font-black uppercase tracking-tight text-white font-mono">
+                      Access Denied or Revoked
+                    </h2>
+                    <p className="text-xs text-slate-400 font-mono leading-relaxed max-w-md mx-auto">
+                      {statusDetailMessage || 'Your payment reference could not be reconciled in merchant statement records, or access was revoked.'}
+                    </p>
+                  </div>
                 </div>
-              )}
 
-              <form onSubmit={(e) => handleAuthenticate(e)} className="space-y-4">
-                <div className="space-y-1.5">
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-300 font-mono">
-                    Vault Access Passcode
-                  </label>
-                  <div className="relative">
-                    <LagFreeInput
-                      type={showPassword ? 'text' : 'password'}
-                      value={passwordInput}
-                      onChange={(e) => {
-                        setPasswordInput(e.target.value);
-                        setAuthError(null);
-                      }}
-                      placeholder="Enter vault passcode..."
-                      autoFocus
-                      disabled={isAuthenticating}
-                      className="w-full bg-[#08090f] border border-white/10 focus:border-[#FF5500] rounded-xl pl-4 pr-10 py-3 text-xs text-white placeholder-slate-500 outline-none transition-all font-mono"
+                <div className="flex flex-col sm:flex-row items-center gap-3">
+                  {onOpenPujaOffer && (
+                    <button
+                      type="button"
+                      onClick={onOpenPujaOffer}
+                      className="flex-1 w-full py-3 px-4 rounded-xl font-mono font-black text-xs uppercase bg-gradient-to-r from-amber-400 to-[#FF5500] hover:from-amber-300 hover:to-orange-400 text-black flex items-center justify-center gap-2 cursor-pointer shadow-lg"
+                    >
+                      <Sparkles size={14} />
+                      <span>Unlock Puja Offer (₹199)</span>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={onBackToWebsite || onClose}
+                    className="w-full sm:w-auto py-3 px-5 rounded-xl font-mono text-xs font-bold border border-white/10 hover:bg-white/5 text-slate-300 transition-colors cursor-pointer"
+                  >
+                    Back to Home
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* STATE 3: PAYMENT REQUIRED (Default locked state) */
+              <div className="w-full max-w-lg bg-[#11121d] border border-white/15 rounded-2xl sm:rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl relative text-left">
+                <div className="text-center space-y-3">
+                  <div className="relative w-16 h-16 mx-auto flex items-center justify-center">
+                    <div className="absolute inset-0 rounded-2xl bg-[#FF5500]/20 blur-md animate-pulse" />
+                    <div className="relative w-16 h-16 rounded-2xl bg-gradient-to-tr from-[#FF5500]/25 to-orange-500/10 border border-[#FF5500]/40 flex items-center justify-center text-[#FF5500] shadow-lg shadow-[#FF5500]/25">
+                      <Lock size={30} />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <span className="inline-block px-3 py-1 rounded-full text-[10px] font-mono font-black uppercase bg-[#FF5500]/10 text-[#FF5500] border border-[#FF5500]/30">
+                      🔒 Protected Download Vault
+                    </span>
+                    <h2 className="text-lg sm:text-xl font-black uppercase tracking-tight text-white font-mono">
+                      Verified Payment &amp; Approval Required
+                    </h2>
+                    <p className="text-xs text-slate-400 font-mono leading-relaxed max-w-md mx-auto">
+                      The Download Vault contains protected operating system guides, technical tools, drivers, and Google Drive resources. Access is granted to verified purchasers after administrator approval.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Primary Action: Unlock Pack */}
+                {onOpenPujaOffer && (
+                  <button
+                    type="button"
+                    onClick={onOpenPujaOffer}
+                    className="w-full py-3.5 px-4 rounded-xl font-mono font-black text-xs uppercase bg-gradient-to-r from-amber-400 via-orange-400 to-[#FF5500] hover:from-amber-300 hover:to-orange-400 text-black shadow-lg shadow-[#FF5500]/25 flex items-center justify-center gap-2 cursor-pointer transition-all"
+                  >
+                    <Sparkles size={15} />
+                    <span>Unlock Puja Special Offer (₹199)</span>
+                    <ArrowRight size={15} className="stroke-[3]" />
+                  </button>
+                )}
+
+                {/* Order lookup form */}
+                <div className="p-4 rounded-2xl bg-black/60 border border-white/10 space-y-3 font-mono text-xs">
+                  <span className="text-[11px] font-bold text-slate-300 block">Already paid? Check verification status:</span>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={lookupInput}
+                      onChange={e => setLookupInput(e.target.value)}
+                      placeholder="Enter Order ID (RP-...) or 10-digit mobile"
+                      className="flex-1 px-3.5 py-2.5 rounded-xl bg-black border border-white/15 text-white placeholder-slate-500 text-xs focus:border-[#FF5500] outline-none"
                     />
                     <button
                       type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1 cursor-pointer"
-                      title="Toggle password visibility"
+                      disabled={isCheckingStatus || !lookupInput.trim()}
+                      onClick={() => checkAccessStatus(lookupInput)}
+                      className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs uppercase border border-white/10 transition-colors cursor-pointer disabled:opacity-40"
                     >
-                      {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                      {isCheckingStatus ? '...' : 'Check'}
                     </button>
                   </div>
                 </div>
 
-                <button
-                  type="submit"
-                  disabled={isAuthenticating}
-                  className="w-full py-3 rounded-xl bg-[#FF5500] hover:bg-[#FF4400] text-white text-xs font-mono font-bold uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-[#FF5500]/25 transition-all disabled:opacity-50 min-h-[46px]"
-                >
-                  {isAuthenticating ? (
-                    <>
-                      <RefreshCw size={14} className="animate-spin" />
-                      <span>Verifying Passcode...</span>
-                    </>
+                {/* Admin Passcode Accordion Trigger */}
+                <div className="pt-2 border-t border-white/10 text-center">
+                  {!showAdminPasscodeInput ? (
+                    <button
+                      type="button"
+                      onClick={() => setShowAdminPasscodeInput(true)}
+                      className="text-[10.5px] font-mono text-slate-500 hover:text-slate-300 transition-colors cursor-pointer"
+                    >
+                      Administrator Passcode Login →
+                    </button>
                   ) : (
-                    <>
-                      <Unlock size={14} />
-                      <span>Unlock Vault</span>
-                    </>
+                    <form onSubmit={(e) => handleAuthenticate(e)} className="space-y-3 text-left">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-mono uppercase text-slate-400">Admin Passcode:</label>
+                        <LagFreeInput
+                          type={showPassword ? 'text' : 'password'}
+                          value={passwordInput}
+                          onChange={(e) => {
+                            setPasswordInput(e.target.value);
+                            setAuthError(null);
+                          }}
+                          placeholder="Enter admin master passcode..."
+                          disabled={isAuthenticating}
+                          className="w-full bg-[#08090f] border border-white/15 focus:border-[#FF5500] rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-600 outline-none font-mono"
+                        />
+                      </div>
+                      {authError && (
+                        <p className="text-[11px] text-rose-400 font-mono">{authError}</p>
+                      )}
+                      <div className="flex gap-2">
+                        <button
+                          type="submit"
+                          disabled={isAuthenticating}
+                          className="flex-1 py-2 rounded-xl bg-[#FF5500] hover:bg-[#FF4400] text-white font-mono text-xs font-bold uppercase cursor-pointer"
+                        >
+                          {isAuthenticating ? 'Verifying...' : 'Login as Admin'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowAdminPasscodeInput(false)}
+                          className="px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 font-mono text-xs cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
                   )}
-                </button>
-              </form>
+                </div>
 
-              <div className="pt-3 border-t border-white/5 flex items-center justify-between text-[10px] font-mono text-slate-500">
-                <span className="flex items-center gap-1.5">
-                  <ShieldCheck size={12} className="text-emerald-400" />
-                  <span>Server Scrypt Verified</span>
-                </span>
-                <span>Confidential Security Gate</span>
+                <div className="text-center pt-1">
+                  <button
+                    type="button"
+                    onClick={onBackToWebsite || onClose}
+                    className="text-xs font-mono text-slate-400 hover:text-white underline cursor-pointer"
+                  >
+                    ← Return to Website
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         ) : (
           <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
@@ -1528,6 +1724,34 @@ export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
 
             {/* MAIN CONTENT AREA */}
             <main className="flex-1 flex flex-col overflow-hidden bg-[#0a0b12]">
+              {/* Verified & Approved Banner - Shows after admin approval only */}
+              {vaultAccessStatus === 'approved' && !isAuthorizedAdmin && (
+                <div className="bg-gradient-to-r from-emerald-950/80 via-emerald-900/50 to-emerald-950/80 border-b border-emerald-500/40 px-4 py-3 sm:px-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-emerald-300 shadow-md shrink-0">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center shrink-0 shadow-sm">
+                      <CheckCircle2 size={20} className="text-emerald-400" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs sm:text-sm font-bold text-white font-mono flex items-center gap-2">
+                        <span>Your Payment Has Been Verified and Approved!</span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 uppercase font-mono font-bold">
+                          Access Unlocked
+                        </span>
+                      </h4>
+                      <p className="text-xs text-emerald-300/80 font-mono">
+                        Administrator Murari Panjiyar has confirmed your payment receipt. All downloadable files and technical documents are now accessible.
+                      </p>
+                    </div>
+                  </div>
+                  {activeOrderId && (
+                    <div className="flex items-center gap-2 font-mono text-[11px] bg-black/50 px-3 py-1.5 rounded-xl border border-emerald-500/30 shrink-0 self-start sm:self-auto">
+                      <span className="text-slate-400">Order Ref:</span>
+                      <span className="font-bold text-emerald-300 select-all">{activeOrderId}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* ACTION TOOLBAR & SEARCH */}
               <div className="p-3 sm:p-4 border-b border-white/10 bg-[#0f101b]/80 backdrop-blur-md flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 shrink-0">
                 {/* Search Bar */}

@@ -43,7 +43,6 @@ import { DurgaPujaOfferPopup } from './DurgaPujaOfferPopup';
 import { AdminNotificationsPanel } from './AdminNotificationsPanel';
 import { AdminPurchaseManager } from './AdminPurchaseManager';
 import { MegaPackBundleDirectory } from './MegaPackBundleDirectory';
-import { CANONICAL_MEGA_REELS_VAULT_URL } from './MasterVaultCard';
 import { AdminCornerTrigger } from './AdminCornerTrigger';
 import { submitPaymentReferenceWithRetry } from '../utils/retryWithBackoff';
 
@@ -194,11 +193,11 @@ export function StandaloneReelsOfferPage({
     receiverName: 'MURARI PANJIYAR',
     productPrice: 199.0,
     currency: 'INR',
-    campaignName: 'Durga Puja Special Offer',
+    campaignName: 'Puja Special Offer',
     productName: '150K+ MEGA PACK — REELS & SHORTS',
     headline: '150K+ MEGA PACK OF REELS & SHORTS',
     subtitle: 'Take your content creation to the next level with a massive collection of short-form videos for your creative projects.',
-    badgeText: 'DURGA PUJA SPECIAL OFFER',
+    badgeText: 'PUJA SPECIAL OFFER',
     masterDriveLink: '',
     customQrUrl: '',
     supportEmail: 'Mpanjiyar100@gmail.com',
@@ -288,13 +287,13 @@ export function StandaloneReelsOfferPage({
               if (data.order.utrReference) setSubmittedUtr(data.order.utrReference);
               if (data.order.status === 'APPROVED' || data.order.status === 'approved') {
                 setOrderStatus('approved');
-                const vaultUrl = data.links?.masterGoogleDrive || data.order.masterDriveLink || config.masterDriveLink || CANONICAL_MEGA_REELS_VAULT_URL;
+                const vaultUrl = data.links?.masterGoogleDrive || data.order.masterDriveLink || config.masterDriveLink || (savedOrderId ? `/api/reels/vault-access/${savedOrderId.trim()}` : '');
                 setUnlockedDriveLink(vaultUrl);
                 setDownloadToken(data.order.downloadToken || ('TOKEN-' + Date.now().toString(36).toUpperCase()));
               } else if (data.order.status === 'REJECTED') {
                 setOrderStatus('rejected');
                 setRejectionReason(data.order.rejectionReason || '');
-              } else if (data.order.status === 'PENDING_ADMIN_REVIEW') {
+              } else if (data.order.status === 'PENDING_ADMIN_REVIEW' || data.order.status === 'PENDING_APPROVAL' || data.order.status === 'PENDING_PAYMENT') {
                 setOrderStatus('pending_approval');
               }
             } else if (db) {
@@ -307,10 +306,10 @@ export function StandaloneReelsOfferPage({
                   if (liveData.utrReference) setSubmittedUtr(liveData.utrReference);
                   if (liveData.status === 'APPROVED' || liveData.status === 'approved') {
                     setOrderStatus('approved');
-                    const vaultUrl = liveData.masterDriveLink || liveData.links?.masterGoogleDrive || config.masterDriveLink || CANONICAL_MEGA_REELS_VAULT_URL;
+                    const vaultUrl = liveData.masterDriveLink || liveData.links?.masterGoogleDrive || config.masterDriveLink || (savedOrderId ? `/api/reels/vault-access/${savedOrderId.trim()}` : '');
                     setUnlockedDriveLink(vaultUrl);
                     setDownloadToken(liveData.downloadToken || ('TOKEN-' + Date.now().toString(36).toUpperCase()));
-                  } else if (liveData.status === 'PENDING_ADMIN_REVIEW') {
+                  } else if (liveData.status === 'PENDING_ADMIN_REVIEW' || liveData.status === 'PENDING_APPROVAL') {
                     setOrderStatus('pending_approval');
                   }
                 }
@@ -325,7 +324,7 @@ export function StandaloneReelsOfferPage({
                   const liveData = snap.data();
                   if (liveData.status === 'APPROVED' || liveData.status === 'approved') {
                     setOrderStatus('approved');
-                    const vaultUrl = liveData.masterDriveLink || liveData.links?.masterGoogleDrive || config.masterDriveLink || CANONICAL_MEGA_REELS_VAULT_URL;
+                    const vaultUrl = liveData.masterDriveLink || liveData.links?.masterGoogleDrive || config.masterDriveLink || (savedOrderId ? `/api/reels/vault-access/${savedOrderId.trim()}` : '');
                     setUnlockedDriveLink(vaultUrl);
                     setDownloadToken(liveData.downloadToken || ('TOKEN-' + Date.now().toString(36).toUpperCase()));
                   }
@@ -386,15 +385,15 @@ export function StandaloneReelsOfferPage({
               const liveData = snapshot.data();
               if (liveData.status === 'APPROVED' || liveData.status === 'approved') {
                 setOrderStatus('approved');
-                const vaultUrl = liveData.masterDriveLink || liveData.links?.masterGoogleDrive || config.masterDriveLink || CANONICAL_MEGA_REELS_VAULT_URL;
+                const vaultUrl = liveData.masterDriveLink || liveData.links?.masterGoogleDrive || config.masterDriveLink || (orderId ? `/api/reels/vault-access/${orderId}` : '');
                 setUnlockedDriveLink(vaultUrl);
                 setDownloadToken(liveData.downloadToken || ('TOKEN-' + Date.now().toString(36).toUpperCase()));
-                showToast('🎉 Payment Verified & Approved by Murari Panjiyar! Access Unlocked.', 'success');
+                showToast('Your Payment Has Been Verified and Approved!', 'success');
               } else if (liveData.status === 'REJECTED') {
                 setOrderStatus('rejected');
                 setRejectionReason(liveData.rejectionReason || 'UPI UTR could not be reconciled in BharatPe settlement.');
-                showToast('Verification Unsuccessful. Please check details.', 'error');
-              } else if (liveData.status === 'PENDING_ADMIN_REVIEW') {
+                showToast('Your order has been rejected. Please contact support for assistance.', 'error');
+              } else if (liveData.status === 'PENDING_ADMIN_REVIEW' || liveData.status === 'PENDING_APPROVAL' || liveData.status === 'PENDING_PAYMENT') {
                 setOrderStatus('pending_approval');
               }
             }
@@ -419,14 +418,14 @@ export function StandaloneReelsOfferPage({
           if (payload.orderId === orderId || payload.id === orderId) {
             if (payload.eventType === 'ORDER_APPROVED' || payload.status === 'APPROVED') {
               setOrderStatus('approved');
-              const vaultUrl = payload.masterDriveLink || config.masterDriveLink || CANONICAL_MEGA_REELS_VAULT_URL;
+              const vaultUrl = payload.masterDriveLink || config.masterDriveLink || (orderId ? `/api/reels/vault-access/${orderId}` : '');
               setUnlockedDriveLink(vaultUrl);
               setDownloadToken(payload.downloadToken || ('TOKEN-' + Date.now().toString(36).toUpperCase()));
-              showToast('🎉 Payment Verified & Approved by Murari Panjiyar! Access Unlocked.', 'success');
-            } else if (payload.eventType === 'ORDER_REJECTED') {
+              showToast('Your Payment Has Been Verified and Approved!', 'success');
+            } else if (payload.eventType === 'ORDER_REJECTED' || payload.status === 'REJECTED') {
               setOrderStatus('rejected');
               setRejectionReason(payload.rejectionReason || 'UPI UTR could not be reconciled in BharatPe settlement.');
-              showToast('Verification Unsuccessful. Please check details.', 'error');
+              showToast('Your order has been rejected. Please contact support for assistance.', 'error');
             }
           }
         } catch (_) {}
@@ -443,13 +442,14 @@ export function StandaloneReelsOfferPage({
           if (data.success && data.order) {
             if (data.order.status === 'APPROVED' || data.order.status === 'approved') {
               setOrderStatus('approved');
-              const vaultUrl = data.links?.masterGoogleDrive || data.order.masterDriveLink || config.masterDriveLink || CANONICAL_MEGA_REELS_VAULT_URL;
+              const vaultUrl = data.links?.masterGoogleDrive || data.order.masterDriveLink || config.masterDriveLink || (orderId ? `/api/reels/vault-access/${orderId}` : '');
               setUnlockedDriveLink(vaultUrl);
               setDownloadToken(data.order.downloadToken || ('TOKEN-' + Date.now().toString(36).toUpperCase()));
-              showToast('🎉 Payment Verified & Approved by Murari Panjiyar! Access Unlocked.', 'success');
+              showToast('Your Payment Has Been Verified and Approved!', 'success');
             } else if (data.order.status === 'REJECTED') {
               setOrderStatus('rejected');
               setRejectionReason(data.order.rejectionReason || 'UTR could not be reconciled.');
+              showToast('Your order has been rejected. Please contact support for assistance.', 'error');
             }
           }
         } catch (_) {}
@@ -574,7 +574,7 @@ export function StandaloneReelsOfferPage({
                 id: assignedId,
                 productId: '150k-mega-reels-pack',
                 productName: config.productName || '150K+ MEGA PACK — REELS & SHORTS',
-                campaign: config.campaignName || 'Durga Puja Special Offer',
+                campaign: config.campaignName || 'Puja Special Offer',
                 amount: config.productPrice || 199.0,
                 currency: 'INR',
                 customerName: customerName.trim(),
@@ -593,12 +593,12 @@ export function StandaloneReelsOfferPage({
 
         if (result.order?.status === 'APPROVED') {
           setOrderStatus('approved');
-          setUnlockedDriveLink(result.links?.masterGoogleDrive || '');
+          setUnlockedDriveLink(result.links?.masterGoogleDrive || (assignedId ? `/api/reels/vault-access/${assignedId}` : ''));
           setDownloadToken(result.order.downloadToken || '');
-          showToast('🎉 Order already approved! Access granted.', 'success');
+          showToast('Your Payment Has Been Verified and Approved!', 'success');
         } else {
           setOrderStatus('pending_approval');
-          showToast('Payment submitted! Awaiting Murari Panjiyar verification.', 'info');
+          showToast('Your payment is awaiting admin verification and approval.', 'info');
         }
         return;
       }
@@ -642,7 +642,7 @@ export function StandaloneReelsOfferPage({
               id: activeOrderId,
               productId: '150k-mega-reels-pack',
               productName: config.productName || '150K+ MEGA PACK — REELS & SHORTS',
-              campaign: config.campaignName || 'Durga Puja Special Offer',
+              campaign: config.campaignName || 'Puja Special Offer',
               amount: config.productPrice || 199.0,
               currency: 'INR',
               customerName: customerName.trim(),
@@ -820,16 +820,17 @@ export function StandaloneReelsOfferPage({
           resolvedOrder.links?.masterGoogleDrive ||
           (resolvedOrder as any).links?.masterGoogleDrive ||
           config.masterDriveLink ||
-          CANONICAL_MEGA_REELS_VAULT_URL;
+          (resolvedOrder.id ? `/api/reels/vault-access/${resolvedOrder.id}` : '');
         setUnlockedDriveLink(driveUrl);
         setDownloadToken(resolvedOrder.downloadToken || ('TOKEN-' + Date.now().toString(36).toUpperCase()));
-        showToast('Verified purchase found! Google Drive unlocked.', 'success');
+        showToast('Your Payment Has Been Verified and Approved!', 'success');
       } else if (normStatus === 'REJECTED') {
         setOrderStatus('rejected');
         setRejectionReason(resolvedOrder.rejectionReason || 'UTR not verified.');
+        showToast('Your order has been rejected. Please contact support for assistance.', 'error');
       } else {
         setOrderStatus('pending_approval');
-        showToast('Order found! Awaiting Murari Panjiyar approval.', 'info');
+        showToast('Your order is waiting for admin approval.', 'info');
       }
       setIsCheckoutOpen(true);
       setIsLookupOpen(false);
@@ -1459,7 +1460,7 @@ export function StandaloneReelsOfferPage({
           <span>•</span>
           <span>Phone: {config.supportPhone}</span>
         </div>
-        <p>© 2026 150K+ Reels Pack — Durga Puja Special Offer. All Rights Reserved.</p>
+        <p>© 2026 150K+ Reels Pack — Puja Special Offer. All Rights Reserved.</p>
         <div>
           <button
             type="button"
@@ -1524,7 +1525,7 @@ export function StandaloneReelsOfferPage({
                     <div className="w-14 h-14 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto shadow-lg shadow-emerald-500/20">
                       <CheckCircle2 size={32} />
                     </div>
-                    <h4 className="text-xl font-black text-white">Payment Verified &amp; Approved!</h4>
+                    <h4 className="text-xl font-black text-white">Your Payment Has Been Verified and Approved!</h4>
                     <p className="text-xs text-emerald-300 max-w-xl mx-auto">
                       Murari Panjiyar has verified your ₹199 UPI payment against BharatPe records. Your authorized access to the complete 150K+ Mega Pack Bundle Directory is unlocked below!
                     </p>
@@ -1532,12 +1533,12 @@ export function StandaloneReelsOfferPage({
 
                   {/* Render the full interactive Clickable Bundle Directory with 53 cards */}
                   <MegaPackBundleDirectory
-                    masterDriveLink={unlockedDriveLink || CANONICAL_MEGA_REELS_VAULT_URL}
+                    masterDriveLink={unlockedDriveLink || (orderId ? `/api/reels/vault-access/${orderId}` : '')}
                     downloadToken={downloadToken}
                     customerName={customerName}
                     orderId={orderId}
                     customerPhone={customerPhone}
-                    isUnlocked={orderStatus === 'approved' || orderStatus === 'APPROVED' || Boolean(downloadToken)}
+                    isUnlocked={orderStatus === 'approved' || orderStatus === 'APPROVED'}
                     orderStatus={orderStatus}
                     onCopyLink={handleCopy}
                     copiedLabel={copiedLink}
@@ -1566,6 +1567,23 @@ export function StandaloneReelsOfferPage({
                     <p>• Commercial editing permitted for YouTube Shorts, Instagram Reels, and TikTok.</p>
                     <p>• Need support? Murari Panjiyar is available at {config.supportPhone} or {config.supportEmail}.</p>
                   </div>
+
+                  <div className="pt-2 text-center">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOrderId('');
+                        setUtrNumber('');
+                        setSubmittedUtr('');
+                        setOrderStatus('checkout');
+                        setDownloadToken('');
+                        setUnlockedDriveLink('');
+                      }}
+                      className="text-xs font-mono text-zinc-400 hover:text-white underline cursor-pointer"
+                    >
+                      Unlock another pack / Place new order →
+                    </button>
+                  </div>
                 </div>
               ) : orderStatus === 'pending_approval' ? (
                 /* STATE 2: STRICT PENDING ADMIN APPROVAL STATE */
@@ -1579,10 +1597,10 @@ export function StandaloneReelsOfferPage({
                       Status: PENDING_ADMIN_REVIEW
                     </span>
                     <h3 className="text-xl font-black text-white">
-                      Order Awaiting Administrator Approval
+                      Your payment is awaiting admin verification and approval.
                     </h3>
                     <p className="text-xs text-amber-200/90 max-w-lg mx-auto leading-relaxed">
-                      Your payment details have been submitted successfully. Your order is awaiting administrator verification. You will receive download access on this website after approval.
+                      Your request has been submitted and is awaiting admin approval. You will receive download access on this website after approval by Murari Panjiyar.
                     </p>
                   </div>
 
@@ -1619,7 +1637,7 @@ export function StandaloneReelsOfferPage({
                     <span>Murari Panjiyar is reviewing BharatPe settlement records. This screen updates automatically.</span>
                   </div>
 
-                  <div className="flex items-center justify-center gap-3 pt-2">
+                  <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
                     <button
                       type="button"
                       onClick={async () => {
@@ -1628,11 +1646,11 @@ export function StandaloneReelsOfferPage({
                           const d = await res.json();
                           if (d.success && d.order?.status === 'APPROVED') {
                             setOrderStatus('approved');
-                            setUnlockedDriveLink(d.links?.masterGoogleDrive || config.masterDriveLink);
+                            setUnlockedDriveLink(d.links?.masterGoogleDrive || (orderId ? `/api/reels/vault-access/${orderId}` : ''));
                             setDownloadToken(d.order?.downloadToken || '');
-                            showToast('Order approved! Download unlocked.', 'success');
+                            showToast('Your Payment Has Been Verified and Approved!', 'success');
                           } else {
-                            showToast('Verification still under review. Please allow a moment.', 'info');
+                            showToast('Your order is waiting for admin approval.', 'info');
                           }
                         } catch {
                           showToast('Network error checking status', 'error');
@@ -1642,6 +1660,19 @@ export function StandaloneReelsOfferPage({
                     >
                       <RefreshCw size={13} />
                       <span>Check Approval Status</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOrderId('');
+                        setUtrNumber('');
+                        setSubmittedUtr('');
+                        setOrderStatus('checkout');
+                      }}
+                      className="px-4 py-2.5 rounded-xl font-mono text-xs text-amber-400 hover:underline transition-colors cursor-pointer"
+                    >
+                      Place Another Order
                     </button>
 
                     <button
@@ -1663,7 +1694,7 @@ export function StandaloneReelsOfferPage({
                     <span className="text-[10px] font-mono font-bold uppercase px-3 py-1 rounded-full bg-red-500/20 text-red-300 border border-red-500/40">
                       Status: REJECTED
                     </span>
-                    <h3 className="text-xl font-bold text-white pt-2">Payment Verification Unsuccessful</h3>
+                    <h3 className="text-xl font-bold text-white pt-2">Your order has been rejected. Please contact support for assistance.</h3>
                     <p className="text-xs text-red-300 max-w-md mx-auto">
                       {rejectionReason || 'The 12-digit UPI reference number could not be reconciled with the merchant statement.'}
                     </p>

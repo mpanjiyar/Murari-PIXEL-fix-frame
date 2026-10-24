@@ -151,7 +151,7 @@ import type { DriveBackupFile } from './lib/driveService';
 import type { User as FirebaseUser } from 'firebase/auth';
 import { db, OperationType, handleFirestoreError } from './firebase';
 import { collection, doc, setDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
-import { HardDrive, Cloud, LogOut, AlertCircle, FolderOpen, Download, UploadCloud, GripVertical, MousePointerClick, CornerDownRight, Home, Lock, Unlock } from 'lucide-react';
+import { HardDrive, Cloud, LogOut, AlertCircle, FolderOpen, Download, UploadCloud, GripVertical, MousePointerClick, CornerDownRight, Home, Lock, Unlock, Clock } from 'lucide-react';
 
 const hashString = (str: string): number => {
   let hash = 0;
@@ -549,6 +549,95 @@ export default function App() {
   const [isVaultOpen, setIsVaultOpen] = useState(false);
   const [isReelsModalOpen, setIsReelsModalOpen] = useState(false);
   const [reelsModalInitialTab, setReelsModalInitialTab] = useState<'checkout' | 'categories' | 'included' | 'faq'>('checkout');
+
+  // Vault Security & Access Control State: 'LOCKED' | 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED'
+  const [customerOrderId, setCustomerOrderId] = useState<string>(() => {
+    return localStorage.getItem('pixelfix_reels_order_id') || '';
+  });
+  const [customerPhone, setCustomerPhone] = useState<string>(() => {
+    return localStorage.getItem('pixelfix_reels_phone') || '';
+  });
+  const [vaultAccessState, setVaultAccessState] = useState<'LOCKED' | 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED'>('LOCKED');
+
+  // Verify Customer Access Status on Mount & Interval
+  useEffect(() => {
+    let isMounted = true;
+
+    const checkAccess = async () => {
+      // Admin bypasses lock with master credentials
+      const adminAuth = localStorage.getItem('mp_admin_authorized') === 'true';
+      if (adminAuth) {
+        if (isMounted) setVaultAccessState('APPROVED');
+        return;
+      }
+
+      const activeOrderId = localStorage.getItem('pixelfix_reels_order_id') || customerOrderId;
+      const activePhone = localStorage.getItem('pixelfix_reels_phone') || customerPhone;
+
+      if (!activeOrderId) {
+        if (isMounted) setVaultAccessState('LOCKED');
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/vault/access-status?orderId=${encodeURIComponent(activeOrderId)}&phone=${encodeURIComponent(activePhone || '')}`);
+        const data = await res.json();
+        if (!isMounted) return;
+
+        const statusUpper = String(data.status || '').toUpperCase();
+        if (data.isApproved || statusUpper === 'APPROVED') {
+          setVaultAccessState('APPROVED');
+        } else if (statusUpper === 'PENDING_APPROVAL') {
+          setVaultAccessState('PENDING_APPROVAL');
+        } else if (statusUpper === 'REJECTED' || statusUpper === 'REFUNDED') {
+          setVaultAccessState('REJECTED');
+        } else {
+          setVaultAccessState('LOCKED');
+        }
+      } catch (err) {
+        // Keep current state on transient network error
+      }
+    };
+
+    checkAccess();
+    const interval = setInterval(checkAccess, 12000);
+
+    // Also listen to storage events across tabs
+    const handleStorageChange = () => {
+      const newOrderId = localStorage.getItem('pixelfix_reels_order_id') || '';
+      const newPhone = localStorage.getItem('pixelfix_reels_phone') || '';
+      setCustomerOrderId(newOrderId);
+      setCustomerPhone(newPhone);
+      checkAccess();
+    };
+    window.addEventListener('storage', handleStorageChange);
+
+    // Real-time SSE listener for immediate approval/revocation
+    let sse: EventSource | null = null;
+    const activeOrderId = localStorage.getItem('pixelfix_reels_order_id') || customerOrderId;
+    if (activeOrderId) {
+      try {
+        sse = new EventSource(`/api/reels/events?orderId=${encodeURIComponent(activeOrderId)}`);
+        sse.onmessage = (event) => {
+          try {
+            const payload = JSON.parse(event.data);
+            if (payload.eventType === 'ORDER_APPROVED') {
+              if (isMounted) setVaultAccessState('APPROVED');
+            } else if (payload.eventType === 'ORDER_REJECTED' || payload.eventType === 'ACCESS_REVOKED') {
+              if (isMounted) setVaultAccessState('REJECTED');
+            }
+          } catch (_) {}
+        };
+      } catch (_) {}
+    }
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+      window.removeEventListener('storage', handleStorageChange);
+      if (sse) sse.close();
+    };
+  }, [customerOrderId, customerPhone]);
 
   // Full-Screen Vault Route Navigators
   const openVaultPage = useCallback(() => {
@@ -4871,7 +4960,7 @@ export default function App() {
                   className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-red-600 via-amber-500 to-orange-500 text-black font-mono font-black text-xs uppercase tracking-wider flex items-center justify-between shadow-lg shadow-amber-500/20 active:scale-95 transition-transform cursor-pointer"
                 >
                   <span className="flex items-center gap-1.5">
-                    <span>🎉 DURGA PUJA OFFER</span>
+                    <span>🎉 PUJA OFFER</span>
                   </span>
                   <span className="bg-black text-amber-400 px-2 py-0.5 rounded-full text-[10px] font-bold">
                     ₹199 ONLY
@@ -4983,7 +5072,7 @@ export default function App() {
                   { id: 'bios', label: 'BIOS Keys Finder', icon: KeyRound, desc: 'Motherboard startup key mappings' },
                   { id: 'beep', label: 'Beep Diagnostician', icon: Volume2, desc: 'Motherboard acoustic POST translator' },
                   { id: 'smps', label: 'PSU Wattage Calculator', icon: Zap, desc: 'Precision Power Supply load calculator' },
-                  { id: 'vault', label: 'Secure Vault', icon: Lock, desc: 'Encrypted technical docs & licenses' }
+                  ...(vaultAccessState === 'APPROVED' ? [{ id: 'vault', label: 'Download Vault', icon: Lock, desc: 'Verified technical docs & downloads' }] : [])
                 ].map(tool => {
                   const Icon = tool.icon;
                   const active = activeTab === tool.id;
@@ -5013,6 +5102,19 @@ export default function App() {
                     </button>
                   );
                 })}
+
+                {/* Clear Pending Approval Status Chip if Payment is awaiting Murari's verification */}
+                {vaultAccessState === 'PENDING_APPROVAL' && (
+                  <button
+                    type="button"
+                    onClick={openVaultPage}
+                    className="group flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10.5px] font-black uppercase tracking-wider bg-amber-500/10 border border-amber-500/30 text-amber-500 hover:bg-amber-500/20 transition-all cursor-pointer animate-pulse shrink-0"
+                    title="Payment Received — Murari Panjiyar is verifying your transaction"
+                  >
+                    <Clock size={12} className="shrink-0 text-amber-500" />
+                    <span>Payment Pending Approval</span>
+                  </button>
+                )}
               </div>
 
               {/* Minimalist iFixit PC & Laptop repair resource link containing only a very small laptop icon */}
@@ -5342,12 +5444,25 @@ export default function App() {
                 </ScrollReveal>
 
                 <div className="flex items-center gap-2.5 shrink-0 pt-0.5 sm:pt-1">
-                  <VaultTriggerButton
-                    onClick={openVaultPage}
-                    currentTheme={currentTheme}
-                    tooltipText="Private Vault"
-                    tooltipPosition="bottom"
-                  />
+                  {vaultAccessState === 'APPROVED' && (
+                    <VaultTriggerButton
+                      onClick={openVaultPage}
+                      currentTheme={currentTheme}
+                      tooltipText="Download Vault"
+                      tooltipPosition="bottom"
+                    />
+                  )}
+                  {vaultAccessState === 'PENDING_APPROVAL' && (
+                    <button
+                      type="button"
+                      onClick={openVaultPage}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider bg-amber-500/10 border border-amber-500/30 text-amber-500 hover:bg-amber-500/20 transition-all cursor-pointer animate-pulse"
+                      title="Payment Under Review by Murari Panjiyar"
+                    >
+                      <Clock size={11} className="shrink-0" />
+                      <span>Pending Approval</span>
+                    </button>
+                  )}
                   {isAuthorized && (
                     <button
                       type="button"
@@ -6458,14 +6573,28 @@ export default function App() {
             <PixelFixBackground currentTheme={currentTheme} />
 
             {/* Top-Right Corner Premium Vault Trigger Icon */}
-            <div className="absolute top-3.5 right-3.5 sm:top-5 sm:right-6 md:top-6 md:right-8 z-20">
-              <VaultTriggerButton
-                onClick={openVaultPage}
-                currentTheme={currentTheme}
-                tooltipText="Private Vault"
-                tooltipPosition="bottom"
-              />
-            </div>
+            {(vaultAccessState === 'APPROVED' || vaultAccessState === 'PENDING_APPROVAL') && (
+              <div className="absolute top-3.5 right-3.5 sm:top-5 sm:right-6 md:top-6 md:right-8 z-20">
+                {vaultAccessState === 'APPROVED' ? (
+                  <VaultTriggerButton
+                    onClick={openVaultPage}
+                    currentTheme={currentTheme}
+                    tooltipText="Download Vault"
+                    tooltipPosition="bottom"
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={openVaultPage}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider bg-amber-500/10 border border-amber-500/30 text-amber-500 hover:bg-amber-500/20 transition-all cursor-pointer animate-pulse"
+                    title="Payment Pending Approval"
+                  >
+                    <Clock size={11} className="shrink-0" />
+                    <span className="hidden sm:inline">Pending Approval</span>
+                  </button>
+                )}
+              </div>
+            )}
 
             <div className="relative z-10 space-y-12">
             {/* Header branding taglines */}
@@ -12938,7 +13067,13 @@ export default function App() {
                   window.scrollTo({ top: 0, behavior: 'smooth' });
                 }}
                 currentTheme={currentTheme}
-                adminKey={isAuthorized ? adminKeyInput : undefined}
+                adminKey={isAuthorized ? (adminKeyInput || 'Dispur123@') : undefined}
+                orderId={customerOrderId || localStorage.getItem('pixelfix_reels_order_id') || undefined}
+                customerPhone={customerPhone || localStorage.getItem('pixelfix_reels_phone') || undefined}
+                onOpenPujaOffer={() => {
+                  setReelsModalInitialTab('checkout');
+                  setIsReelsModalOpen(true);
+                }}
                 isFullScreenPage={false}
                 isEmbeddedTab={true}
               />
@@ -13553,19 +13688,25 @@ export default function App() {
               <ShieldCheck size={12} className={activeTab === 'privacy' ? 'text-[#FF5500]' : 'text-emerald-500'} />
               <span>Privacy Policy</span>
             </button>
-            <span className="opacity-30">•</span>
-            <button
-              type="button"
-              onClick={openVaultPage}
-              className={`hover:text-[#FF5500] transition-colors cursor-pointer flex items-center gap-1.5 ${
-                activeTab === 'vault'
-                  ? 'text-[#FF5500] font-bold underline underline-offset-4'
-                  : currentTheme === 'light' ? 'text-slate-600' : 'text-slate-400'
-              }`}
-            >
-              <Lock size={12} className="text-[#FF5500]" />
-              <span>Pixel Fix Secure Vault</span>
-            </button>
+            {(vaultAccessState === 'APPROVED' || vaultAccessState === 'PENDING_APPROVAL') && (
+              <>
+                <span className="opacity-30">•</span>
+                <button
+                  type="button"
+                  onClick={openVaultPage}
+                  className={`hover:text-[#FF5500] transition-colors cursor-pointer flex items-center gap-1.5 ${
+                    activeTab === 'vault'
+                      ? 'text-[#FF5500] font-bold underline underline-offset-4'
+                      : currentTheme === 'light' ? 'text-slate-600' : 'text-slate-400'
+                  }`}
+                >
+                  <Lock size={12} className={vaultAccessState === 'APPROVED' ? 'text-emerald-500' : 'text-amber-500'} />
+                  <span>
+                    {vaultAccessState === 'APPROVED' ? 'Pixel Fix Download Vault' : 'Payment Pending Approval'}
+                  </span>
+                </button>
+              </>
+            )}
             <span className="opacity-30">•</span>
             <a href="https://instagram.com/mpanjiyar1" target="_blank" rel="noreferrer" className={`hover:text-[#FF5500] transition-colors ${
               currentTheme === 'light' ? 'text-slate-600' : 'text-slate-400'
@@ -15519,7 +15660,13 @@ export default function App() {
                   setIsVaultOpen(false);
                 }}
                 currentTheme={currentTheme}
-                adminKey={isAuthorized ? adminKeyInput : undefined}
+                adminKey={isAuthorized ? (adminKeyInput || 'Dispur123@') : undefined}
+                orderId={customerOrderId || localStorage.getItem('pixelfix_reels_order_id') || undefined}
+                customerPhone={customerPhone || localStorage.getItem('pixelfix_reels_phone') || undefined}
+                onOpenPujaOffer={() => {
+                  setReelsModalInitialTab('checkout');
+                  setIsReelsModalOpen(true);
+                }}
                 isFullScreenPage={true}
                 isEmbeddedTab={false}
               />

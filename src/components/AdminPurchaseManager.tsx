@@ -245,8 +245,8 @@ export const AdminPurchaseManager: React.FC<AdminPurchaseManagerProps> = ({
     if (triggerToast) triggerToast('Copied to clipboard!', 'info');
   };
 
-  // Submit Approval or Rejection
-  const handleDecideOrder = async (action: 'approve' | 'reject') => {
+  // Submit Approval, Rejection, or Revocation
+  const handleDecideOrder = async (action: 'approve' | 'reject' | 'revoke') => {
     if (!activeReviewOrder) return;
 
     if (action === 'reject' && !rejectionReason.trim()) {
@@ -254,10 +254,14 @@ export const AdminPurchaseManager: React.FC<AdminPurchaseManagerProps> = ({
       return;
     }
 
+    if (action === 'revoke' && !window.confirm(`Are you sure you want to REVOKE approval for Order #${activeReviewOrder.id}? This will immediately lock the customer's Download Vault and invalidate all download links.`)) {
+      return;
+    }
+
     setIsSubmittingDecision(true);
     const nowIso = new Date().toISOString();
 
-    // 1. Dual-update Firestore directly so any connected client unlocks immediately
+    // 1. Dual-update Firestore directly so any connected client locks/unlocks immediately
     if (db && activeReviewOrder.id) {
       try {
         if (action === 'approve') {
@@ -270,11 +274,26 @@ export const AdminPurchaseManager: React.FC<AdminPurchaseManagerProps> = ({
               approvedAt: nowIso,
               reviewedByAdminId: 'Murari Panjiyar (Mpanjiyar100@gmail.com)',
               downloadToken,
-              masterDriveLink: 'https://drive.google.com/drive/folders/1jkXdin8dyQ99mYKxC2JOczG8e7EHlF3C?usp=sharing',
+              masterDriveLink: `/api/reels/vault-access/${activeReviewOrder.id}`,
               links: {
-                masterGoogleDrive: 'https://drive.google.com/drive/folders/1jkXdin8dyQ99mYKxC2JOczG8e7EHlF3C?usp=sharing',
+                masterGoogleDrive: `/api/reels/vault-access/${activeReviewOrder.id}`,
                 directTokenDownload: `/api/reels/download/${downloadToken}?category=all`,
               },
+              updatedAt: nowIso,
+            },
+            { merge: true }
+          );
+        } else if (action === 'revoke') {
+          await setDoc(
+            doc(db, 'reels_orders', activeReviewOrder.id),
+            {
+              status: 'REFUNDED',
+              revokedAt: nowIso,
+              reviewedByAdminId: 'Murari Panjiyar (Mpanjiyar100@gmail.com)',
+              rejectionReason: rejectionReason.trim() || 'Access revoked by administrator Murari Panjiyar',
+              downloadToken: null,
+              masterDriveLink: null,
+              links: null,
               updatedAt: nowIso,
             },
             { merge: true }
@@ -287,6 +306,9 @@ export const AdminPurchaseManager: React.FC<AdminPurchaseManagerProps> = ({
               rejectedAt: nowIso,
               reviewedByAdminId: 'Murari Panjiyar (Mpanjiyar100@gmail.com)',
               rejectionReason: rejectionReason.trim(),
+              downloadToken: null,
+              masterDriveLink: null,
+              links: null,
               updatedAt: nowIso,
             },
             { merge: true }
@@ -302,11 +324,16 @@ export const AdminPurchaseManager: React.FC<AdminPurchaseManagerProps> = ({
         '/api/reels/admin/verify-order',
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'x-admin-key': 'mpanjiyar-admin-secret-2026',
+          },
           body: JSON.stringify({
             orderId: activeReviewOrder.id,
             action,
-            reason: action === 'approve' ? (adminNote.trim() || 'Verified by Murari Panjiyar in BharatPe records') : rejectionReason.trim(),
+            reason: action === 'approve'
+              ? (adminNote.trim() || 'Verified by Murari Panjiyar in BharatPe records')
+              : (rejectionReason.trim() || (action === 'revoke' ? 'Access revoked and locked by administrator' : 'Payment verification unsuccessful')),
             adminEmail: 'Mpanjiyar100@gmail.com',
             adminName: 'Murari Panjiyar',
           }),
@@ -325,7 +352,9 @@ export const AdminPurchaseManager: React.FC<AdminPurchaseManagerProps> = ({
           triggerToast(
             action === 'approve'
               ? `🎉 Order ${activeReviewOrder.id} approved! Digital download entitlement unlocked.`
-              : `Order ${activeReviewOrder.id} marked as rejected.`,
+              : action === 'revoke'
+                ? `🔒 Access revoked for Order ${activeReviewOrder.id}. Vault and files locked.`
+                : `Order ${activeReviewOrder.id} marked as rejected.`,
             action === 'approve' ? 'success' : 'info'
           );
         }
@@ -669,7 +698,7 @@ export const AdminPurchaseManager: React.FC<AdminPurchaseManagerProps> = ({
                         {copiedKey === `id-${order.id}` ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
                       </button>
                     </div>
-                    <span className="text-[10px] text-zinc-400 block font-sans">{order.campaign || 'Durga Puja Special Offer'}</span>
+                    <span className="text-[10px] text-zinc-400 block font-sans">{order.campaign || 'Puja Special Offer'}</span>
                   </div>
                   <div className="shrink-0">{getStatusBadge(order.status)}</div>
                 </div>
@@ -1077,6 +1106,63 @@ export const AdminPurchaseManager: React.FC<AdminPurchaseManagerProps> = ({
                       </button>
                     </div>
                   </div>
+                </div>
+              )}
+
+              {/* Already Approved Order - Option to Revoke Access */}
+              {activeReviewOrder.status === 'APPROVED' && (
+                <div className="space-y-4 pt-2">
+                  <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs flex items-center gap-2">
+                    <CheckCircle2 size={16} className="shrink-0" />
+                    <div>
+                      <span className="font-bold">Active & Verified Access Granted</span>
+                      <p className="text-[10.5px] text-zinc-400 mt-0.5">
+                        This customer currently has full access to the 150K+ Reels Mega Pack and the Download Vault.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-white/10 space-y-2">
+                    <label className="text-rose-400 block text-[11px] font-bold">Revoke Approval & Lock Access:</label>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <input
+                        type="text"
+                        value={rejectionReason}
+                        onChange={e => setRejectionReason(e.target.value)}
+                        placeholder="Revocation reason (e.g. Payment chargeback, duplicate refund)"
+                        className="flex-1 px-3.5 py-2 rounded-xl bg-black border border-rose-500/30 text-white outline-none focus:border-rose-500 text-xs"
+                      />
+                      <button
+                        type="button"
+                        disabled={isSubmittingDecision}
+                        onClick={() => handleDecideOrder('revoke')}
+                        className="py-2 px-4 rounded-xl font-black text-xs uppercase bg-rose-600 hover:bg-rose-500 text-white cursor-pointer disabled:opacity-40 flex items-center justify-center gap-1.5 whitespace-nowrap"
+                      >
+                        <XCircle size={14} />
+                        <span>{isSubmittingDecision ? 'Revoking...' : 'Revoke Approval'}</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Rejected / Refunded Order - Option to Re-evaluate and Approve */}
+              {(activeReviewOrder.status === 'REJECTED' || activeReviewOrder.status === 'REFUNDED') && (
+                <div className="space-y-3 pt-2">
+                  <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-center gap-2">
+                    <XCircle size={16} className="shrink-0" />
+                    <span>Access is currently locked ({activeReviewOrder.status}).</span>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={isSubmittingDecision}
+                    onClick={() => handleDecideOrder('approve')}
+                    className="w-full py-2.5 px-4 rounded-xl font-bold text-xs uppercase bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    <CheckCircle2 size={14} />
+                    <span>Re-Approve & Restore Customer Access</span>
+                  </button>
                 </div>
               )}
 

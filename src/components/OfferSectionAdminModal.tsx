@@ -129,7 +129,7 @@ export const OfferSectionAdminModal: React.FC<OfferSectionAdminModalProps> = ({
   };
 
   const themeOptions: { id: FestivalThemeType; name: string; gradient: string }[] = [
-    { id: 'durga', name: 'Durga Puja & Navratri', gradient: 'from-red-600 via-amber-500 to-orange-500' },
+    { id: 'durga', name: 'Puja & Navratri', gradient: 'from-red-600 via-amber-500 to-orange-500' },
     { id: 'diwali', name: 'Diwali Spark', gradient: 'from-amber-400 via-yellow-500 to-red-500' },
     { id: 'orange', name: 'Pixel Fix Signature Neon', gradient: 'from-[#FF5500] via-orange-500 to-amber-500' },
     { id: 'emerald', name: 'Prosperity Emerald', gradient: 'from-emerald-500 via-teal-400 to-cyan-500' },

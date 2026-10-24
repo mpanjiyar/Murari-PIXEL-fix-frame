@@ -48,16 +48,9 @@ export const MegaPackBundleDirectory: React.FC<MegaPackBundleDirectoryProps> = (
   currentTheme = 'dark',
   onRequestUnlock,
 }) => {
-  // Access is unlocked if orderStatus is APPROVED/approved, isUnlocked is true, or valid token/orderId provided
-  const isStatusApproved = Boolean(
-    orderStatus === 'APPROVED' || 
-    orderStatus === 'approved' || 
-    isUnlocked
-  );
+  // STRICT SECURITY CHECK: Access is ONLY unlocked when orderStatus is explicitly APPROVED and isUnlocked is true
   const isApprovedAccess = Boolean(
-    isStatusApproved || 
-    (orderId && downloadToken) || 
-    isUnlocked
+    (orderStatus === 'APPROVED' || orderStatus === 'approved') && isUnlocked
   );
 
   const {
@@ -68,7 +61,7 @@ export const MegaPackBundleDirectory: React.FC<MegaPackBundleDirectoryProps> = (
   } = useMegaPackRegistry(propMasterDriveLink, { token: downloadToken, orderId, phone: customerPhone });
 
   const effectiveMasterDriveLink = isApprovedAccess
-    ? (propMasterDriveLink?.trim() || liveMasterDriveLink?.trim() || CANONICAL_MEGA_REELS_VAULT_URL)
+    ? (propMasterDriveLink?.trim() || liveMasterDriveLink?.trim() || (orderId ? `/api/reels/vault-access/${orderId}` : ''))
     : '';
 
   const [activeCategory, setActiveCategory] = useState<string>('all');

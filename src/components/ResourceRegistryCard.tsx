@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { MegaPackResource, ResourceAvailabilityStatus } from '../types';
 
-export const CANONICAL_MEGA_REELS_VAULT_URL = 'https://drive.google.com/drive/folders/1jkXdin8dyQ99mYKxC2JOczG8e7EHlF3C?usp=sharing';
+export const CANONICAL_MEGA_REELS_VAULT_URL = '';
 
 interface ResourceRegistryCardProps {
   resource: MegaPackResource;
