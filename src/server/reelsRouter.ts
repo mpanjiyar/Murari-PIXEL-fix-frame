@@ -1245,21 +1245,20 @@ const handleOrderTrackRequest = async (req: Request, res: Response) => {
       syncOrderToFirestore(order).catch(() => {});
     }
 
-    // Privacy Masking
-    const rawPhone = String(order.customerPhone || '').replace(/[^\d]/g, '');
-    const maskedPhone = rawPhone.length >= 10
-      ? `${rawPhone.slice(0, 3)}*****${rawPhone.slice(-2)}`
-      : '**********';
-    const nameParts = (order.customerName || 'Customer').split(' ');
-    const maskedName = nameParts.map(part => part.length > 2 ? `${part.slice(0, 1)}***` : part).join(' ');
+    // Customer details for the tracked order receipt
+    const customerPhone = order.customerPhone || '';
+    const customerName = order.customerName || 'Customer';
 
-    // Verification check when querying by phone alone
-    const isDirectOrderQuery = cleanQuery.toUpperCase().startsWith('RP-') || cleanQuery.toLowerCase() === order.id.toLowerCase();
-    const isVerifiedByTokenOrParam = isDirectOrderQuery || (verifyOrderId && String(verifyOrderId).trim().toLowerCase() === order.id.toLowerCase());
+    // Google Drive Master Link: Strictly unlocked ONLY when order is explicitly APPROVED
+    const googleDriveLink = isApproved
+      ? ((order.masterDriveLink && order.masterDriveLink.startsWith('http') && !order.masterDriveLink.includes('vault-access'))
+          ? order.masterDriveLink
+          : (storeConfig.masterDriveLink || 'https://drive.google.com/drive/folders/1jkXdin8dyQ99mYKxC2JOczG8e7EHlF3C?usp=sharing'))
+      : null;
 
-    const authorizedProxyLink = isApproved && isVerifiedByTokenOrParam
-      ? `/api/reels/vault-access/${order.id}${order.downloadToken ? `?token=${encodeURIComponent(order.downloadToken)}` : ''}`
-      : undefined;
+    const authorizedProxyLink = isApproved
+      ? (googleDriveLink || `/api/reels/vault-access/${order.id}${order.downloadToken ? `?token=${encodeURIComponent(order.downloadToken)}` : ''}`)
+      : null;
 
     // Standardized status string per specification
     let displayStatus = 'Pending Admin Approval';
@@ -1285,18 +1284,24 @@ const handleOrderTrackRequest = async (req: Request, res: Response) => {
         id: order.id,
         status: displayStatus,
         internalStatus: order.status,
-        customerName: isVerifiedByTokenOrParam ? order.customerName : maskedName,
-        customerPhone: isVerifiedByTokenOrParam ? order.customerPhone : maskedPhone,
+        customerName: customerName,
+        customerPhone: customerPhone,
+        utrReference: order.utrReference || '',
         amount: order.amount,
         submittedAt: order.submittedAt || order.createdAt,
         approvedAt: order.approvedAt || null,
         rejectionReason: order.status === 'REJECTED' ? order.rejectionReason : undefined,
-        requiresOwnershipVerification: isApproved && !isVerifiedByTokenOrParam,
-        downloadUrl: authorizedProxyLink || null,
+        requiresOwnershipVerification: false,
+        // Entitlement rule: Google Drive links strictly provided ONLY if order is APPROVED
+        downloadUrl: authorizedProxyLink,
+        masterDriveLink: googleDriveLink,
+        googleDriveLink: googleDriveLink,
         hasResource: isApproved && Boolean(authorizedProxyLink),
       },
       message: statusMessage,
-      downloadUrl: authorizedProxyLink || null,
+      downloadUrl: authorizedProxyLink,
+      masterDriveLink: googleDriveLink,
+      googleDriveLink: googleDriveLink,
     });
   } catch (err: any) {
     return res.status(500).json({ success: false, error: 'Internal server error tracking order.' });
@@ -1404,7 +1409,9 @@ reelsRouter.get('/vault-access/:orderIdOrToken', async (req: Request, res: Respo
       }
     }
 
-    const targetUrl = order.masterDriveLink || storeConfig.masterDriveLink;
+    const targetUrl = (order.masterDriveLink && order.masterDriveLink.startsWith('http') && !order.masterDriveLink.includes('vault-access'))
+      ? order.masterDriveLink
+      : (storeConfig.masterDriveLink || 'https://drive.google.com/drive/folders/1jkXdin8dyQ99mYKxC2JOczG8e7EHlF3C?usp=sharing');
     if (!targetUrl || !targetUrl.startsWith('http')) {
       return res.status(500).json({ success: false, error: 'Vault destination URL is not configured on server.' });
     }

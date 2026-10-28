@@ -395,9 +395,10 @@ export const AdminPurchaseManager: React.FC<AdminPurchaseManagerProps> = ({
               approvedAt: nowIso,
               reviewedByAdminId: 'Murari Panjiyar (Mpanjiyar100@gmail.com)',
               downloadToken,
-              masterDriveLink: `/api/reels/vault-access/${orderToProcess.id}`,
+              masterDriveLink: 'https://drive.google.com/drive/folders/1jkXdin8dyQ99mYKxC2JOczG8e7EHlF3C?usp=sharing',
               links: {
-                masterGoogleDrive: `/api/reels/vault-access/${orderToProcess.id}`,
+                masterGoogleDrive: 'https://drive.google.com/drive/folders/1jkXdin8dyQ99mYKxC2JOczG8e7EHlF3C?usp=sharing',
+                vaultAccessRoute: `/api/reels/vault-access/${orderToProcess.id}`,
                 directTokenDownload: `/api/reels/download/${downloadToken}?category=all`,
               },
               updatedAt: nowIso,
@@ -555,6 +556,11 @@ export const AdminPurchaseManager: React.FC<AdminPurchaseManagerProps> = ({
               partial.approvedAt = nowIso;
               partial.paymentVerifiedAt = nowIso;
               partial.reviewedByAdminId = 'Murari Panjiyar (Mpanjiyar100@gmail.com)';
+              partial.masterDriveLink = 'https://drive.google.com/drive/folders/1jkXdin8dyQ99mYKxC2JOczG8e7EHlF3C?usp=sharing';
+              partial.links = {
+                masterGoogleDrive: 'https://drive.google.com/drive/folders/1jkXdin8dyQ99mYKxC2JOczG8e7EHlF3C?usp=sharing',
+                vaultAccessRoute: `/api/reels/vault-access/${id}`,
+              };
             } else if (action === 'reject') {
               partial.status = 'REJECTED';
               partial.rejectedAt = nowIso;

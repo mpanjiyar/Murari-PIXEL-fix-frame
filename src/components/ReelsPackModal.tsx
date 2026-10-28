@@ -332,16 +332,19 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
     }
   }, [orderId]);
 
-  // Real-Time Listener: Multi-Device Firestore onSnapshot + SSE Backup
+  // Active Order ID to track in real-time (from active lookup result, state, or localStorage)
+  const activeTrackDocId = lookupResult?.id || orderId || (typeof window !== 'undefined' ? localStorage.getItem('last_reels_order_id') || '' : '');
+
+  // Real-Time Listener: Multi-Device Firestore onSnapshot + SSE Backup + Live Polling
   useEffect(() => {
-    if (!orderId) return;
+    if (!activeTrackDocId) return;
 
     // 1. Direct real-time Firestore listener across all devices
     let unsubscribeFirestore: (() => void) | null = null;
     try {
       if (db) {
         unsubscribeFirestore = onSnapshot(
-          doc(db, 'reels_orders', orderId),
+          doc(db, 'reels_orders', activeTrackDocId),
           (snapshot) => {
             if (!snapshot.exists()) {
               if (orderStatus === 'APPROVED' || orderStatus === 'PENDING_ADMIN_REVIEW') {
@@ -357,11 +360,38 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
             }
             const liveOrder = snapshot.data() as ReelPurchaseOrder;
             if (liveOrder) {
-              if (liveOrder.status === 'APPROVED' || liveOrder.status === 'approved') {
+              const isApproved = liveOrder.status === 'APPROVED' || liveOrder.status === 'approved';
+              const approvedDriveUrl = isApproved
+                ? (liveOrder.masterDriveLink || (liveOrder as any).links?.masterGoogleDrive || storeConfig.masterDriveLink || 'https://drive.google.com/drive/folders/1jkXdin8dyQ99mYKxC2JOczG8e7EHlF3C?usp=sharing')
+                : null;
+
+              // Synchronize lookupResult state for real-time customer screen updates
+              setLookupResult(prev => ({
+                ...(prev || {}),
+                id: liveOrder.id || activeTrackDocId,
+                customerName: liveOrder.customerName || prev?.customerName || 'Customer',
+                customerPhone: liveOrder.customerPhone || prev?.customerPhone || '',
+                utrReference: liveOrder.utrReference || prev?.utrReference || '',
+                amount: liveOrder.amount || prev?.amount || 199,
+                status: isApproved
+                  ? 'Approved'
+                  : liveOrder.status === 'REJECTED'
+                  ? 'Rejected'
+                  : liveOrder.status === 'REFUNDED'
+                  ? 'Revoked'
+                  : 'Pending Admin Approval',
+                internalStatus: liveOrder.status,
+                rejectionReason: liveOrder.rejectionReason,
+                masterDriveLink: approvedDriveUrl,
+                googleDriveLink: approvedDriveUrl,
+                downloadUrl: approvedDriveUrl,
+                requiresOwnershipVerification: false,
+              }));
+
+              if (isApproved) {
                 setOrderStatus('APPROVED');
-                const approvedUrl = liveOrder.masterDriveLink || (liveOrder as any).links?.masterGoogleDrive || storeConfig.masterDriveLink || (orderId ? `/api/reels/vault-access/${orderId}` : '');
                 setDownloadToken(liveOrder.downloadToken || ('TOKEN-' + Date.now().toString(36).toUpperCase()));
-                setMasterDriveUrl(approvedUrl);
+                setMasterDriveUrl(approvedDriveUrl || '');
                 if (triggerToast) {
                   triggerToast('Your Payment Has Been Verified and Approved!', 'success');
                 }
@@ -397,17 +427,27 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
     // 2. Real-Time Server-Sent Events (SSE) listener
     let eventSource: EventSource | null = null;
     try {
-      eventSource = new EventSource(`/api/reels/events?orderId=${encodeURIComponent(orderId)}`);
+      eventSource = new EventSource(`/api/reels/events?orderId=${encodeURIComponent(activeTrackDocId)}`);
 
       eventSource.onmessage = (event) => {
         try {
           const payload = JSON.parse(event.data);
-          if (payload.orderId === orderId || payload.eventType === 'ORDER_APPROVED') {
+          if (payload.orderId === activeTrackDocId || payload.eventType === 'ORDER_APPROVED') {
             if (payload.status === 'APPROVED' || payload.eventType === 'ORDER_APPROVED') {
+              const approvedUrl = payload.masterDriveLink || storeConfig.masterDriveLink || 'https://drive.google.com/drive/folders/1jkXdin8dyQ99mYKxC2JOczG8e7EHlF3C?usp=sharing';
               setOrderStatus('APPROVED');
-              const approvedUrl = payload.masterDriveLink || storeConfig.masterDriveLink || (orderId ? `/api/reels/vault-access/${orderId}` : '');
               setDownloadToken(payload.downloadToken || ('TOKEN-' + Date.now().toString(36).toUpperCase()));
               setMasterDriveUrl(approvedUrl);
+              setLookupResult(prev => ({
+                ...(prev || {}),
+                id: activeTrackDocId,
+                status: 'Approved',
+                internalStatus: 'APPROVED',
+                masterDriveLink: approvedUrl,
+                googleDriveLink: approvedUrl,
+                downloadUrl: approvedUrl,
+                requiresOwnershipVerification: false,
+              }));
               if (triggerToast) {
                 triggerToast('Your Payment Has Been Verified and Approved!', 'success');
               }
@@ -416,6 +456,16 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
               setDownloadToken(null);
               setMasterDriveUrl('');
               setRejectionReason(payload.rejectionReason || 'Payment verification could not be confirmed.');
+              setLookupResult(prev => ({
+                ...(prev || {}),
+                id: activeTrackDocId,
+                status: 'Rejected',
+                internalStatus: 'REJECTED',
+                masterDriveLink: null,
+                googleDriveLink: null,
+                downloadUrl: null,
+                rejectionReason: payload.rejectionReason,
+              }));
               if (triggerToast) {
                 triggerToast('Verification update: Please review rejection reason.', 'error');
               }
@@ -423,16 +473,17 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
               setOrderStatus('REFUNDED');
               setDownloadToken(null);
               setMasterDriveUrl('');
+              setLookupResult(prev => ({
+                ...(prev || {}),
+                id: activeTrackDocId,
+                status: 'Revoked',
+                internalStatus: 'REFUNDED',
+                masterDriveLink: null,
+                googleDriveLink: null,
+                downloadUrl: null,
+              }));
               if (triggerToast) {
                 triggerToast('Access has been revoked by administrator. Complete a new purchase to regain access.', 'error');
-              }
-            } else if (payload.eventType === 'ORDER_DELETED') {
-              setOrderStatus('PENDING_PAYMENT');
-              setDownloadToken(null);
-              setMasterDriveUrl('');
-              setSubmittedOrderSummary(null);
-              if (triggerToast) {
-                triggerToast('Order record was removed. Complete a new purchase to regain access.', 'error');
               }
             }
           }
@@ -442,24 +493,43 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
       console.warn('SSE connection unavailable for customer:', e);
     }
 
-    // 3. Polling fallback every 8 seconds if waiting for Murari's approval
+    // 3. Live polling fallback every 2 seconds if waiting for Murari's approval
     const pollInterval = setInterval(() => {
-      if (orderStatus === 'PENDING_ADMIN_REVIEW') {
-        fetch(`/api/reels/order-status/${orderId}`)
+      if (orderStatus === 'PENDING_ADMIN_REVIEW' || lookupResult?.internalStatus === 'PENDING_ADMIN_REVIEW' || !masterDriveUrl) {
+        fetch(`/api/reels/order-status/${encodeURIComponent(activeTrackDocId)}`)
           .then(res => res.json())
           .then(data => {
             if (data.success && data.order) {
               if (data.order.status === 'APPROVED' || data.order.status === 'approved') {
+                const approvedUrl = data.links?.masterGoogleDrive || data.order.masterDriveLink || storeConfig.masterDriveLink || 'https://drive.google.com/drive/folders/1jkXdin8dyQ99mYKxC2JOczG8e7EHlF3C?usp=sharing';
                 setOrderStatus('APPROVED');
-                const approvedUrl = data.links?.masterGoogleDrive || data.order.masterDriveLink || storeConfig.masterDriveLink || (orderId ? `/api/reels/vault-access/${orderId}` : '');
                 setDownloadToken(data.order.downloadToken || ('TOKEN-' + Date.now().toString(36).toUpperCase()));
                 setMasterDriveUrl(approvedUrl);
+                setLookupResult(prev => ({
+                  ...(prev || {}),
+                  ...data.order,
+                  status: 'Approved',
+                  internalStatus: 'APPROVED',
+                  masterDriveLink: approvedUrl,
+                  googleDriveLink: approvedUrl,
+                  downloadUrl: approvedUrl,
+                  requiresOwnershipVerification: false,
+                }));
                 if (triggerToast) {
                   triggerToast('Your Payment Has Been Verified and Approved!', 'success');
                 }
               } else if (data.order.status === 'REJECTED') {
                 setOrderStatus('REJECTED');
                 setRejectionReason(data.order.rejectionReason || '');
+                setLookupResult(prev => ({
+                  ...(prev || {}),
+                  ...data.order,
+                  status: 'Rejected',
+                  internalStatus: 'REJECTED',
+                  masterDriveLink: null,
+                  googleDriveLink: null,
+                  downloadUrl: null,
+                }));
               }
             }
           })
@@ -472,7 +542,7 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
       if (eventSource) eventSource.close();
       clearInterval(pollInterval);
     };
-  }, [orderId, orderStatus, storeConfig.masterDriveLink]);
+  }, [activeTrackDocId, orderStatus, storeConfig.masterDriveLink, masterDriveUrl, lookupResult?.internalStatus]);
 
   // Generate responsive UPI QR Code
   useEffect(() => {
@@ -790,82 +860,169 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
     }
   };
 
-  // Track Order Status Lookup (Strict Server Verification)
-  const handleLookupOrder = async (e?: React.FormEvent, customVerifyOrderId?: string) => {
+  // Auto pre-fill and check tracking when Track My Order tab is opened
+  useEffect(() => {
+    if (activeTab === 'track' && !lookupQuery) {
+      const savedId = (typeof window !== 'undefined' ? localStorage.getItem('last_reels_order_id') : '') || orderId;
+      if (savedId && savedId.trim()) {
+        setLookupQuery(savedId.trim());
+      }
+    }
+  }, [activeTab, orderId]);
+
+  // Track Order Status Lookup (Strict Real-Time Server & Database Verification)
+  const handleLookupOrder = async (e?: React.FormEvent, customQuery?: string) => {
     if (e) e.preventDefault();
     setLookupError('');
-    if (!customVerifyOrderId) {
-      setLookupResult(null);
-    }
 
-    const rawQuery = lookupQuery.trim();
+    const rawQuery = (customQuery || lookupQuery || '').trim();
     if (!rawQuery) {
-      setLookupError('Please enter your Order ID or registered mobile number.');
+      setLookupError('Please enter your Order ID (e.g. RP-...) or registered 10-digit mobile number.');
       return;
     }
 
     setIsLookingUp(true);
+    let resolvedOrder: any = null;
+    let apiErrorMsg = '';
+
+    // 1. Check server tracking endpoint
     try {
       const res = await fetch('/api/reels/track-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query: rawQuery,
-          verifyOrderId: customVerifyOrderId || verifyOrderIdInput.trim() || undefined,
-        }),
+        body: JSON.stringify({ query: rawQuery }),
       });
 
       const data = await res.json().catch(() => null);
-
       if (res.ok && data && data.success && data.order) {
-        setLookupResult(data.order);
-        if (data.order.id) {
-          setOrderId(data.order.id);
-          try {
-            localStorage.setItem('last_reels_order_id', data.order.id);
-          } catch {}
-        }
-
-        const isApproved = data.order.status === 'Approved' || data.order.internalStatus === 'APPROVED';
-        if (isApproved) {
-          setOrderStatus('APPROVED');
-          if (data.order.downloadUrl) {
-            setMasterDriveUrl(data.order.downloadUrl);
-          }
-          if (!data.order.requiresOwnershipVerification && triggerToast) {
-            triggerToast('Your Payment Has Been Verified and Approved!', 'success');
-          }
-        } else if (data.order.internalStatus === 'REJECTED' || data.order.status === 'Rejected') {
-          setOrderStatus('REJECTED');
-          setRejectionReason(data.order.rejectionReason || 'Your request was not approved by the administrator.');
-        } else if (data.order.internalStatus === 'PENDING_ADMIN_REVIEW' || data.order.status === 'Pending Admin Approval') {
-          setOrderStatus('PENDING_ADMIN_REVIEW');
-          if (triggerToast) {
-            triggerToast('Your payment has been received and your order is waiting for admin approval.', 'info');
-          }
-        }
-      } else {
-        setLookupResult(null);
-        setLookupError(
-          data?.error || 'No matching order was found. Please check your Order ID or registered mobile number.'
-        );
+        resolvedOrder = data.order;
+      } else if (data && data.error) {
+        apiErrorMsg = data.error;
       }
-    } catch (err) {
-      setLookupError('Network error connecting to tracking service. Please check your internet connection.');
-    } finally {
-      setIsLookingUp(false);
-      setIsVerifyingOwnership(false);
+    } catch (netErr) {
+      console.warn('Backend tracking endpoint network note:', netErr);
     }
-  };
 
-  const handleVerifyOwnership = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!verifyOrderIdInput.trim()) {
-      triggerToast('Please enter your Order ID to confirm ownership.', 'error');
-      return;
+    // 2. Direct Firestore fallback query if server had network issue or no match
+    if (!resolvedOrder && db) {
+      try {
+        const cleanDigits = rawQuery.replace(/[^\d]/g, '');
+        const queryVariants = [
+          rawQuery,
+          rawQuery.toUpperCase(),
+          rawQuery.toLowerCase(),
+          'RP-' + rawQuery.toUpperCase().replace(/^RP-/, ''),
+        ];
+
+        for (const qVariant of queryVariants) {
+          if (resolvedOrder) break;
+          const snap = await getDoc(doc(db, 'reels_orders', qVariant));
+          if (snap.exists()) {
+            resolvedOrder = snap.data();
+          }
+        }
+
+        if (!resolvedOrder) {
+          const allDocs = await getDocs(collection(db, 'reels_orders'));
+          for (const d of allDocs.docs) {
+            const ord = d.data();
+            if (!ord) continue;
+            const oIdLower = String(ord.id || '').toLowerCase();
+            const oPhone = String(ord.customerPhone || '').replace(/[^\d]/g, '');
+            const oUtr = String(ord.utrReference || '').replace(/[^\d]/g, '');
+            const qLower = rawQuery.toLowerCase();
+
+            if (
+              oIdLower === qLower ||
+              oIdLower.replace(/^rp-/, '') === qLower.replace(/^rp-/, '') ||
+              oIdLower.includes(qLower) ||
+              (cleanDigits.length >= 7 && oPhone && (oPhone.includes(cleanDigits.slice(-10)) || cleanDigits.includes(oPhone.slice(-10)))) ||
+              (cleanDigits.length >= 8 && oUtr && (oUtr.includes(cleanDigits) || cleanDigits.includes(oUtr)))
+            ) {
+              resolvedOrder = ord;
+              break;
+            }
+          }
+        }
+      } catch (fsErr) {
+        console.warn('Firestore direct track lookup note:', fsErr);
+      }
     }
-    setIsVerifyingOwnership(true);
-    await handleLookupOrder(undefined, verifyOrderIdInput.trim());
+
+    if (resolvedOrder) {
+      const isApproved =
+        resolvedOrder.status === 'APPROVED' ||
+        resolvedOrder.status === 'Approved' ||
+        resolvedOrder.internalStatus === 'APPROVED';
+
+      const driveUrl = isApproved
+        ? (resolvedOrder.googleDriveLink ||
+           resolvedOrder.masterDriveLink ||
+           (resolvedOrder.links && resolvedOrder.links.masterGoogleDrive) ||
+           storeConfig.masterDriveLink ||
+           'https://drive.google.com/drive/folders/1jkXdin8dyQ99mYKxC2JOczG8e7EHlF3C?usp=sharing')
+        : null;
+
+      const normStatus = isApproved
+        ? 'Approved'
+        : resolvedOrder.status === 'REJECTED' || resolvedOrder.internalStatus === 'REJECTED' || resolvedOrder.status === 'Rejected'
+        ? 'Rejected'
+        : resolvedOrder.status === 'REFUNDED' || resolvedOrder.internalStatus === 'REFUNDED' || resolvedOrder.status === 'Revoked'
+        ? 'Revoked'
+        : 'Pending Admin Approval';
+
+      const normalized = {
+        id: resolvedOrder.id,
+        customerName: resolvedOrder.customerName || 'Customer',
+        customerPhone: resolvedOrder.customerPhone || '',
+        utrReference: resolvedOrder.utrReference || '',
+        amount: resolvedOrder.amount || storeConfig.productPrice || 199,
+        submittedAt: resolvedOrder.submittedAt || resolvedOrder.createdAt,
+        approvedAt: resolvedOrder.approvedAt || null,
+        status: normStatus,
+        internalStatus: resolvedOrder.status || resolvedOrder.internalStatus,
+        rejectionReason: resolvedOrder.rejectionReason,
+        // STRICT ENTITLEMENT: Only approved orders receive Google Drive links
+        masterDriveLink: driveUrl,
+        googleDriveLink: driveUrl,
+        downloadUrl: driveUrl,
+        requiresOwnershipVerification: false,
+      };
+
+      setLookupResult(normalized);
+
+      if (resolvedOrder.id) {
+        setOrderId(resolvedOrder.id);
+        try {
+          localStorage.setItem('last_reels_order_id', resolvedOrder.id);
+        } catch {}
+      }
+
+      if (isApproved) {
+        setOrderStatus('APPROVED');
+        setMasterDriveUrl(driveUrl || '');
+        if (triggerToast) triggerToast('Your Payment Has Been Verified and Approved!', 'success');
+      } else if (normStatus === 'Rejected') {
+        setOrderStatus('REJECTED');
+        setMasterDriveUrl('');
+        setRejectionReason(resolvedOrder.rejectionReason || 'UTR could not be verified in bank statement.');
+      } else if (normStatus === 'Revoked') {
+        setOrderStatus('REFUNDED');
+        setMasterDriveUrl('');
+      } else {
+        setOrderStatus('PENDING_ADMIN_REVIEW');
+        setMasterDriveUrl('');
+        if (triggerToast) triggerToast('Your payment has been received and your order is waiting for admin approval.', 'info');
+      }
+    } else {
+      setLookupResult(null);
+      setLookupError(
+        apiErrorMsg ||
+        `No matching order was found for "${rawQuery}". Please check your Order ID (e.g. RP-...) or registered 10-digit mobile number.`
+      );
+    }
+
+    setIsLookingUp(false);
   };
 
   // Support form submission (Name, Phone, Order ID, Message — NO Email!)
@@ -979,20 +1136,32 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
 
         {/* Navigation Tabs Bar */}
         <div className={`px-3 sm:px-6 py-2.5 border-b flex items-center gap-1.5 sm:gap-2 overflow-x-auto scrollbar-none transition-colors ${
-          isLight ? 'bg-slate-100/90 border-slate-200 shadow-xs' : 'bg-black/60 border-white/10'
+          isLight ? 'bg-slate-100/95 border-slate-200 shadow-xs' : 'bg-black/75 border-white/10'
         }`}>
           {[
             {
               id: 'checkout' as const,
               label:
-                orderStatus === 'PENDING_ADMIN_REVIEW'
+                orderStatus === 'APPROVED'
+                  ? '⚡ Payment Receipt (✓ Approved)'
+                  : orderStatus === 'PENDING_ADMIN_REVIEW'
                   ? '⏳ Awaiting Approval'
                   : `⚡ Payment & Order (₹${Math.round(storeConfig.productPrice)})`,
+              badge: null,
             },
-            { id: 'track' as const, label: '🔍 Track My Order' },
-            { id: 'categories' as const, label: '📁 Explore 9 Categories' },
-            { id: 'included' as const, label: "✨ What's Included" },
-            { id: 'faq' as const, label: '💬 FAQ & Support' },
+            {
+              id: 'track' as const,
+              label:
+                orderStatus === 'APPROVED' || lookupResult?.status === 'Approved'
+                  ? '🔍 Track Order (✓ Unlocked)'
+                  : orderStatus === 'PENDING_ADMIN_REVIEW' || lookupResult?.status === 'Pending Admin Approval'
+                  ? '🔍 Track Order (⏳ In Review)'
+                  : '🔍 Track My Order',
+              badge: (orderStatus === 'APPROVED' || lookupResult?.status === 'Approved') ? 'UNLOCKED' : null,
+            },
+            { id: 'categories' as const, label: '📁 Explore 9 Categories', badge: null },
+            { id: 'included' as const, label: "✨ What's Included", badge: null },
+            { id: 'faq' as const, label: '💬 FAQ & Support', badge: null },
           ].map(tab => {
             const isActive = activeTab === tab.id;
             return (
@@ -1006,11 +1175,18 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
                       ? 'bg-gradient-to-r from-[#FF5500] to-amber-600 text-white font-black shadow-md shadow-[#FF5500]/25 ring-2 ring-[#FF5500]/40 scale-[1.02]'
                       : 'bg-gradient-to-r from-[#FF5500] to-amber-500 text-white font-black shadow-lg shadow-[#FF5500]/30 ring-2 ring-[#FF5500]/40 scale-[1.02]'
                     : isLight
-                      ? 'bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border border-slate-200/90 shadow-xs hover:border-[#FF5500]/30'
+                      ? 'bg-white hover:bg-slate-50 text-slate-800 hover:text-slate-950 border border-slate-200/90 shadow-xs hover:border-[#FF5500]/30'
                       : 'bg-zinc-900/80 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-white/10 hover:border-white/20'
                 }`}
               >
                 <span>{tab.label}</span>
+                {tab.badge && (
+                  <span className={`text-[9px] px-1.5 py-0.2 rounded font-black tracking-wider uppercase ${
+                    isActive ? 'bg-white/20 text-white' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                  }`}>
+                    {tab.badge}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -1053,6 +1229,78 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
                         <span className={`font-mono font-black select-all ${isLight ? "text-emerald-900" : "text-emerald-400"}`}>{orderId}</span>
                       </div>
                     )}
+
+                    {/* Google Drive Master Vault Showcase Card */}
+                    <div className={`p-5 rounded-2xl border-2 space-y-3.5 text-left transition-all ${
+                      isLight
+                        ? 'bg-gradient-to-br from-amber-50/90 via-emerald-50/50 to-white border-emerald-400 shadow-lg shadow-emerald-500/10'
+                        : 'bg-gradient-to-br from-emerald-950/50 via-zinc-950 to-black border-emerald-500/50 shadow-2xl'
+                    }`}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white shadow-lg shrink-0">
+                            <FolderCheck size={24} />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold uppercase border ${
+                                isLight ? 'bg-emerald-100 text-emerald-900 border-emerald-300 font-black' : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                              }`}>
+                                Google Drive Master Vault
+                              </span>
+                              <span className={`text-[10px] font-mono font-bold ${isLight ? 'text-slate-600' : 'text-zinc-400'}`}>
+                                Lifetime Access
+                              </span>
+                            </div>
+                            <h5 className={`font-mono font-black text-sm sm:text-base tracking-tight ${isLight ? 'text-slate-950' : 'text-white'}`}>
+                              150,000+ Raw Videos • All 9 Categories
+                            </h5>
+                            <p className={`text-xs ${isLight ? 'text-slate-600 font-medium' : 'text-zinc-400'}`}>
+                              1080x1920 Vertical Full HD • No Watermarks • Instant Cloud Download
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Primary Redirect Button to Google Drive */}
+                      <div className="space-y-2 pt-1">
+                        <a
+                          href={masterDriveUrl || 'https://drive.google.com/drive/folders/1jkXdin8dyQ99mYKxC2JOczG8e7EHlF3C?usp=sharing'}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={() => {
+                            if (triggerToast) {
+                              triggerToast('Opening Google Drive Master Folder in new tab...', 'success');
+                            }
+                          }}
+                          className="w-full py-3.5 px-5 rounded-xl font-mono font-black text-sm uppercase tracking-wider bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 text-white flex items-center justify-center gap-2.5 shadow-xl shadow-emerald-500/25 hover:shadow-emerald-500/40 border border-emerald-400/50 transition-all cursor-pointer active:scale-[0.98] min-h-[50px]"
+                        >
+                          <ExternalLink size={18} />
+                          <span>Open Master Google Drive ↗</span>
+                        </a>
+
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const driveLink = masterDriveUrl || 'https://drive.google.com/drive/folders/1jkXdin8dyQ99mYKxC2JOczG8e7EHlF3C?usp=sharing';
+                              navigator.clipboard.writeText(driveLink);
+                              setCopiedLinkType('master_drive');
+                              if (triggerToast) triggerToast('Google Drive link copied to clipboard!', 'success');
+                              setTimeout(() => setCopiedLinkType(null), 2500);
+                            }}
+                            className={`flex-1 py-2 px-3 rounded-xl font-mono text-xs font-bold border flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
+                              isLight
+                                ? 'bg-white hover:bg-slate-100 text-slate-800 border-slate-300'
+                                : 'bg-white/10 hover:bg-white/20 text-white border-white/20'
+                            }`}
+                          >
+                            {copiedLinkType === 'master_drive' ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
+                            <span>{copiedLinkType === 'master_drive' ? 'Copied to Clipboard!' : 'Copy Drive Link'}</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                   <div className={`p-4 rounded-2xl border text-center space-y-2.5 ${
                     isLight ? 'bg-amber-50 border-amber-300 text-slate-900' : 'bg-amber-500/10 border-amber-500/20 text-white'
@@ -1613,101 +1861,141 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
 
           {/* TAB 2: TRACK MY ORDER */}
           {activeTab === 'track' && (
-            <div className="space-y-5 max-w-xl mx-auto py-2">
+            <div className="space-y-5 max-w-2xl mx-auto py-2">
               <div className="text-center space-y-1.5">
-                <div className={`inline-block px-3 py-1 rounded-full text-[11px] font-mono font-bold uppercase tracking-wider ${
+                <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-mono font-bold uppercase tracking-wider ${
                   isLight ? 'bg-amber-100 text-amber-950 border border-amber-300' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                 }`}>
-                  Live Order Tracker
+                  <Zap size={12} className="text-amber-500 fill-amber-500" />
+                  <span>Real-Time Live Order Tracker</span>
                 </div>
-                <h4 className={`text-lg sm:text-xl font-black font-mono tracking-tight ${isLight ? "text-slate-900" : "text-white"}`}>
-                  Track Your Order Status
+                <h4 className={`text-lg sm:text-2xl font-black font-mono tracking-tight ${isLight ? "text-slate-950" : "text-white"}`}>
+                  Track Your Puja Offer Order
                 </h4>
-                <p className={`text-xs font-mono ${isLight ? 'text-slate-600 font-medium' : 'text-zinc-400'}`}>
-                  Check real-time admin approval status and verify your payment submission across devices.
+                <p className={`text-xs font-mono max-w-lg mx-auto ${isLight ? 'text-slate-600 font-medium' : 'text-zinc-400'}`}>
+                  Enter your Order ID (RP-...) or registered 10-digit mobile number. Approved orders instantly unlock the Master Google Drive link with real-time live sync.
                 </p>
               </div>
 
-              {/* Single Search Field & Button */}
+              {/* Search Form */}
               <form onSubmit={handleLookupOrder} className="space-y-3">
-                <div className="flex gap-2">
+                <div className="flex flex-col sm:flex-row gap-2">
                   <div className="relative flex-1">
                     <Search size={16} className={`absolute left-3.5 top-3.5 ${isLight ? 'text-slate-500' : 'text-zinc-400'}`} />
                     <input
                       type="text"
                       value={lookupQuery}
                       onChange={e => setLookupQuery(e.target.value)}
-                      placeholder="Enter Order ID (RP-...) or 10-Digit Mobile"
-                      className={`w-full pl-10 pr-4 py-3 rounded-xl text-xs font-mono outline-none transition-all ${
+                      placeholder="Enter Order ID (RP-...) or 10-Digit Mobile Number"
+                      className={`w-full pl-10 pr-4 py-3 rounded-xl text-xs sm:text-sm font-mono outline-none transition-all ${
                         isLight
-                          ? 'bg-white border-2 border-slate-300 text-slate-900 placeholder:text-slate-400 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 shadow-sm'
-                          : 'bg-black/70 border border-white/15 text-white placeholder:text-zinc-500 focus:border-amber-500 focus:ring-1 focus:ring-amber-500/40'
+                          ? 'bg-white border-2 border-slate-300 text-slate-900 placeholder:text-slate-400 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 shadow-sm font-bold'
+                          : 'bg-black/80 border border-white/20 text-white placeholder:text-zinc-500 focus:border-amber-500 focus:ring-1 focus:ring-amber-500/40 font-mono'
                       }`}
                     />
                   </div>
                   <button
                     type="submit"
                     disabled={isLookingUp}
-                    className="py-3 px-5 sm:px-6 rounded-xl font-mono text-xs font-black bg-amber-400 text-slate-950 hover:bg-amber-300 cursor-pointer shadow-md transition-all active:scale-95 disabled:opacity-50 shrink-0 border border-amber-500/40"
+                    className="py-3 px-6 rounded-xl font-mono text-xs sm:text-sm font-black uppercase tracking-wider bg-gradient-to-r from-amber-400 via-orange-400 to-amber-500 hover:from-amber-300 hover:to-orange-300 text-slate-950 shadow-md transition-all active:scale-95 disabled:opacity-50 shrink-0 border border-amber-500/40 flex items-center justify-center gap-2 cursor-pointer"
                   >
-                    {isLookingUp ? 'Searching...' : 'Track Order'}
+                    {isLookingUp ? (
+                      <>
+                        <RefreshCw size={14} className="animate-spin text-slate-950" />
+                        <span>Searching...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Search size={14} />
+                        <span>Track Order</span>
+                      </>
+                    )}
                   </button>
                 </div>
 
                 {lookupError && (
-                  <div className={`p-3.5 rounded-xl text-xs font-mono font-medium border ${
+                  <div className={`p-3.5 rounded-xl text-xs font-mono font-medium border flex items-start gap-2 ${
                     isLight ? 'bg-red-50 border-red-300 text-red-950' : 'bg-red-950/60 border-red-500/30 text-red-300'
                   }`}>
-                    ⚠️ {lookupError}
+                    <AlertCircle size={15} className="text-red-500 shrink-0 mt-0.5" />
+                    <span>{lookupError}</span>
                   </div>
                 )}
               </form>
 
-              {/* Order Status Display */}
+              {/* Order Status Result Display */}
               {lookupResult && (
-                <div className={`p-5 rounded-2xl border space-y-4 font-mono text-xs shadow-md transition-all ${
-                  isLight ? "bg-white border-slate-300 text-slate-900" : "bg-black/60 border-white/10 text-white"
+                <div className={`p-5 sm:p-6 rounded-2xl border space-y-4 font-mono text-xs shadow-xl transition-all ${
+                  isLight ? "bg-white border-slate-300 text-slate-900 shadow-slate-200/50" : "bg-black/75 border-white/15 text-white shadow-2xl"
                 }`}>
                   {/* Header: Order ID & Current Status */}
-                  <div className={`flex items-center justify-between pb-3 border-b ${isLight ? 'border-slate-200' : 'border-white/10'}`}>
+                  <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b ${isLight ? 'border-slate-200' : 'border-white/10'}`}>
                     <div>
-                      <span className={`text-[10px] uppercase font-bold block ${isLight ? 'text-slate-500' : 'text-zinc-500'}`}>Order ID</span>
-                      <span className={`font-mono font-black text-sm select-all ${isLight ? "text-slate-950" : "text-white"}`}>{lookupResult.id}</span>
+                      <span className={`text-[10px] uppercase font-bold tracking-wider block ${isLight ? 'text-slate-500' : 'text-zinc-500'}`}>Order Reference ID</span>
+                      <span className={`font-mono font-black text-sm sm:text-base select-all tracking-wide ${isLight ? "text-slate-950" : "text-amber-400"}`}>
+                        {lookupResult.id}
+                      </span>
                     </div>
-                    <span className={`px-3 py-1 rounded-full text-[11px] font-mono font-bold uppercase border ${
-                      lookupResult.status === 'Approved' || lookupResult.internalStatus === 'APPROVED'
-                        ? isLight ? 'bg-emerald-100 text-emerald-950 border-emerald-300 font-black' : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30 font-bold'
-                        : lookupResult.status === 'Pending Admin Approval' || lookupResult.internalStatus === 'PENDING_ADMIN_REVIEW'
-                        ? isLight ? 'bg-amber-100 text-amber-950 border-amber-300 font-black' : 'bg-amber-500/20 text-amber-300 border-amber-500/30 font-bold'
-                        : lookupResult.status === 'Rejected' || lookupResult.internalStatus === 'REJECTED'
-                        ? isLight ? 'bg-rose-100 text-rose-950 border-rose-300 font-black' : 'bg-rose-500/20 text-rose-300 border-rose-500/30 font-bold'
-                        : isLight ? 'bg-slate-100 text-slate-900 border-slate-300 font-black' : 'bg-zinc-500/20 text-zinc-300 border-zinc-500/30 font-bold'
-                    }`}>
-                      {lookupResult.status || 'Pending Admin Approval'}
-                    </span>
-                  </div>
 
-                  {/* Customer Info */}
-                  <div className={`grid grid-cols-2 gap-2 text-[11px] p-3 rounded-xl border ${
-                    isLight ? "bg-slate-50 border-slate-200 text-slate-900" : "bg-white/5 border-white/10 text-white"
-                  }`}>
-                    <div>
-                      <span className={`block text-[10px] font-bold ${isLight ? 'text-slate-500' : 'text-zinc-400'}`}>Customer Name:</span>
-                      <span className={`font-bold ${isLight ? "text-slate-950" : "text-white"}`}>{lookupResult.customerName || 'Customer'}</span>
-                    </div>
-                    <div>
-                      <span className={`block text-[10px] font-bold ${isLight ? 'text-slate-500' : 'text-zinc-400'}`}>Mobile Number:</span>
-                      <span className={`font-bold font-mono ${isLight ? 'text-emerald-900' : 'text-emerald-400'}`}>
-                        {lookupResult.customerPhone || 'Registered'}
+                    <div className="flex items-center gap-2">
+                      <span className={`px-3 py-1.5 rounded-full text-xs font-mono font-black uppercase tracking-wider border flex items-center gap-1.5 shadow-sm ${
+                        lookupResult.status === 'Approved' || lookupResult.internalStatus === 'APPROVED'
+                          ? isLight ? 'bg-emerald-100 text-emerald-950 border-emerald-400 font-black' : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 font-black'
+                          : lookupResult.status === 'Pending Admin Approval' || lookupResult.internalStatus === 'PENDING_ADMIN_REVIEW'
+                          ? isLight ? 'bg-amber-100 text-amber-950 border-amber-400 font-black' : 'bg-amber-500/20 text-amber-300 border-amber-500/40 font-bold'
+                          : lookupResult.status === 'Rejected' || lookupResult.internalStatus === 'REJECTED'
+                          ? isLight ? 'bg-rose-100 text-rose-950 border-rose-400 font-black' : 'bg-rose-500/20 text-rose-300 border-rose-500/40 font-bold'
+                          : isLight ? 'bg-slate-100 text-slate-900 border-slate-300 font-black' : 'bg-zinc-500/20 text-zinc-300 border-zinc-500/30 font-bold'
+                      }`}>
+                        {lookupResult.status === 'Approved' || lookupResult.internalStatus === 'APPROVED' ? (
+                          <>
+                            <CheckCircle2 size={13} className="text-emerald-600 dark:text-emerald-400" />
+                            <span>✓ Approved & Unlocked</span>
+                          </>
+                        ) : lookupResult.status === 'Pending Admin Approval' || lookupResult.internalStatus === 'PENDING_ADMIN_REVIEW' ? (
+                          <>
+                            <Clock size={13} className="animate-spin text-amber-600 dark:text-amber-400" />
+                            <span>⏳ In Admin Review</span>
+                          </>
+                        ) : lookupResult.status === 'Rejected' || lookupResult.internalStatus === 'REJECTED' ? (
+                          <>
+                            <XCircle size={13} className="text-rose-600 dark:text-rose-400" />
+                            <span>✕ Not Approved</span>
+                          </>
+                        ) : (
+                          <span>{lookupResult.status || 'Status Check'}</span>
+                        )}
                       </span>
                     </div>
                   </div>
 
-                  {/* 4-Step Visual Progress Tracker */}
+                  {/* Customer Information Cards */}
+                  <div className={`grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-3.5 rounded-xl border ${
+                    isLight ? "bg-slate-50/90 border-slate-200 text-slate-900" : "bg-white/5 border-white/10 text-white"
+                  }`}>
+                    <div>
+                      <span className={`block text-[10px] font-bold uppercase tracking-wider ${isLight ? 'text-slate-500' : 'text-zinc-400'}`}>Customer Name</span>
+                      <span className={`font-bold text-xs ${isLight ? "text-slate-950" : "text-white"}`}>{lookupResult.customerName || 'Customer'}</span>
+                    </div>
+                    <div>
+                      <span className={`block text-[10px] font-bold uppercase tracking-wider ${isLight ? 'text-slate-500' : 'text-zinc-400'}`}>Registered Mobile</span>
+                      <span className={`font-bold font-mono text-xs ${isLight ? 'text-emerald-900' : 'text-emerald-400'}`}>
+                        {lookupResult.customerPhone || 'Verified Registered'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className={`block text-[10px] font-bold uppercase tracking-wider ${isLight ? 'text-slate-500' : 'text-zinc-400'}`}>12-Digit UTR No.</span>
+                      <span className={`font-bold font-mono text-xs ${isLight ? "text-slate-950 font-black" : "text-amber-300"}`}>
+                        {lookupResult.utrReference || 'Submitted'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* 4-Step Visual Progress Timeline */}
                   <div className={`p-3.5 rounded-xl border space-y-2.5 ${
                     isLight ? "bg-slate-50 border-slate-200" : "bg-black/40 border-white/10"
                   }`}>
-                    <span className={`text-[10px] uppercase font-bold block ${isLight ? 'text-slate-600' : 'text-zinc-400'}`}>
+                    <span className={`text-[10px] uppercase font-bold tracking-wider block ${isLight ? 'text-slate-600' : 'text-zinc-400'}`}>
                       Order Progress Timeline:
                     </span>
                     <div className="grid grid-cols-4 gap-1 text-center font-mono text-[9px] sm:text-[10px]">
@@ -1746,7 +2034,7 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
                       <div className="space-y-1">
                         <div className={`w-6 h-6 mx-auto rounded-full flex items-center justify-center font-bold text-xs border ${
                           lookupResult.status === 'Approved' || lookupResult.internalStatus === 'APPROVED'
-                            ? isLight ? 'bg-emerald-600 text-white border-emerald-700 font-black' : 'bg-emerald-500 text-black border-emerald-400 font-black'
+                            ? isLight ? 'bg-emerald-600 text-white border-emerald-700 font-black shadow-sm' : 'bg-emerald-500 text-black border-emerald-400 font-black'
                             : isLight ? 'bg-slate-200 text-slate-500 border-slate-300' : 'bg-white/5 text-zinc-500 border-white/10'
                         }`}>
                           {lookupResult.status === 'Approved' || lookupResult.internalStatus === 'APPROVED' ? '★' : '4'}
@@ -1755,25 +2043,283 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
                           lookupResult.status === 'Approved' || lookupResult.internalStatus === 'APPROVED'
                             ? isLight ? 'text-emerald-950 font-black' : 'text-emerald-400'
                             : isLight ? 'text-slate-500 font-normal' : 'text-zinc-500'
-                        }`}>4. Approved</span>
+                        }`}>4. Unlocked</span>
                       </div>
                     </div>
                   </div>
 
-                  {/* STATUS CONDITION: Revoked / Refunded */}
-                  {(lookupResult.status === 'Refunded' || lookupResult.internalStatus === 'REFUNDED') && (
-                    <div className={`p-4 rounded-xl border text-xs space-y-2.5 text-center ${
+                  {/* ─────────────────────────────────────────────────────────────
+                      STATUS CONDITION 1: APPROVED — MASTER GOOGLE DRIVE ACCESS
+                      Strict entitlement: ONLY shown when status is explicitly APPROVED
+                     ───────────────────────────────────────────────────────────── */}
+                  {(lookupResult.status === 'Approved' || lookupResult.internalStatus === 'APPROVED') && (
+                    <div className="space-y-4 pt-1">
+                      {/* Success confirmation banner */}
+                      <div className={`p-4 rounded-2xl border text-center space-y-1.5 ${
+                        isLight ? 'bg-emerald-50 border-emerald-300 text-slate-900' : 'bg-emerald-950/40 border-emerald-500/40 text-white'
+                      }`}>
+                        <div className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto border ${
+                          isLight ? 'bg-emerald-100 text-emerald-800 border-emerald-300 shadow-sm' : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 shadow-lg shadow-emerald-500/20'
+                        }`}>
+                          <CheckCircle2 size={24} />
+                        </div>
+                        <p className={`font-black text-sm sm:text-base ${isLight ? 'text-emerald-950 font-black' : 'text-white'}`}>
+                          Payment Verified & Order Approved!
+                        </p>
+                        <p className={`text-xs ${isLight ? 'text-slate-700 font-semibold' : 'text-emerald-200/90'}`}>
+                          Murari Panjiyar has approved your order. Your Master Google Drive library is unlocked and ready.
+                        </p>
+                      </div>
+
+                      {/* Google Drive Master Vault Showcase Card */}
+                      <div className={`p-5 rounded-2xl border-2 space-y-4 transition-all ${
+                        isLight
+                          ? 'bg-gradient-to-br from-amber-50/90 via-emerald-50/50 to-white border-emerald-400 shadow-lg shadow-emerald-500/10'
+                          : 'bg-gradient-to-br from-emerald-950/50 via-zinc-950 to-black border-emerald-500/50 shadow-2xl'
+                      }`}>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white shadow-lg shrink-0">
+                              <FolderCheck size={24} />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold uppercase border ${
+                                  isLight ? 'bg-emerald-100 text-emerald-900 border-emerald-300 font-black' : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                                }`}>
+                                  Google Drive Master Vault
+                                </span>
+                                <span className={`text-[10px] font-mono font-bold ${isLight ? 'text-slate-600' : 'text-zinc-400'}`}>
+                                  Lifetime Access
+                                </span>
+                              </div>
+                              <h5 className={`font-mono font-black text-sm sm:text-base tracking-tight ${isLight ? 'text-slate-950' : 'text-white'}`}>
+                                150,000+ Raw Videos • All 9 Categories
+                              </h5>
+                              <p className={`text-xs ${isLight ? 'text-slate-600 font-medium' : 'text-zinc-400'}`}>
+                                1080x1920 Vertical Full HD • No Watermarks • Instant Cloud Download
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Primary Redirect Button to Google Drive */}
+                        <div className="space-y-2 pt-1">
+                          <a
+                            href={
+                              lookupResult.googleDriveLink ||
+                              lookupResult.masterDriveLink ||
+                              masterDriveUrl ||
+                              'https://drive.google.com/drive/folders/1jkXdin8dyQ99mYKxC2JOczG8e7EHlF3C?usp=sharing'
+                            }
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={() => {
+                              if (triggerToast) {
+                                triggerToast('Opening Google Drive Master Folder in new tab...', 'success');
+                              }
+                            }}
+                            className="w-full py-4 px-5 rounded-xl font-mono font-black text-sm sm:text-base uppercase tracking-wider bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 text-white flex items-center justify-center gap-2.5 shadow-xl shadow-emerald-500/25 hover:shadow-emerald-500/40 border border-emerald-400/50 transition-all cursor-pointer active:scale-[0.98] min-h-[52px]"
+                          >
+                            <ExternalLink size={18} />
+                            <span>Open Master Google Drive ↗</span>
+                          </a>
+
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const driveLink =
+                                  lookupResult.googleDriveLink ||
+                                  lookupResult.masterDriveLink ||
+                                  masterDriveUrl ||
+                                  'https://drive.google.com/drive/folders/1jkXdin8dyQ99mYKxC2JOczG8e7EHlF3C?usp=sharing';
+                                navigator.clipboard.writeText(driveLink);
+                                setCopiedLinkType('master_drive');
+                                if (triggerToast) triggerToast('Google Drive link copied to clipboard!', 'success');
+                                setTimeout(() => setCopiedLinkType(null), 2500);
+                              }}
+                              className={`flex-1 py-2.5 px-3 rounded-xl font-mono text-xs font-bold border flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
+                                isLight
+                                  ? 'border-emerald-300 bg-emerald-50/70 text-emerald-950 hover:bg-emerald-100 font-black'
+                                  : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20'
+                              }`}
+                            >
+                              {copiedLinkType === 'master_drive' ? (
+                                <>
+                                  <Check size={14} className="text-emerald-500" />
+                                  <span>Link Copied!</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Copy size={14} />
+                                  <span>Copy Google Drive Link</span>
+                                </>
+                              )}
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setActiveTab('categories')}
+                              className={`py-2.5 px-4 rounded-xl font-mono text-xs font-bold border flex items-center justify-center gap-1.5 transition-colors cursor-pointer shrink-0 ${
+                                isLight
+                                  ? 'border-slate-300 bg-white text-slate-800 hover:bg-slate-100'
+                                  : 'border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10'
+                              }`}
+                            >
+                              <span>Explore Folders →</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Direct Link Field for Easy Sharing/Bookmark */}
+                        <div className={`p-3 rounded-xl border text-[11px] font-mono space-y-1 ${
+                          isLight ? 'bg-white border-slate-200 text-slate-700' : 'bg-black/50 border-white/10 text-zinc-400'
+                        }`}>
+                          <span className={`text-[10px] uppercase font-bold block ${isLight ? 'text-slate-500' : 'text-zinc-500'}`}>Direct Google Drive URL:</span>
+                          <p className={`font-mono text-[11px] truncate select-all font-bold ${isLight ? 'text-emerald-950' : 'text-emerald-400'}`}>
+                            {lookupResult.googleDriveLink || lookupResult.masterDriveLink || 'https://drive.google.com/drive/folders/1jkXdin8dyQ99mYKxC2JOczG8e7EHlF3C?usp=sharing'}
+                          </p>
+                        </div>
+
+                        {/* 9 Included Categories Checklist */}
+                        <div className="pt-1">
+                          <span className={`text-[10px] font-mono font-bold uppercase tracking-wider block mb-2 ${
+                            isLight ? 'text-slate-600' : 'text-zinc-400'
+                          }`}>
+                            Folders included in your Master Drive:
+                          </span>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 text-[10px] font-mono">
+                            {[
+                              'Anime & Shonen (20K+)',
+                              'Cartoons & Nostalgia (18K+)',
+                              'Motivation & Gym (25K+)',
+                              'Woodworking Art (14K+)',
+                              'Satisfying & ASMR (16K+)',
+                              '3D CGI & VFX (15K+)',
+                              'Supercars & JDM (18K+)',
+                              'Travel & 4K Drone (16K+)',
+                              'Tech & Lifestyle (12K+)',
+                            ].map((cat, idx) => (
+                              <div
+                                key={idx}
+                                className={`px-2 py-1 rounded-lg border flex items-center gap-1 font-semibold ${
+                                  isLight ? 'bg-white/90 border-slate-200 text-slate-800' : 'bg-black/40 border-white/5 text-zinc-300'
+                                }`}
+                              >
+                                <span className="text-emerald-500 font-black">✓</span>
+                                <span className="truncate">{cat}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ─────────────────────────────────────────────────────────────
+                      STATUS CONDITION 2: PENDING ADMIN APPROVAL
+                      Strict entitlement: Google Drive link is NEVER shown
+                     ───────────────────────────────────────────────────────────── */}
+                  {(lookupResult.status === 'Pending Admin Approval' || lookupResult.internalStatus === 'PENDING_ADMIN_REVIEW') && (
+                    <div className={`p-5 rounded-2xl border text-center space-y-3 ${
+                      isLight ? 'bg-amber-50/80 border-amber-300 text-slate-900' : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+                    }`}>
+                      <div className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto border ${
+                        isLight ? 'bg-amber-100 text-amber-900 border-amber-400' : 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                      }`}>
+                        <Clock size={22} className="animate-spin" />
+                      </div>
+                      <div className="space-y-1">
+                        <p className={`font-black text-sm sm:text-base ${isLight ? 'text-amber-950 font-black' : 'text-amber-300 font-black'}`}>
+                          Waiting for Admin Approval
+                        </p>
+                        <p className={`text-xs leading-relaxed max-w-md mx-auto ${isLight ? 'text-slate-700 font-medium' : 'text-zinc-300'}`}>
+                          Your ₹199 payment reference has been recorded. Murari Panjiyar has been notified to verify your BharatPe statement.
+                        </p>
+                      </div>
+
+                      {/* Live real-time beacon */}
+                      <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px] font-mono border font-bold ${
+                        isLight ? 'bg-amber-100/90 border-amber-300 text-amber-950' : 'bg-black/60 border-amber-500/40 text-amber-300'
+                      }`}>
+                        <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping shrink-0" />
+                        <span>Real-Time Sync Active — Screen will update automatically upon approval</span>
+                      </div>
+
+                      <div className="pt-2 flex justify-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleLookupOrder(undefined, lookupResult.id)}
+                          disabled={isLookingUp}
+                          className="py-2.5 px-4 rounded-xl text-xs font-mono font-black bg-amber-400 text-slate-950 hover:bg-amber-300 cursor-pointer shadow-md inline-flex items-center gap-1.5 border border-amber-500/40"
+                        >
+                          <RefreshCw size={12} className={isLookingUp ? 'animate-spin' : ''} />
+                          <span>Check Live Status Now</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ─────────────────────────────────────────────────────────────
+                      STATUS CONDITION 3: REJECTED
+                     ───────────────────────────────────────────────────────────── */}
+                  {(lookupResult.status === 'Rejected' || lookupResult.internalStatus === 'REJECTED') && (
+                    <div className={`p-5 rounded-2xl border text-center space-y-3 ${
+                      isLight ? 'bg-rose-50 border-rose-300 text-slate-900' : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+                    }`}>
+                      <div className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto border ${
+                        isLight ? 'bg-rose-100 text-rose-800 border-rose-300' : 'bg-rose-500/20 text-rose-400 border-rose-500/30'
+                      }`}>
+                        <XCircle size={22} />
+                      </div>
+                      <div className="space-y-1">
+                        <p className={`font-black text-sm sm:text-base ${isLight ? 'text-rose-950' : 'text-white'}`}>
+                          Payment Not Approved
+                        </p>
+                        <p className={`text-xs ${isLight ? 'text-slate-700 font-medium' : 'text-zinc-300'}`}>
+                          {lookupResult.rejectionReason || 'UTR could not be matched against current BharatPe bank records.'}
+                        </p>
+                      </div>
+                      <div className="pt-1 flex flex-wrap justify-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab('faq')}
+                          className="py-2 px-4 rounded-xl text-xs font-mono font-bold border border-rose-300 bg-white text-slate-900 hover:bg-rose-50 cursor-pointer"
+                        >
+                          Contact Support
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleStartNewOrder}
+                          className="py-2 px-4 rounded-xl text-xs font-mono font-black bg-amber-400 text-slate-950 hover:bg-amber-300 cursor-pointer shadow-md"
+                        >
+                          Place New Order →
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ─────────────────────────────────────────────────────────────
+                      STATUS CONDITION 4: REVOKED / REFUNDED
+                     ───────────────────────────────────────────────────────────── */}
+                  {(lookupResult.status === 'Revoked' || lookupResult.internalStatus === 'REFUNDED') && (
+                    <div className={`p-5 rounded-2xl border text-center space-y-3 ${
                       isLight ? 'bg-rose-50 border-rose-300 text-slate-900' : 'bg-amber-950/40 border-amber-500/30 text-amber-300'
                     }`}>
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center mx-auto border ${
+                      <div className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto border ${
                         isLight ? 'bg-rose-100 text-rose-800 border-rose-300' : 'bg-amber-500/20 text-amber-400 border-amber-500/30'
                       }`}>
-                        <Lock size={18} />
+                        <Lock size={22} />
                       </div>
-                      <p className={`font-bold text-sm ${isLight ? 'text-rose-950 font-black' : 'text-amber-300'}`}>Access Revoked</p>
-                      <p className={`text-xs ${isLight ? 'text-slate-700 font-medium' : 'text-zinc-300'}`}>
-                        {lookupResult.rejectionReason || 'Access for this order has been revoked by administrator. Please complete a new purchase to regain access.'}
-                      </p>
+                      <div className="space-y-1">
+                        <p className={`font-black text-sm sm:text-base ${isLight ? 'text-rose-950 font-black' : 'text-amber-300'}`}>
+                          Access Revoked
+                        </p>
+                        <p className={`text-xs ${isLight ? 'text-slate-700 font-medium' : 'text-zinc-300'}`}>
+                          {lookupResult.rejectionReason || 'Access for this order has been revoked by administrator. Please complete a new purchase to regain access.'}
+                        </p>
+                      </div>
                       <button
                         type="button"
                         onClick={handleStartNewOrder}
@@ -1781,129 +2327,6 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
                       >
                         <Zap size={14} className="fill-slate-950" />
                         <span>Place a New Order →</span>
-                      </button>
-                    </div>
-                  )}
-
-                  {/* STATUS CONDITION 1: Pending Admin Approval */}
-                  {(lookupResult.status === 'Pending Admin Approval' || lookupResult.internalStatus === 'PENDING_ADMIN_REVIEW') && (
-                    <div className={`p-4 rounded-xl border text-xs text-center space-y-2 ${
-                      isLight ? 'bg-amber-50 border-amber-300 text-slate-900' : 'bg-amber-500/10 border-amber-500/20 text-amber-300'
-                    }`}>
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center mx-auto border ${
-                        isLight ? 'bg-amber-100 text-amber-900 border-amber-400' : 'bg-amber-500/20 text-amber-400 border-amber-500/30'
-                      }`}>
-                        <Clock size={18} className="animate-pulse" />
-                      </div>
-                      <p className={`font-black text-sm ${isLight ? 'text-amber-950 font-black' : 'text-amber-300'}`}>Waiting for Admin Approval</p>
-                      <p className={`text-xs leading-relaxed ${isLight ? 'text-slate-700 font-medium' : 'text-zinc-300'}`}>
-                        Your payment has been received and your order is waiting for admin approval from Murari Panjiyar.
-                      </p>
-                    </div>
-                  )}
-
-                  {/* STATUS CONDITION 2: Approved */}
-                  {(lookupResult.status === 'Approved' || lookupResult.internalStatus === 'APPROVED') && (
-                    <div className="space-y-3">
-                      <div className={`p-4 rounded-xl border text-xs text-center space-y-2 ${
-                        isLight ? 'bg-emerald-50 border-emerald-300 text-slate-900' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300'
-                      }`}>
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center mx-auto border ${
-                          isLight ? 'bg-emerald-100 text-emerald-800 border-emerald-400' : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
-                        }`}>
-                          <CheckCircle2 size={20} />
-                        </div>
-                        <p className={`font-black text-sm ${isLight ? 'text-emerald-950 font-black' : 'text-white'}`}>
-                          Your Payment Has Been Verified and Approved!
-                        </p>
-                        <p className={`text-xs ${isLight ? 'text-slate-700 font-medium' : 'text-zinc-300'}`}>
-                          Your digital access to the authorized resources has been unlocked.
-                        </p>
-                      </div>
-
-                      {/* If searched by mobile number alone: Ownership verification requirement */}
-                      {lookupResult.requiresOwnershipVerification ? (
-                        <form onSubmit={handleVerifyOwnership} className={`p-4 rounded-xl border space-y-2.5 ${
-                          isLight ? 'bg-amber-50/70 border-amber-300 text-slate-900' : 'bg-black/60 border-amber-500/40 text-white'
-                        }`}>
-                          <div className="space-y-1">
-                            <label className={`text-xs font-bold block ${isLight ? 'text-amber-950' : 'text-amber-300'}`}>
-                              🔒 Ownership Verification Required
-                            </label>
-                            <p className={`text-[11px] ${isLight ? 'text-slate-600' : 'text-zinc-400'}`}>
-                              To protect customer privacy and access your download, please enter your Order ID:
-                            </p>
-                          </div>
-                          <div className="flex gap-2">
-                            <input
-                              type="text"
-                              value={verifyOrderIdInput}
-                              onChange={e => setVerifyOrderIdInput(e.target.value)}
-                              placeholder="Enter Order ID (e.g. RP-...)"
-                              className={`flex-1 px-3 py-2 rounded-lg text-xs font-mono outline-none ${
-                                isLight
-                                  ? 'bg-white border-2 border-slate-300 text-slate-900 focus:border-amber-500'
-                                  : 'bg-black border border-white/20 text-white focus:border-amber-500'
-                              }`}
-                            />
-                            <button
-                              type="submit"
-                              disabled={isVerifyingOwnership || !verifyOrderIdInput.trim()}
-                              className="px-4 py-2 rounded-lg bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs font-mono cursor-pointer border border-amber-500/40 shadow-sm"
-                            >
-                              {isVerifyingOwnership ? 'Verifying...' : 'Verify'}
-                            </button>
-                          </div>
-                        </form>
-                      ) : (
-                        /* Authorized Download Button */
-                        <a
-                          href={lookupResult.downloadUrl || masterDriveUrl || (lookupResult.id ? `/api/reels/vault-access/${lookupResult.id}` : '#')}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="w-full py-3.5 px-4 rounded-xl font-mono font-black text-xs uppercase bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white flex items-center justify-center gap-2 shadow-lg hover:shadow-emerald-500/20 transition-all cursor-pointer"
-                        >
-                          <Download size={16} />
-                          <span>Download Now</span>
-                        </a>
-                      )}
-                    </div>
-                  )}
-
-                  {/* STATUS CONDITION 3: Rejected */}
-                  {(lookupResult.status === 'Rejected' || lookupResult.internalStatus === 'REJECTED') && (
-                    <div className={`p-4 rounded-xl border text-xs space-y-2 text-center ${
-                      isLight ? 'bg-rose-50 border-rose-300 text-slate-900' : 'bg-rose-500/10 border-rose-500/20 text-rose-300'
-                    }`}>
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center mx-auto border ${
-                        isLight ? 'bg-rose-100 text-rose-800 border-rose-300' : 'bg-rose-500/20 text-rose-400 border-rose-500/30'
-                      }`}>
-                        <XCircle size={18} />
-                      </div>
-                      <p className={`font-black text-sm ${isLight ? 'text-rose-950' : 'text-white'}`}>Order Not Approved</p>
-                      <p className={`text-xs ${isLight ? 'text-slate-700 font-medium' : 'text-zinc-300'}`}>
-                        {lookupResult.rejectionReason || 'Your request was not approved by the administrator.'}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* STATUS CONDITION 4: Payment Pending or Verification Failed */}
-                  {(lookupResult.status === 'Payment Pending' || lookupResult.status === 'Payment Verification Failed' || lookupResult.internalStatus === 'PENDING_PAYMENT') && (
-                    <div className={`p-4 rounded-xl border text-xs space-y-2 text-center ${
-                      isLight ? 'bg-slate-100 border-slate-300 text-slate-900' : 'bg-zinc-800/80 border-white/10 text-zinc-300'
-                    }`}>
-                      <p className={`font-black text-sm ${isLight ? 'text-slate-950' : 'text-zinc-200'}`}>{lookupResult.status}</p>
-                      <p className={`text-xs ${isLight ? 'text-slate-600 font-medium' : 'text-zinc-400'}`}>
-                        Payment verification could not be confirmed. Please check your transaction details or contact support.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => setActiveTab('faq')}
-                        className={`text-xs font-mono font-bold underline cursor-pointer ${
-                          isLight ? 'text-amber-900 hover:text-amber-950' : 'text-amber-400'
-                        }`}
-                      >
-                        Contact Support →
                       </button>
                     </div>
                   )}

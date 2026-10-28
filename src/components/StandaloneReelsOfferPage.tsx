@@ -1592,6 +1592,76 @@ export function StandaloneReelsOfferPage({
                         <span className={`font-mono font-black select-all ${isLight ? "text-emerald-900" : "text-emerald-400"}`}>{orderId}</span>
                       </div>
                     )}
+
+                    {/* Google Drive Master Vault Showcase Card */}
+                    <div className={`p-5 rounded-2xl border-2 space-y-3.5 text-left transition-all ${
+                      isLight
+                        ? 'bg-gradient-to-br from-amber-50/90 via-emerald-50/50 to-white border-emerald-400 shadow-lg shadow-emerald-500/10'
+                        : 'bg-gradient-to-br from-emerald-950/50 via-zinc-950 to-black border-emerald-500/50 shadow-2xl'
+                    }`}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white shadow-lg shrink-0">
+                            <FolderCheck size={24} />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold uppercase border ${
+                                isLight ? 'bg-emerald-100 text-emerald-900 border-emerald-300 font-black' : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                              }`}>
+                                Google Drive Master Vault
+                              </span>
+                              <span className={`text-[10px] font-mono font-bold ${isLight ? 'text-slate-600' : 'text-zinc-400'}`}>
+                                Lifetime Access
+                              </span>
+                            </div>
+                            <h5 className={`font-mono font-black text-sm sm:text-base tracking-tight ${isLight ? 'text-slate-950' : 'text-white'}`}>
+                              150,000+ Raw Videos • All 9 Categories
+                            </h5>
+                            <p className={`text-xs ${isLight ? 'text-slate-600 font-medium' : 'text-zinc-400'}`}>
+                              1080x1920 Vertical Full HD • No Watermarks • Instant Cloud Download
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Primary Redirect Button to Google Drive */}
+                      <div className="space-y-2 pt-1">
+                        <a
+                          href={unlockedDriveLink || 'https://drive.google.com/drive/folders/1jkXdin8dyQ99mYKxC2JOczG8e7EHlF3C?usp=sharing'}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={() => {
+                            showToast('Opening Google Drive Master Folder in new tab...', 'success');
+                          }}
+                          className="w-full py-3.5 px-5 rounded-xl font-mono font-black text-sm uppercase tracking-wider bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 text-white flex items-center justify-center gap-2.5 shadow-xl shadow-emerald-500/25 hover:shadow-emerald-500/40 border border-emerald-400/50 transition-all cursor-pointer active:scale-[0.98] min-h-[50px]"
+                        >
+                          <ExternalLink size={18} />
+                          <span>Open Master Google Drive ↗</span>
+                        </a>
+
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const driveLink = unlockedDriveLink || 'https://drive.google.com/drive/folders/1jkXdin8dyQ99mYKxC2JOczG8e7EHlF3C?usp=sharing';
+                              navigator.clipboard.writeText(driveLink);
+                              setCopiedLink('Drive Link');
+                              showToast('Google Drive link copied to clipboard!', 'success');
+                              setTimeout(() => setCopiedLink(null), 2500);
+                            }}
+                            className={`flex-1 py-2 px-3 rounded-xl font-mono text-xs font-bold border flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
+                              isLight
+                                ? 'bg-white hover:bg-slate-100 text-slate-800 border-slate-300'
+                                : 'bg-white/10 hover:bg-white/20 text-white border-white/20'
+                            }`}
+                          >
+                            {copiedLink === 'Drive Link' ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
+                            <span>{copiedLink === 'Drive Link' ? 'Copied to Clipboard!' : 'Copy Drive Link'}</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                   <div className={`p-4 rounded-2xl border text-center space-y-2.5 ${
                     isLight ? 'bg-amber-50 border-amber-300 text-slate-900' : 'bg-amber-500/10 border-amber-500/20 text-white'
