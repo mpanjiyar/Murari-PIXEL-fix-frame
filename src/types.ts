@@ -181,12 +181,14 @@ export interface ReelPurchaseOrder {
   receiverName: string;
   utrReference?: string;
   customerNotes?: string;
+  adminNotes?: string;
   transactionId?: string;
   verificationSource?: 'manual_admin' | 'merchant_webhook' | 'instant_verify';
   submittedAt?: string;
   paymentVerifiedAt?: string;
   approvedAt?: string;
   rejectedAt?: string;
+  revokedAt?: string;
   reviewedByAdminId?: string;
   rejectionReason?: string;
   downloadToken?: string;

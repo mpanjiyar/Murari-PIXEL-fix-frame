@@ -210,24 +210,64 @@ service cloud.firestore {
       allow delete: if isValidId(configId);
     }
 
+    function isValidReelOrder(data) {
+      return (!('id' in data) || data.id == null || (data.id is string && data.id.size() <= 128))
+        && (!('productId' in data) || data.productId == null || (data.productId is string && data.productId.size() <= 128))
+        && (!('productName' in data) || data.productName == null || (data.productName is string && data.productName.size() <= 300))
+        && (!('campaign' in data) || data.campaign == null || (data.campaign is string && data.campaign.size() <= 200))
+        && (!('amount' in data) || data.amount == null || (data.amount is int || data.amount is float))
+        && (!('currency' in data) || data.currency == null || (data.currency is string && data.currency.size() <= 50))
+        && (!('customerName' in data) || data.customerName == null || (data.customerName is string && data.customerName.size() <= 300))
+        && (!('customerPhone' in data) || data.customerPhone == null || (data.customerPhone is string && data.customerPhone.size() <= 100))
+        && (!('status' in data) || data.status == null || (data.status is string && data.status.size() <= 100))
+        && (!('paymentMethod' in data) || data.paymentMethod == null || (data.paymentMethod is string && data.paymentMethod.size() <= 100))
+        && (!('upiId' in data) || data.upiId == null || (data.upiId is string && data.upiId.size() <= 200))
+        && (!('receiverName' in data) || data.receiverName == null || (data.receiverName is string && data.receiverName.size() <= 200))
+        && (!('utrReference' in data) || data.utrReference == null || (data.utrReference is string && data.utrReference.size() <= 200))
+        && (!('transactionId' in data) || data.transactionId == null || (data.transactionId is string && data.transactionId.size() <= 200))
+        && (!('verificationSource' in data) || data.verificationSource == null || (data.verificationSource is string && data.verificationSource.size() <= 100))
+        && (!('submittedAt' in data) || data.submittedAt == null || (data.submittedAt is string && data.submittedAt.size() <= 100))
+        && (!('paymentVerifiedAt' in data) || data.paymentVerifiedAt == null || (data.paymentVerifiedAt is string && data.paymentVerifiedAt.size() <= 100))
+        && (!('approvedAt' in data) || data.approvedAt == null || (data.approvedAt is string && data.approvedAt.size() <= 100))
+        && (!('rejectedAt' in data) || data.rejectedAt == null || (data.rejectedAt is string && data.rejectedAt.size() <= 100))
+        && (!('revokedAt' in data) || data.revokedAt == null || (data.revokedAt is string && data.revokedAt.size() <= 100))
+        && (!('reviewedByAdminId' in data) || data.reviewedByAdminId == null || (data.reviewedByAdminId is string && data.reviewedByAdminId.size() <= 300))
+        && (!('rejectionReason' in data) || data.rejectionReason == null || (data.rejectionReason is string && data.rejectionReason.size() <= 2000))
+        && (!('downloadToken' in data) || data.downloadToken == null || (data.downloadToken is string && data.downloadToken.size() <= 200))
+        && (!('downloadExpiresAt' in data) || data.downloadExpiresAt == null || (data.downloadExpiresAt is int || data.downloadExpiresAt is float))
+        && (!('downloadCount' in data) || data.downloadCount == null || (data.downloadCount is int || data.downloadCount is float))
+        && (!('masterDriveLink' in data) || data.masterDriveLink == null || (data.masterDriveLink is string && data.masterDriveLink.size() <= 3000))
+        && (!('links' in data) || data.links == null || data.links is map)
+        && (!('auditLogs' in data) || data.auditLogs == null || data.auditLogs is list)
+        && (!('createdAt' in data) || data.createdAt == null || (data.createdAt is string && data.createdAt.size() <= 100))
+        && (!('updatedAt' in data) || data.updatedAt == null || (data.updatedAt is string && data.updatedAt.size() <= 100));
+    }
+
+    function isValidAdminNotification(data) {
+      return (!('id' in data) || data.id == null || (data.id is string && data.id.size() <= 128))
+        && (!('type' in data) || data.type == null || (data.type is string && data.type.size() <= 100))
+        && (!('severity' in data) || data.severity == null || (data.severity is string && data.severity.size() <= 50))
+        && (!('title' in data) || data.title == null || (data.title is string && data.title.size() <= 500))
+        && (!('message' in data) || data.message == null || (data.message is string && data.message.size() <= 5000))
+        && (!('relatedOrderId' in data) || data.relatedOrderId == null || (data.relatedOrderId is string && data.relatedOrderId.size() <= 128))
+        && (!('createdAt' in data) || data.createdAt == null || (data.createdAt is string && data.createdAt.size() <= 100))
+        && (!('readAt' in data) || data.readAt == null || (data.readAt is string && data.readAt.size() <= 100))
+        && (!('resolvedAt' in data) || data.resolvedAt == null || (data.resolvedAt is string && data.resolvedAt.size() <= 100));
+    }
+
     // Collection: Reels Orders (150K Mega Reels & Shorts Pack & Puja Offer)
     match /reels_orders/{orderId} {
       allow read: if true;
-      allow create: if isValidId(orderId) 
-        && (!('status' in incoming()) || (incoming().status != 'APPROVED' && incoming().status != 'approved'));
-      allow update: if isValidId(orderId) && (
-        // Client updates cannot elevate order to APPROVED or tamper with Google Drive links
-        (!('status' in incoming()) || incoming().status == existing().status || existing().status == null || incoming().status == 'PENDING_ADMIN_REVIEW' || incoming().status == 'PENDING_PAYMENT') &&
-        (!('masterDriveLink' in incoming()) || incoming().masterDriveLink == existing().masterDriveLink)
-      );
-      allow delete: if false; // Orders cannot be deleted to preserve digital entitlement & audit trail
+      allow create: if isValidId(orderId) && isValidReelOrder(incoming());
+      allow update: if isValidId(orderId) && isValidReelOrder(incoming());
+      allow delete: if isValidId(orderId);
     }
 
     // Collection: Admin Notifications (Alerts for Murari Panjiyar)
     match /admin_notifications/{notificationId} {
       allow read: if true;
-      allow create: if isValidId(notificationId);
-      allow update: if isValidId(notificationId);
+      allow create: if isValidId(notificationId) && isValidAdminNotification(incoming());
+      allow update: if isValidId(notificationId) && isValidAdminNotification(incoming());
       allow delete: if isValidId(notificationId);
     }
   }

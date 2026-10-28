@@ -4770,8 +4770,9 @@ export default function App() {
                 setReelsModalInitialTab('checkout');
                 setIsReelsModalOpen(true);
               }}
-              className="hidden lg:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-mono font-black uppercase tracking-wider bg-gradient-to-r from-red-600 via-amber-500 to-orange-500 text-black shadow-sm hover:shadow-amber-500/25 transition-all cursor-pointer"
+              className="hidden lg:inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[10px] font-mono font-black uppercase tracking-wider bg-gradient-to-r from-amber-400 via-orange-400 to-amber-500 text-slate-950 shadow-md hover:shadow-amber-500/30 border border-amber-300/40 transition-all cursor-pointer"
             >
+              <Sparkles size={11} className="stroke-[2.5]" />
               <span>🎉 150K REELS · ₹199</span>
             </motion.button>
           </div>
@@ -4957,12 +4958,13 @@ export default function App() {
                     setReelsModalInitialTab('checkout');
                     setIsReelsModalOpen(true);
                   }}
-                  className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-red-600 via-amber-500 to-orange-500 text-black font-mono font-black text-xs uppercase tracking-wider flex items-center justify-between shadow-lg shadow-amber-500/20 active:scale-95 transition-transform cursor-pointer"
+                  className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-amber-400 via-orange-400 to-amber-500 text-slate-950 font-mono font-black text-xs uppercase tracking-wider flex items-center justify-between shadow-lg shadow-amber-500/25 active:scale-95 transition-transform cursor-pointer border border-amber-300/50"
                 >
                   <span className="flex items-center gap-1.5">
-                    <span>🎉 PUJA OFFER</span>
+                    <Sparkles size={13} className="stroke-[2.5]" />
+                    <span>🎉 PUJA SPECIAL OFFER</span>
                   </span>
-                  <span className="bg-black text-amber-400 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                  <span className="bg-slate-950 text-amber-300 px-2.5 py-0.5 rounded-full text-[10px] font-bold border border-amber-400/40">
                     ₹199 ONLY
                   </span>
                 </button>
@@ -10437,49 +10439,51 @@ export default function App() {
                 </div>
 
                 {/* SUB-TABS NAVIGATION BAR */}
-                <div className="flex flex-wrap items-center gap-1.5 md:gap-2 border-b pb-4 border-slate-100 dark:border-white/5">
+                <div className={`p-1.5 sm:p-2 rounded-2xl border flex flex-wrap items-center gap-1.5 sm:gap-2 mb-2 transition-colors ${
+                  currentTheme === 'light' ? 'bg-slate-100/90 border-slate-200 shadow-sm' : 'bg-zinc-950/80 border-white/10'
+                }`}>
                   <button
                     onClick={() => setAdminSubTab('overview')}
-                    className={`px-3 py-1.5 rounded-lg text-[10.5px] md:text-xs font-bold uppercase transition-all flex items-center gap-2 cursor-pointer ${
+                    className={`px-3 py-2 rounded-xl text-[11px] md:text-xs font-bold uppercase transition-all flex items-center gap-2 cursor-pointer ${
                       adminSubTab === 'overview'
-                        ? 'bg-[#FF5500] text-white'
+                        ? 'bg-[#FF5500] text-white shadow-md shadow-[#FF5500]/25'
                         : currentTheme === 'light'
-                          ? 'bg-slate-50 hover:bg-slate-100 text-slate-700'
-                          : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-400'
+                          ? 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/90 shadow-xs hover:border-[#FF5500]/30'
+                          : 'bg-zinc-900/90 hover:bg-zinc-800 text-zinc-300 border border-white/10'
                     }`}
                   >
-                    <TrendingUp size={14} />
+                    <TrendingUp size={14} className={adminSubTab === 'overview' ? 'text-white' : 'text-[#FF5500]'} />
                     <span>Overview &amp; Stats</span>
                   </button>
 
                   <button
                     onClick={() => setAdminSubTab('reels')}
-                    className={`px-3 py-1.5 rounded-lg text-[10.5px] md:text-xs font-bold uppercase transition-all flex items-center gap-2 cursor-pointer ${
+                    className={`px-3.5 py-2 rounded-xl text-[11px] md:text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
                       adminSubTab === 'reels'
-                        ? 'bg-[#FF5500] text-white shadow-md'
+                        ? 'bg-gradient-to-r from-[#FF5500] to-amber-500 text-white shadow-lg shadow-[#FF5500]/30 ring-2 ring-[#FF5500]/40 scale-[1.02]'
                         : currentTheme === 'light'
-                          ? 'bg-slate-50 hover:bg-slate-100 text-slate-700'
-                          : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-400'
+                          ? 'bg-white hover:bg-slate-50 text-slate-800 border border-slate-200/90 shadow-sm hover:border-[#FF5500]/40 font-bold'
+                          : 'bg-zinc-900/90 hover:bg-zinc-800 text-zinc-200 border border-white/10 hover:border-white/20 font-bold'
                     }`}
                   >
-                    <Film size={14} className="text-amber-400" />
-                    <span>₹199 Reels Purchases</span>
+                    <Film size={14} className={adminSubTab === 'reels' ? 'text-white' : currentTheme === 'light' ? 'text-amber-600' : 'text-amber-400'} />
+                    <span>Puja Offer Orders</span>
                   </button>
 
                   <button
                     onClick={() => setAdminSubTab('notifications')}
-                    className={`relative px-3 py-1.5 rounded-lg text-[10.5px] md:text-xs font-bold uppercase transition-all flex items-center gap-2 cursor-pointer ${
+                    className={`relative px-3.5 py-2 rounded-xl text-[11px] md:text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
                       adminSubTab === 'notifications'
-                        ? 'bg-[#FF5500] text-white shadow-md'
+                        ? 'bg-gradient-to-r from-[#FF5500] to-rose-500 text-white shadow-lg shadow-[#FF5500]/30 ring-2 ring-[#FF5500]/40 scale-[1.02]'
                         : currentTheme === 'light'
-                          ? 'bg-slate-50 hover:bg-slate-100 text-slate-700'
-                          : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-400'
+                          ? 'bg-white hover:bg-slate-50 text-slate-800 border border-slate-200/90 shadow-sm hover:border-[#FF5500]/40 font-bold'
+                          : 'bg-zinc-900/90 hover:bg-zinc-800 text-zinc-200 border border-white/10 hover:border-white/20 font-bold'
                     }`}
                   >
-                    <BellRing size={14} className="text-amber-400" />
+                    <BellRing size={14} className={adminSubTab === 'notifications' ? 'text-white' : currentTheme === 'light' ? 'text-[#FF5500]' : 'text-amber-400'} />
                     <span>Alerts &amp; Notifications</span>
                     {adminUnreadNotifs > 0 && (
-                      <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black bg-red-600 text-white animate-pulse">
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black font-mono bg-red-600 text-white shadow-sm ring-2 ring-white/20 animate-pulse">
                         {adminUnreadNotifs}
                       </span>
                     )}
@@ -10487,12 +10491,12 @@ export default function App() {
 
                   <button
                     onClick={() => setAdminSubTab('media')}
-                    className={`px-3 py-1.5 rounded-lg text-[10.5px] md:text-xs font-bold uppercase transition-all flex items-center gap-2 cursor-pointer ${
+                    className={`px-3 py-2 rounded-xl text-[11px] md:text-xs font-bold uppercase transition-all flex items-center gap-2 cursor-pointer ${
                       adminSubTab === 'media'
-                        ? 'bg-[#FF5500] text-white'
+                        ? 'bg-[#FF5500] text-white shadow-md'
                         : currentTheme === 'light'
-                          ? 'bg-slate-50 hover:bg-slate-100 text-slate-700'
-                          : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-400'
+                          ? 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/90 shadow-xs'
+                          : 'bg-zinc-900/90 hover:bg-zinc-800 text-zinc-300 border border-white/10'
                     }`}
                   >
                     <ImageIcon size={14} />
@@ -10501,12 +10505,12 @@ export default function App() {
 
                   <button
                     onClick={() => setAdminSubTab('gallery')}
-                    className={`px-3 py-1.5 rounded-lg text-[10.5px] md:text-xs font-bold uppercase transition-all flex items-center gap-2 cursor-pointer ${
+                    className={`px-3 py-2 rounded-xl text-[11px] md:text-xs font-bold uppercase transition-all flex items-center gap-2 cursor-pointer ${
                       adminSubTab === 'gallery'
-                        ? 'bg-[#FF5500] text-white'
+                        ? 'bg-[#FF5500] text-white shadow-md'
                         : currentTheme === 'light'
-                          ? 'bg-slate-50 hover:bg-slate-100 text-slate-700'
-                          : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-400'
+                          ? 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/90 shadow-xs'
+                          : 'bg-zinc-900/90 hover:bg-zinc-800 text-zinc-300 border border-white/10'
                     }`}
                   >
                     <SlidersHorizontal size={14} />
@@ -10515,12 +10519,12 @@ export default function App() {
 
                   <button
                     onClick={() => setAdminSubTab('inquiries')}
-                    className={`px-3 py-1.5 rounded-lg text-[10.5px] md:text-xs font-bold uppercase transition-all flex items-center gap-2 cursor-pointer ${
+                    className={`px-3 py-2 rounded-xl text-[11px] md:text-xs font-bold uppercase transition-all flex items-center gap-2 cursor-pointer ${
                       adminSubTab === 'inquiries'
-                        ? 'bg-[#FF5500] text-white'
+                        ? 'bg-[#FF5500] text-white shadow-md'
                         : currentTheme === 'light'
-                          ? 'bg-slate-50 hover:bg-slate-100 text-slate-700'
-                          : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-400'
+                          ? 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/90 shadow-xs'
+                          : 'bg-zinc-900/90 hover:bg-zinc-800 text-zinc-300 border border-white/10'
                     }`}
                   >
                     <MessageSquare size={14} />
@@ -10529,12 +10533,12 @@ export default function App() {
 
                   <button
                     onClick={() => setAdminSubTab('instagram')}
-                    className={`px-3 py-1.5 rounded-lg text-[10.5px] md:text-xs font-bold uppercase transition-all flex items-center gap-2 cursor-pointer ${
+                    className={`px-3 py-2 rounded-xl text-[11px] md:text-xs font-bold uppercase transition-all flex items-center gap-2 cursor-pointer ${
                       adminSubTab === 'instagram'
-                        ? 'bg-[#FF5500] text-white'
+                        ? 'bg-[#FF5500] text-white shadow-md'
                         : currentTheme === 'light'
-                          ? 'bg-slate-50 hover:bg-slate-100 text-slate-700'
-                          : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-400'
+                          ? 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/90 shadow-xs'
+                          : 'bg-zinc-900/90 hover:bg-zinc-800 text-zinc-300 border border-white/10'
                     }`}
                   >
                     <Instagram size={14} />
@@ -10543,12 +10547,12 @@ export default function App() {
 
                   <button
                     onClick={() => setAdminSubTab('branding')}
-                    className={`px-3 py-1.5 rounded-lg text-[10.5px] md:text-xs font-bold uppercase transition-all flex items-center gap-2 cursor-pointer ${
+                    className={`px-3 py-2 rounded-xl text-[11px] md:text-xs font-bold uppercase transition-all flex items-center gap-2 cursor-pointer ${
                       adminSubTab === 'branding'
-                        ? 'bg-[#FF5500] text-white'
+                        ? 'bg-[#FF5500] text-white shadow-md'
                         : currentTheme === 'light'
-                          ? 'bg-slate-50 hover:bg-slate-100 text-slate-700'
-                          : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-400'
+                          ? 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/90 shadow-xs'
+                          : 'bg-zinc-900/90 hover:bg-zinc-800 text-zinc-300 border border-white/10'
                     }`}
                   >
                     <Globe size={14} />
@@ -10557,12 +10561,12 @@ export default function App() {
 
                   <button
                     onClick={() => setAdminSubTab('vault')}
-                    className={`px-3 py-1.5 rounded-lg text-[10.5px] md:text-xs font-bold uppercase transition-all flex items-center gap-2 cursor-pointer ${
+                    className={`px-3 py-2 rounded-xl text-[11px] md:text-xs font-bold uppercase transition-all flex items-center gap-2 cursor-pointer ${
                       adminSubTab === 'vault'
-                        ? 'bg-[#FF5500] text-white'
+                        ? 'bg-[#FF5500] text-white shadow-md'
                         : currentTheme === 'light'
-                          ? 'bg-slate-50 hover:bg-slate-100 text-slate-700'
-                          : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-400'
+                          ? 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/90 shadow-xs'
+                          : 'bg-zinc-900/90 hover:bg-zinc-800 text-zinc-300 border border-white/10'
                     }`}
                   >
                     <Lock size={14} />
@@ -10571,12 +10575,12 @@ export default function App() {
 
                   <button
                     onClick={() => setAdminSubTab('deals')}
-                    className={`px-3 py-1.5 rounded-lg text-[10.5px] md:text-xs font-bold uppercase transition-all flex items-center gap-2 cursor-pointer ${
+                    className={`px-3 py-2 rounded-xl text-[11px] md:text-xs font-bold uppercase transition-all flex items-center gap-2 cursor-pointer ${
                       adminSubTab === 'deals'
-                        ? 'bg-[#FF5500] text-white'
+                        ? 'bg-[#FF5500] text-white shadow-md'
                         : currentTheme === 'light'
-                          ? 'bg-slate-50 hover:bg-slate-100 text-slate-700'
-                          : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-400'
+                          ? 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/90 shadow-xs'
+                          : 'bg-zinc-900/90 hover:bg-zinc-800 text-zinc-300 border border-white/10'
                     }`}
                   >
                     <ShoppingBag size={14} />

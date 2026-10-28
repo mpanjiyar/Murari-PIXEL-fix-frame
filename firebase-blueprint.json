@@ -208,18 +208,25 @@
         "upiId": { "type": "string" },
         "receiverName": { "type": "string" },
         "utrReference": { "type": "string" },
+        "transactionId": { "type": "string" },
+        "verificationSource": { "type": "string" },
         "submittedAt": { "type": "string" },
+        "paymentVerifiedAt": { "type": "string" },
         "approvedAt": { "type": "string" },
         "rejectedAt": { "type": "string" },
+        "revokedAt": { "type": "string" },
         "reviewedByAdminId": { "type": "string" },
         "rejectionReason": { "type": "string" },
         "downloadToken": { "type": "string" },
         "downloadExpiresAt": { "type": "integer" },
         "downloadCount": { "type": "integer" },
+        "masterDriveLink": { "type": "string" },
+        "links": { "type": "object" },
+        "auditLogs": { "type": "array" },
         "createdAt": { "type": "string" },
         "updatedAt": { "type": "string" }
       },
-      "required": ["id", "amount", "currency", "status"]
+      "required": ["id"]
     },
     "AdminNotification": {
       "title": "AdminNotification",

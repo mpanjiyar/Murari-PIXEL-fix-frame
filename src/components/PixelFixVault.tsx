@@ -1379,40 +1379,26 @@ export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
         {vaultAccessStatus !== 'approved' && !isAuthorizedAdmin && !token ? (
           <div className="flex-1 flex items-center justify-center p-4 sm:p-6 md:p-10 bg-[#090a12]/95 overflow-y-auto min-h-[500px]">
             {vaultAccessStatus === 'pending_approval' ? (
-              /* STATE 1: PAYMENT PENDING APPROVAL */
-              <div className="w-full max-w-lg bg-[#11121d] border border-amber-500/40 rounded-2xl sm:rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl relative text-left">
-                <div className="text-center space-y-3">
-                  <div className="relative w-16 h-16 mx-auto flex items-center justify-center">
-                    <div className="absolute inset-0 rounded-2xl bg-amber-500/20 blur-md animate-pulse" />
-                    <div className="relative w-16 h-16 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shadow-lg shadow-amber-500/20">
-                      <Clock size={32} className="animate-pulse" />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <span className="inline-block px-3 py-1 rounded-full text-[10px] font-mono font-black uppercase bg-amber-500/20 text-amber-400 border border-amber-500/30">
-                      ⏳ Payment Pending Approval
-                    </span>
-                    <h2 className="text-lg sm:text-xl font-black uppercase tracking-tight text-white font-mono">
-                      Payment Verification In Progress
-                    </h2>
-                    <p className="text-xs text-slate-300 font-mono leading-relaxed max-w-md mx-auto">
-                      Your payment request has been submitted and is awaiting administrator verification by Murari Panjiyar. The Download Vault will unlock automatically once approved.
-                    </p>
-                  </div>
+              /* STATE 1: WAITING FOR ADMIN APPROVAL (STRICT MINIMAL CARD) */
+              <div className="w-full max-w-md bg-[#11121d] border border-amber-500/30 rounded-2xl p-6 sm:p-8 space-y-5 text-center shadow-2xl">
+                <div className="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 mx-auto">
+                  <Clock size={24} className="animate-pulse" />
                 </div>
 
-                {/* Order Summary Box */}
+                <div className="space-y-2">
+                  <h2 className="text-xl font-bold tracking-tight text-white font-mono">
+                    Waiting for Admin Approval
+                  </h2>
+                  <p className="text-xs text-slate-300 font-mono leading-relaxed">
+                    Your payment has been received and your order is waiting for admin approval. Protected files and download links remain strictly locked until explicit administrator verification.
+                  </p>
+                </div>
+
+                {/* Minimal Order Reference */}
                 {activeOrderId && (
-                  <div className="p-4 rounded-2xl bg-black/60 border border-white/10 space-y-2 text-xs font-mono">
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-400">Order Reference:</span>
-                      <span className="font-bold text-amber-400 select-all">{activeOrderId}</span>
-                    </div>
-                    <div className="flex items-center justify-between border-t border-white/5 pt-1.5">
-                      <span className="text-slate-400">Status:</span>
-                      <span className="font-bold text-amber-300">PENDING_ADMIN_REVIEW</span>
-                    </div>
+                  <div className="p-3.5 rounded-xl bg-black/60 border border-white/10 text-xs font-mono flex items-center justify-between">
+                    <span className="text-slate-400">Order ID:</span>
+                    <span className="font-bold text-amber-300 select-all">{activeOrderId}</span>
                   </div>
                 )}
 
@@ -1462,7 +1448,7 @@ export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
                     <button
                       type="button"
                       onClick={onOpenPujaOffer}
-                      className="flex-1 w-full py-3 px-4 rounded-xl font-mono font-black text-xs uppercase bg-gradient-to-r from-amber-400 to-[#FF5500] hover:from-amber-300 hover:to-orange-400 text-black flex items-center justify-center gap-2 cursor-pointer shadow-lg"
+                      className="flex-1 w-full py-3 px-4 rounded-xl font-mono font-black text-xs uppercase bg-gradient-to-r from-amber-400 via-orange-400 to-amber-500 hover:from-amber-300 hover:to-orange-400 text-slate-950 border border-amber-300/50 flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-orange-500/20"
                     >
                       <Sparkles size={14} />
                       <span>Unlock Puja Offer (₹199)</span>
@@ -1507,7 +1493,7 @@ export const PixelFixVault: React.FC<PixelFixVaultProps> = ({
                   <button
                     type="button"
                     onClick={onOpenPujaOffer}
-                    className="w-full py-3.5 px-4 rounded-xl font-mono font-black text-xs uppercase bg-gradient-to-r from-amber-400 via-orange-400 to-[#FF5500] hover:from-amber-300 hover:to-orange-400 text-black shadow-lg shadow-[#FF5500]/25 flex items-center justify-center gap-2 cursor-pointer transition-all"
+                    className="w-full py-3.5 px-4 rounded-xl font-mono font-black text-xs uppercase bg-gradient-to-r from-amber-400 via-orange-400 to-amber-500 hover:from-amber-300 hover:to-orange-400 text-slate-950 border border-amber-300/50 shadow-lg shadow-orange-500/25 flex items-center justify-center gap-2 cursor-pointer transition-all"
                   >
                     <Sparkles size={15} />
                     <span>Unlock Puja Special Offer (₹199)</span>

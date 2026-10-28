@@ -204,11 +204,13 @@ export function StandaloneReelsOfferPage({
     supportPhone: '+91 86388 75231',
   });
 
-  // State (Name & Phone ONLY — NO Delivery Email!)
+  // State (Name & Phone ONLY — strictly blank for new orders)
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [utrNumber, setUtrNumber] = useState('');
+  const [submittedName, setSubmittedName] = useState('');
+  const [submittedPhone, setSubmittedPhone] = useState('');
   const [orderId, setOrderId] = useState('');
   const [submittedUtr, setSubmittedUtr] = useState('');
   const [submittedTime, setSubmittedTime] = useState('');
@@ -249,6 +251,8 @@ export function StandaloneReelsOfferPage({
   // Toast banner
   const [toast, setToast] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
 
+  const isLight = currentTheme === 'light';
+
   const showToast = (text: string, type: 'success' | 'error' | 'info' = 'success') => {
     setToast({ text, type });
     setTimeout(() => setToast(null), 4000);
@@ -282,8 +286,8 @@ export function StandaloneReelsOfferPage({
           .then(res => res.json())
           .then(async data => {
             if (data.success && data.order) {
-              if (data.order.customerName) setCustomerName(data.order.customerName);
-              if (data.order.customerPhone) setCustomerPhone(data.order.customerPhone);
+              if (data.order.customerName) setSubmittedName(data.order.customerName);
+              if (data.order.customerPhone) setSubmittedPhone(data.order.customerPhone);
               if (data.order.utrReference) setSubmittedUtr(data.order.utrReference);
               if (data.order.status === 'APPROVED' || data.order.status === 'approved') {
                 setOrderStatus('approved');
@@ -301,8 +305,8 @@ export function StandaloneReelsOfferPage({
                 const snap = await getDoc(doc(db, 'reels_orders', savedOrderId.trim()));
                 if (snap.exists()) {
                   const liveData = snap.data();
-                  if (liveData.customerName) setCustomerName(liveData.customerName);
-                  if (liveData.customerPhone) setCustomerPhone(liveData.customerPhone);
+                  if (liveData.customerName) setSubmittedName(liveData.customerName);
+                  if (liveData.customerPhone) setSubmittedPhone(liveData.customerPhone);
                   if (liveData.utrReference) setSubmittedUtr(liveData.utrReference);
                   if (liveData.status === 'APPROVED' || liveData.status === 'approved') {
                     setOrderStatus('approved');
@@ -381,16 +385,32 @@ export function StandaloneReelsOfferPage({
         unsubscribeFirestore = onSnapshot(
           doc(db, 'reels_orders', orderId),
           (snapshot) => {
-            if (snapshot.exists()) {
-              const liveData = snapshot.data();
+            if (!snapshot.exists()) {
+              if (orderStatus === 'approved' || orderStatus === 'pending_approval') {
+                setOrderStatus('checkout');
+                setUnlockedDriveLink('');
+                setDownloadToken(null);
+                showToast('Order record was deleted by administrator. Please complete a new purchase to regain access.', 'error');
+              }
+              return;
+            }
+            const liveData = snapshot.data();
+            if (liveData) {
               if (liveData.status === 'APPROVED' || liveData.status === 'approved') {
                 setOrderStatus('approved');
                 const vaultUrl = liveData.masterDriveLink || liveData.links?.masterGoogleDrive || config.masterDriveLink || (orderId ? `/api/reels/vault-access/${orderId}` : '');
                 setUnlockedDriveLink(vaultUrl);
                 setDownloadToken(liveData.downloadToken || ('TOKEN-' + Date.now().toString(36).toUpperCase()));
                 showToast('Your Payment Has Been Verified and Approved!', 'success');
+              } else if (liveData.status === 'REFUNDED') {
+                setOrderStatus('checkout');
+                setUnlockedDriveLink('');
+                setDownloadToken(null);
+                showToast('Access has been revoked by administrator. Please complete a new purchase to regain access.', 'error');
               } else if (liveData.status === 'REJECTED') {
                 setOrderStatus('rejected');
+                setUnlockedDriveLink('');
+                setDownloadToken(null);
                 setRejectionReason(liveData.rejectionReason || 'UPI UTR could not be reconciled in BharatPe settlement.');
                 showToast('Your order has been rejected. Please contact support for assistance.', 'error');
               } else if (liveData.status === 'PENDING_ADMIN_REVIEW' || liveData.status === 'PENDING_APPROVAL' || liveData.status === 'PENDING_PAYMENT') {
@@ -422,8 +442,20 @@ export function StandaloneReelsOfferPage({
               setUnlockedDriveLink(vaultUrl);
               setDownloadToken(payload.downloadToken || ('TOKEN-' + Date.now().toString(36).toUpperCase()));
               showToast('Your Payment Has Been Verified and Approved!', 'success');
+            } else if (payload.eventType === 'ACCESS_REVOKED' || payload.status === 'REFUNDED') {
+              setOrderStatus('checkout');
+              setUnlockedDriveLink('');
+              setDownloadToken(null);
+              showToast('Access has been revoked by administrator. Please complete a new purchase to regain access.', 'error');
+            } else if (payload.eventType === 'ORDER_DELETED') {
+              setOrderStatus('checkout');
+              setUnlockedDriveLink('');
+              setDownloadToken(null);
+              showToast('Order was deleted. Please complete a new purchase to regain access.', 'error');
             } else if (payload.eventType === 'ORDER_REJECTED' || payload.status === 'REJECTED') {
               setOrderStatus('rejected');
+              setUnlockedDriveLink('');
+              setDownloadToken(null);
               setRejectionReason(payload.rejectionReason || 'UPI UTR could not be reconciled in BharatPe settlement.');
               showToast('Your order has been rejected. Please contact support for assistance.', 'error');
             }
@@ -563,6 +595,11 @@ export function StandaloneReelsOfferPage({
         setOrderId(assignedId);
         setSubmittedUtr(cleanUtr);
         setSubmittedTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+        setSubmittedName(customerName.trim());
+        setSubmittedPhone(cleanPhone);
+        setCustomerName('');
+        setCustomerPhone('');
+        setUtrNumber('');
 
         // Also write/sync to Firestore for multi-device instant propagation
         if (db) {
@@ -683,6 +720,11 @@ export function StandaloneReelsOfferPage({
 
           setSubmittedUtr(cleanUtr);
           setSubmittedTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+          setSubmittedName(customerName.trim());
+          setSubmittedPhone(cleanPhone);
+          setCustomerName('');
+          setCustomerPhone('');
+          setUtrNumber('');
           setOrderStatus('pending_approval');
           showToast('Payment details saved. Murari Panjiyar has been notified for verification.', 'info');
           return;
@@ -808,8 +850,8 @@ export function StandaloneReelsOfferPage({
     if (resolvedOrder) {
       setOrderId(resolvedOrder.id);
       localStorage.setItem('last_reels_order_id', resolvedOrder.id);
-      if (resolvedOrder.customerName) setCustomerName(resolvedOrder.customerName);
-      if (resolvedOrder.customerPhone) setCustomerPhone(resolvedOrder.customerPhone);
+      if (resolvedOrder.customerName) setSubmittedName(resolvedOrder.customerName);
+      if (resolvedOrder.customerPhone) setSubmittedPhone(resolvedOrder.customerPhone);
       if (resolvedOrder.utrReference) setSubmittedUtr(resolvedOrder.utrReference);
 
       const normStatus = String(resolvedOrder.status || '').toUpperCase();
@@ -1518,70 +1560,66 @@ export function StandaloneReelsOfferPage({
                 </button>
               </div>
 
-              {/* STATE 1: APPROVED STATE (Only unlocked when Murari approves in admin) */}
+              {/* STATE 1: APPROVED STATE — HIGH CONTRAST & CLEAN CONFIRMATION (NO LINKS) */}
               {orderStatus === 'approved' ? (
-                <div className="space-y-6 py-2">
-                  <div className="p-5 rounded-2xl bg-emerald-950/40 border border-emerald-500/40 text-center space-y-2">
-                    <div className="w-14 h-14 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto shadow-lg shadow-emerald-500/20">
-                      <CheckCircle2 size={32} />
+                <div className="space-y-6 max-w-lg mx-auto py-6">
+                  <div className={`p-8 rounded-3xl border text-center space-y-4 shadow-xl transition-all ${
+                    isLight ? 'bg-emerald-50 border-emerald-300 text-slate-900 shadow-emerald-100/50' : 'bg-emerald-950/40 border-emerald-500/40 text-white'
+                  }`}>
+                    <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto border ${
+                      isLight ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                    }`}>
+                      <CheckCircle2 size={36} />
                     </div>
-                    <h4 className="text-xl font-black text-white">Your Payment Has Been Verified and Approved!</h4>
-                    <p className="text-xs text-emerald-300 max-w-xl mx-auto">
-                      Murari Panjiyar has verified your ₹199 UPI payment against BharatPe records. Your authorized access to the complete 150K+ Mega Pack Bundle Directory is unlocked below!
+                    <div className="space-y-2">
+                      <div className={`inline-block px-3 py-1 rounded-full text-[11px] font-mono font-bold uppercase tracking-wider ${
+                        isLight ? 'bg-emerald-200/90 text-emerald-950 border border-emerald-300' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                      }`}>
+                        Payment Confirmed
+                      </div>
+                      <h4 className={`text-xl sm:text-2xl font-black font-mono tracking-tight ${isLight ? "text-emerald-950" : "text-emerald-400"}`}>
+                        Your Payment Has Been Verified and Approved!
+                      </h4>
+                      <p className={`text-xs sm:text-sm leading-relaxed font-mono ${isLight ? 'text-slate-700 font-medium' : 'text-zinc-300'}`}>
+                        Administrator Murari Panjiyar has confirmed and approved your ₹{config.productPrice} order.
+                      </p>
+                    </div>
+                    {orderId && (
+                      <div className={`p-3.5 rounded-xl border font-mono text-xs flex items-center justify-between ${
+                        isLight ? "bg-white border-slate-300 text-slate-900 shadow-xs" : "bg-black/40 border-white/10 text-white"
+                      }`}>
+                        <span className={isLight ? "text-slate-600 font-bold" : "text-zinc-400"}>Order Reference:</span>
+                        <span className={`font-mono font-black select-all ${isLight ? "text-emerald-900" : "text-emerald-400"}`}>{orderId}</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className={`p-4 rounded-2xl border text-center space-y-2.5 ${
+                    isLight ? 'bg-amber-50 border-amber-300 text-slate-900' : 'bg-amber-500/10 border-amber-500/20 text-white'
+                  }`}>
+                    <p className={`text-xs font-mono font-bold ${isLight ? 'text-amber-950' : 'text-amber-300'}`}>
+                      Need to purchase another license or submit payment for another person?
                     </p>
-                  </div>
-
-                  {/* Render the full interactive Clickable Bundle Directory with 53 cards */}
-                  <MegaPackBundleDirectory
-                    masterDriveLink={unlockedDriveLink || (orderId ? `/api/reels/vault-access/${orderId}` : '')}
-                    downloadToken={downloadToken}
-                    customerName={customerName}
-                    orderId={orderId}
-                    customerPhone={customerPhone}
-                    isUnlocked={orderStatus === 'approved' || orderStatus === 'APPROVED'}
-                    orderStatus={orderStatus}
-                    onCopyLink={handleCopy}
-                    copiedLabel={copiedLink}
-                  />
-
-                  {/* Direct API Token Link */}
-                  {downloadToken && (
-                    <div className="p-3.5 rounded-xl bg-black/60 border border-white/10 flex items-center justify-between gap-3 text-xs font-mono">
-                      <span className="text-zinc-400 truncate">Cryptographic Token: {downloadToken.slice(0, 24)}...</span>
-                      <a
-                        href={`/api/reels/download/${downloadToken}?category=all`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white shrink-0 flex items-center gap-1.5"
-                      >
-                        <Download size={13} />
-                        <span>Direct API</span>
-                      </a>
-                    </div>
-                  )}
-
-                  {/* Order Receipt and Support */}
-                  <div className="p-4 rounded-xl bg-black/40 border border-white/5 text-[11px] text-zinc-400 space-y-1">
-                    <strong className="text-zinc-300 block font-mono">💡 Order Receipt &amp; Usage Rights:</strong>
-                    <p>• Save your Order Reference (<strong>{orderId}</strong>) or registered phone number (<strong>{customerPhone}</strong>) for retrieval.</p>
-                    <p>• Commercial editing permitted for YouTube Shorts, Instagram Reels, and TikTok.</p>
-                    <p>• Need support? Murari Panjiyar is available at {config.supportPhone} or {config.supportEmail}.</p>
-                  </div>
-
-                  <div className="pt-2 text-center">
                     <button
                       type="button"
                       onClick={() => {
                         setOrderId('');
+                        setCustomerName('');
+                        setCustomerPhone('');
+                        setSubmittedName('');
+                        setSubmittedPhone('');
                         setUtrNumber('');
                         setSubmittedUtr('');
                         setOrderStatus('checkout');
                         setDownloadToken('');
                         setUnlockedDriveLink('');
+                        try {
+                          localStorage.removeItem('last_reels_order_id');
+                        } catch {}
                       }}
-                      className="text-xs font-mono text-zinc-400 hover:text-white underline cursor-pointer"
+                      className="py-2.5 px-5 rounded-xl text-xs font-mono font-black bg-amber-400 text-slate-950 hover:bg-amber-300 cursor-pointer shadow-md transition-transform active:scale-95 inline-flex items-center gap-2 border border-amber-500/40"
                     >
-                      Unlock another pack / Place new order →
+                      <Zap size={14} className="fill-slate-950" />
+                      <span>Make a New Payment / Submit Another Order →</span>
                     </button>
                   </div>
                 </div>
@@ -1612,11 +1650,11 @@ export function StandaloneReelsOfferPage({
                     </div>
                     <div className="flex justify-between items-center border-b border-white/5 pb-1.5">
                       <span className="text-zinc-400">Customer Name:</span>
-                      <strong className="text-white">{customerName}</strong>
+                      <strong className="text-white">{submittedName || customerName}</strong>
                     </div>
                     <div className="flex justify-between items-center border-b border-white/5 pb-1.5">
                       <span className="text-zinc-400">Phone Number:</span>
-                      <strong className="text-white">{customerPhone}</strong>
+                      <strong className="text-white">{submittedPhone || customerPhone}</strong>
                     </div>
                     <div className="flex justify-between items-center border-b border-white/5 pb-1.5">
                       <span className="text-zinc-400">Amount Paid:</span>
@@ -2176,7 +2214,7 @@ export function StandaloneReelsOfferPage({
                   {adminDrawerTab === 'orders' && (
                     <div className="pt-2">
                       <AdminPurchaseManager
-                        currentTheme="dark"
+                        currentTheme={currentTheme === "light" ? "light" : "dark"}
                         triggerToast={(msg, t) => showToast(msg, t)}
                       />
                     </div>
@@ -2186,7 +2224,7 @@ export function StandaloneReelsOfferPage({
                   {adminDrawerTab === 'notifications' && (
                     <div className="pt-2">
                       <AdminNotificationsPanel
-                        currentTheme="dark"
+                        currentTheme={currentTheme === "light" ? "light" : "dark"}
                         triggerToast={(msg, t) => showToast(msg, t)}
                         onOpenOrderReview={() => setAdminDrawerTab('orders')}
                       />

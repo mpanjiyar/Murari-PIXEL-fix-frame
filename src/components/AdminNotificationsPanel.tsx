@@ -105,19 +105,12 @@ export const AdminNotificationsPanel: React.FC<AdminNotificationsPanelProps> = (
               }
             });
 
-            if (liveNotifs.length > 0) {
-              setNotifications((prev) => {
-                const map = new Map<string, AdminAlertNotification>();
-                prev.forEach((n) => map.set(n.id, n));
-                liveNotifs.forEach((n) => map.set(n.id, { ...(map.get(n.id) || {}), ...n }));
-                const merged = Array.from(map.values()).sort(
-                  (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-                );
-                setUnreadCount(merged.filter((n) => !n.readAt).length);
-                return merged;
-              });
-              setIsLoading(false);
-            }
+            liveNotifs.sort(
+              (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+            );
+            setNotifications(liveNotifs);
+            setUnreadCount(liveNotifs.filter((n) => !n.readAt).length);
+            setIsLoading(false);
           },
           (err) => {
             console.warn('Firestore notifications live listener note:', err);
@@ -208,6 +201,7 @@ export const AdminNotificationsPanel: React.FC<AdminNotificationsPanelProps> = (
         await setDoc(
           doc(db, 'reels_orders', orderId),
           {
+            id: orderId,
             status: 'APPROVED',
             verificationSource: 'manual_admin',
             approvedAt: nowIso,
@@ -285,13 +279,13 @@ export const AdminNotificationsPanel: React.FC<AdminNotificationsPanelProps> = (
   const getSeverityBadge = (sev: AdminNotificationSeverity) => {
     switch (sev) {
       case 'CRITICAL':
-        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-black uppercase bg-red-600 text-white"><AlertOctagon size={11} /> CRITICAL</span>;
+        return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[10px] font-mono font-black uppercase bg-red-600 text-white shadow-xs"><AlertOctagon size={11} /> CRITICAL</span>;
       case 'ERROR':
-        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase bg-rose-500/20 text-rose-400 border border-rose-500/30"><XCircle size={11} /> ERROR</span>;
+        return <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[10px] font-mono uppercase ${isLight ? 'bg-rose-100 text-rose-800 border border-rose-300 font-black' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30 font-bold'}`}><XCircle size={11} /> ERROR</span>;
       case 'WARNING':
-        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase bg-amber-500/20 text-amber-400 border border-amber-500/30"><AlertTriangle size={11} /> WARNING</span>;
+        return <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[10px] font-mono uppercase ${isLight ? 'bg-amber-100 text-amber-900 border border-amber-300 font-black' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30 font-bold'}`}><AlertTriangle size={11} /> WARNING</span>;
       default:
-        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase bg-blue-500/20 text-blue-400 border border-blue-500/30"><Info size={11} /> INFO</span>;
+        return <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[10px] font-mono uppercase ${isLight ? 'bg-blue-100 text-blue-900 border border-blue-300 font-black' : 'bg-blue-500/20 text-blue-400 border border-blue-500/30 font-bold'}`}><Info size={11} /> INFO</span>;
     }
   };
 
@@ -385,10 +379,10 @@ export const AdminNotificationsPanel: React.FC<AdminNotificationsPanelProps> = (
                 key={tab.id}
                 type="button"
                 onClick={() => setTypeFilter(tab.id as any)}
-                className={`px-2.5 py-1.5 rounded-lg text-[10px] font-mono font-bold whitespace-nowrap transition-colors cursor-pointer ${
+                className={`px-3 py-1.5 rounded-lg text-[10.5px] font-mono font-bold whitespace-nowrap transition-colors cursor-pointer ${
                   typeFilter === tab.id
-                    ? 'bg-[#FF5500] text-white'
-                    : isLight ? 'bg-white border border-slate-200 text-slate-700' : 'bg-black/60 border border-white/10 text-zinc-300'
+                    ? 'bg-[#FF5500] text-white shadow-xs'
+                    : isLight ? 'bg-white border border-slate-300 text-slate-800 hover:bg-slate-50' : 'bg-black/60 border border-white/10 text-zinc-300'
                 }`}
               >
                 {tab.label}
@@ -404,10 +398,10 @@ export const AdminNotificationsPanel: React.FC<AdminNotificationsPanelProps> = (
                 key={sev}
                 type="button"
                 onClick={() => setSeverityFilter(sev as any)}
-                className={`px-2 py-1.5 rounded-lg text-[10px] font-mono font-bold whitespace-nowrap transition-colors cursor-pointer ${
+                className={`px-2.5 py-1.5 rounded-lg text-[10.5px] font-mono font-bold whitespace-nowrap transition-colors cursor-pointer ${
                   severityFilter === sev
-                    ? 'bg-amber-500 text-black'
-                    : isLight ? 'bg-white border border-slate-200 text-slate-700' : 'bg-black/60 border border-white/10 text-zinc-300'
+                    ? 'bg-amber-500 text-black font-black shadow-xs'
+                    : isLight ? 'bg-white border border-slate-300 text-slate-800 hover:bg-slate-50' : 'bg-black/60 border border-white/10 text-zinc-300'
                 }`}
               >
                 {sev}
@@ -421,11 +415,11 @@ export const AdminNotificationsPanel: React.FC<AdminNotificationsPanelProps> = (
       <div className="space-y-3">
         {filtered.length === 0 ? (
           <div className={`p-12 rounded-3xl border text-center space-y-3 ${
-            isLight ? 'bg-white border-slate-200 text-slate-600' : 'bg-zinc-950/50 border-white/5 text-zinc-400'
+            isLight ? 'bg-white border-slate-200 text-slate-600 shadow-sm' : 'bg-zinc-950/50 border-white/5 text-zinc-400'
           }`}>
-            <CheckCircle2 size={36} className="mx-auto text-emerald-400" />
-            <h4 className="font-bold text-sm text-white">All Clear — No Notifications Found</h4>
-            <p className="text-xs max-w-sm mx-auto">
+            <CheckCircle2 size={36} className="mx-auto text-emerald-500" />
+            <h4 className={`font-bold text-sm ${isLight ? 'text-slate-900' : 'text-white'}`}>All Clear — No Notifications Found</h4>
+            <p className={`text-xs max-w-sm mx-auto ${isLight ? 'text-slate-600' : 'text-zinc-400'}`}>
               There are no alerts matching your criteria. New payment review submissions and system warnings will appear here in real-time.
             </p>
           </div>
@@ -440,11 +434,11 @@ export const AdminNotificationsPanel: React.FC<AdminNotificationsPanelProps> = (
                 className={`p-4 sm:p-5 rounded-2xl border transition-all relative overflow-hidden ${
                   isUnread
                     ? isLight
-                      ? 'bg-amber-50/60 border-amber-300 shadow-sm'
+                      ? 'bg-amber-50/90 border-amber-300 shadow-sm'
                       : 'bg-zinc-900/90 border-[#FF5500]/40 shadow-lg shadow-[#FF5500]/5'
                     : isLight
-                    ? 'bg-white border-slate-200 opacity-80'
-                    : 'bg-zinc-950/60 border-white/5 opacity-80'
+                    ? 'bg-white border-slate-200 shadow-xs'
+                    : 'bg-zinc-950/60 border-white/10 opacity-80'
                 }`}
               >
                 {/* Visual Unread Accent Indicator */}
@@ -456,15 +450,19 @@ export const AdminNotificationsPanel: React.FC<AdminNotificationsPanelProps> = (
                   <div className="space-y-2 flex-1 pl-1">
                     <div className="flex flex-wrap items-center gap-2">
                       {getSeverityBadge(notif.severity)}
-                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-white/10 text-zinc-300 font-bold">
+                      <span className={`text-[10px] font-mono px-2 py-0.5 rounded ${
+                        isLight ? 'bg-slate-200 text-slate-800 border border-slate-300 font-bold' : 'bg-white/10 text-zinc-300 font-bold'
+                      }`}>
                         {notif.type}
                       </span>
                       {notif.relatedOrderId && (
-                        <span className="text-[11px] font-mono font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                        <span className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded border ${
+                          isLight ? 'text-amber-900 bg-amber-100 border-amber-300 font-black' : 'text-amber-400 bg-amber-500/10 border-amber-500/20'
+                        }`}>
                           {notif.relatedOrderId}
                         </span>
                       )}
-                      <span className="text-[10px] font-mono text-zinc-400 flex items-center gap-1">
+                      <span className={`text-[10px] font-mono flex items-center gap-1 ${isLight ? 'text-slate-500' : 'text-zinc-400'}`}>
                         <Clock size={11} />
                         {new Date(notif.createdAt).toLocaleString('en-IN', {
                           day: '2-digit',
@@ -492,20 +490,24 @@ export const AdminNotificationsPanel: React.FC<AdminNotificationsPanelProps> = (
                     {(notif.customerName || notif.utrReference || notif.customerPhone) && (
                       <div className="flex flex-wrap items-center gap-3 pt-1 text-[11px] font-mono">
                         {notif.customerName && (
-                          <span className="flex items-center gap-1 text-zinc-300">
+                          <span className={`flex items-center gap-1 ${isLight ? 'text-slate-800' : 'text-zinc-200'}`}>
                             <User size={12} className="text-[#FF5500]" />
                             <strong>{notif.customerName}</strong>
                           </span>
                         )}
                         {notif.customerPhone && (
-                          <span className="flex items-center gap-1 text-zinc-300">
-                            <Phone size={12} className="text-emerald-400" />
+                          <span className={`flex items-center gap-1 ${isLight ? 'text-slate-800' : 'text-zinc-200'}`}>
+                            <Phone size={12} className="text-emerald-500" />
                             <span>{notif.customerPhone}</span>
                           </span>
                         )}
                         {notif.utrReference && (
-                          <span className="flex items-center gap-1 bg-black/60 px-2.5 py-1 rounded-lg border border-white/10 text-amber-300">
-                            <Tag size={12} className="text-amber-400" />
+                          <span className={`flex items-center gap-1 px-2.5 py-1 rounded-lg border ${
+                            isLight
+                              ? 'bg-amber-100/90 border-amber-300 text-amber-950 font-bold shadow-xs'
+                              : 'bg-black/60 border-white/10 text-amber-300'
+                          }`}>
+                            <Tag size={12} className={isLight ? 'text-amber-700' : 'text-amber-400'} />
                             <span>UTR: <strong className="tracking-widest">{notif.utrReference}</strong></span>
                           </span>
                         )}
@@ -545,7 +547,9 @@ export const AdminNotificationsPanel: React.FC<AdminNotificationsPanelProps> = (
                       <button
                         type="button"
                         onClick={() => handleMarkAsRead(notif.id)}
-                        className="text-[11px] font-mono text-zinc-400 hover:text-white px-2 py-1 cursor-pointer transition-colors"
+                        className={`text-[11px] font-mono px-2 py-1 cursor-pointer transition-colors ${
+                          isLight ? 'text-slate-500 hover:text-slate-900' : 'text-zinc-400 hover:text-white'
+                        }`}
                       >
                         Dismiss / Mark Read
                       </button>
