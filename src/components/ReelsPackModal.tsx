@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import QRCode from 'qrcode';
 import {
@@ -333,11 +333,21 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
   }, [orderId]);
 
   // Active Order ID to track in real-time (from active lookup result, state, or localStorage)
-  const activeTrackDocId = lookupResult?.id || orderId || (typeof window !== 'undefined' ? localStorage.getItem('last_reels_order_id') || '' : '');
+  // Decoupled: when in checkout with orderStatus === 'PENDING_PAYMENT', do NOT track a previous order
+  // unless user is explicitly on the Track tab with an active lookup result.
+  const activeTrackDocId = useMemo(() => {
+    if (activeTab === 'track' && lookupResult?.id) {
+      return lookupResult.id;
+    }
+    if (orderStatus === 'PENDING_ADMIN_REVIEW' || orderStatus === 'APPROVED' || orderStatus === 'REJECTED' || orderStatus === 'REFUNDED') {
+      return lookupResult?.id || submittedOrderSummary?.id || orderId || (typeof window !== 'undefined' ? localStorage.getItem('last_reels_order_id') || '' : '');
+    }
+    return '';
+  }, [activeTab, lookupResult?.id, orderStatus, submittedOrderSummary?.id, orderId]);
 
   // Real-Time Listener: Multi-Device Firestore onSnapshot + SSE Backup + Live Polling
   useEffect(() => {
-    if (!activeTrackDocId) return;
+    if (!activeTrackDocId || (activeTab === 'checkout' && orderStatus === 'PENDING_PAYMENT')) return;
 
     // 1. Direct real-time Firestore listener across all devices
     let unsubscribeFirestore: (() => void) | null = null;
@@ -587,10 +597,16 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
 
   // Completely resets order and form state so a new customer or new order starts 100% clean
   const handleStartNewOrder = () => {
+    // 1. Generate a clean fresh order ID so the QR code and payment note have a fresh reference
+    const freshOrderId = `RP-${Date.now().toString(36).toUpperCase()}-${Math.floor(Math.random() * 900 + 100)}`;
+    setOrderId(freshOrderId);
+
+    // 2. Clear customer input fields
     setCustomerName('');
     setCustomerPhone('');
     setUtrNumber('');
-    setOrderId('');
+
+    // 3. Clear previous order summaries and tokens
     setSubmittedOrderSummary(null);
     setOrderStatus('PENDING_PAYMENT');
     setStatusMessage('');
@@ -599,10 +615,25 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
     setMasterDriveUrl('');
     setSubmitErrorMessage('');
     setSubmissionStatusText('');
+
+    // 4. Clear lookup states so real-time listeners don't retain prior tracked record
+    setLookupResult(null);
+    setLookupQuery('');
+    setLookupError('');
+    setVerifyOrderIdInput('');
+
+    // 5. Ensure active tab is checkout
+    setActiveTab('checkout');
+
+    // 6. Clean up stored IDs
     try {
       localStorage.removeItem('last_reels_order_id');
       localStorage.removeItem('pixelfix_reels_order_status');
     } catch {}
+
+    if (triggerToast) {
+      triggerToast('Ready for new payment! Scan UPI QR or use UPI ID, then enter your details below.', 'info');
+    }
   };
 
   // Submit UTR for Admin Verification (STRICT ADMIN APPROVAL BEFORE ACCESS)
@@ -1302,18 +1333,18 @@ export const ReelsPackModal: React.FC<ReelsPackModalProps> = ({
                       </div>
                     </div>
                   </div>
-                  <div className={`p-4 rounded-2xl border text-center space-y-2.5 ${
-                    isLight ? 'bg-amber-50 border-amber-300 text-slate-900' : 'bg-amber-500/10 border-amber-500/20 text-white'
+                  <div className={`p-4 sm:p-5 rounded-2xl border text-center space-y-3 ${
+                    isLight ? 'bg-amber-50/90 border-amber-300 text-slate-900 shadow-sm' : 'bg-amber-500/10 border-amber-500/20 text-white'
                   }`}>
-                    <p className={`text-xs font-mono font-bold ${isLight ? 'text-amber-950' : 'text-amber-300'}`}>
+                    <p className={`text-xs sm:text-sm font-mono font-bold ${isLight ? 'text-amber-950' : 'text-amber-300'}`}>
                       Need to purchase another license or submit payment for another person?
                     </p>
                     <button
                       type="button"
                       onClick={handleStartNewOrder}
-                      className="py-2.5 px-5 rounded-xl text-xs font-mono font-black bg-amber-400 text-slate-950 hover:bg-amber-300 cursor-pointer shadow-md transition-transform active:scale-95 inline-flex items-center gap-2 border border-amber-500/40"
+                      className="w-full sm:w-auto py-3 px-6 rounded-xl text-xs sm:text-sm font-mono font-black bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 cursor-pointer shadow-lg shadow-amber-500/20 hover:shadow-amber-500/35 transition-all duration-200 active:scale-95 inline-flex items-center justify-center gap-2.5 border border-amber-500/60 uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-amber-500/50"
                     >
-                      <Zap size={14} className="fill-slate-950" />
+                      <Zap size={16} className="fill-slate-950 text-slate-950 shrink-0" />
                       <span>Make a New Payment / Submit Another Order →</span>
                     </button>
                   </div>

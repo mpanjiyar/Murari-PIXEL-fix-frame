@@ -376,7 +376,7 @@ export function StandaloneReelsOfferPage({
 
   // REAL-TIME APPROVAL LISTENER: Unlocks access only when Murari approves (Multi-Device Firestore + SSE)
   useEffect(() => {
-    if (!orderId) return;
+    if (!orderId || orderStatus === 'checkout') return;
 
     // 1. Direct Firestore real-time listener across all devices
     let unsubscribeFirestore: (() => void) | null = null;
@@ -1663,16 +1663,17 @@ export function StandaloneReelsOfferPage({
                       </div>
                     </div>
                   </div>
-                  <div className={`p-4 rounded-2xl border text-center space-y-2.5 ${
-                    isLight ? 'bg-amber-50 border-amber-300 text-slate-900' : 'bg-amber-500/10 border-amber-500/20 text-white'
+                  <div className={`p-4 sm:p-5 rounded-2xl border text-center space-y-3 ${
+                    isLight ? 'bg-amber-50/90 border-amber-300 text-slate-900 shadow-sm' : 'bg-amber-500/10 border-amber-500/20 text-white'
                   }`}>
-                    <p className={`text-xs font-mono font-bold ${isLight ? 'text-amber-950' : 'text-amber-300'}`}>
+                    <p className={`text-xs sm:text-sm font-mono font-bold ${isLight ? 'text-amber-950' : 'text-amber-300'}`}>
                       Need to purchase another license or submit payment for another person?
                     </p>
                     <button
                       type="button"
                       onClick={() => {
-                        setOrderId('');
+                        const freshId = `RP-${Date.now().toString(36).toUpperCase()}-${Math.floor(Math.random() * 900 + 100)}`;
+                        setOrderId(freshId);
                         setCustomerName('');
                         setCustomerPhone('');
                         setSubmittedName('');
@@ -1684,11 +1685,13 @@ export function StandaloneReelsOfferPage({
                         setUnlockedDriveLink('');
                         try {
                           localStorage.removeItem('last_reels_order_id');
+                          localStorage.removeItem('pixelfix_reels_order_status');
                         } catch {}
+                        showToast('Ready for new payment! Scan UPI QR or enter your payment details below.', 'info');
                       }}
-                      className="py-2.5 px-5 rounded-xl text-xs font-mono font-black bg-amber-400 text-slate-950 hover:bg-amber-300 cursor-pointer shadow-md transition-transform active:scale-95 inline-flex items-center gap-2 border border-amber-500/40"
+                      className="w-full sm:w-auto py-3 px-6 rounded-xl text-xs sm:text-sm font-mono font-black bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 cursor-pointer shadow-lg shadow-amber-500/20 hover:shadow-amber-500/35 transition-all duration-200 active:scale-95 inline-flex items-center justify-center gap-2.5 border border-amber-500/60 uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-amber-500/50"
                     >
-                      <Zap size={14} className="fill-slate-950" />
+                      <Zap size={16} className="fill-slate-950 text-slate-950 shrink-0" />
                       <span>Make a New Payment / Submit Another Order →</span>
                     </button>
                   </div>
